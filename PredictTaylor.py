@@ -13,6 +13,7 @@ END_DATE = "2025-01-01"
 MONTHS_TO_PROJECT = 120
 ROLLING_WINDOW = 6
 RANDOM_SEED = 42
+MODEL_DEVIATION_WEIGHT = 0.35
 
 
 @dataclass
@@ -86,6 +87,7 @@ def load_price_history(
 
 def build_feature_frame(monthly_close: pd.Series, window: int = ROLLING_WINDOW) -> pd.DataFrame:
     frame = pd.DataFrame({"Close": monthly_close})
+    frame["Monthly_Return"] = frame["Close"].pct_change()
     frame["Lag1"] = frame["Close"].pct_change()
     frame["MA_Ratio"] = frame["Close"] / frame["Close"].rolling(window=window).mean()
     frame["Vol"] = frame["Lag1"].rolling(window=window).std()
@@ -93,15 +95,17 @@ def build_feature_frame(monthly_close: pd.Series, window: int = ROLLING_WINDOW) 
     return frame.dropna()
 
 
-def train_model(feature_frame: pd.DataFrame) -> tuple[RandomForestRegressor, float]:
+def train_model(feature_frame: pd.DataFrame) -> tuple[RandomForestRegressor, float, float, float]:
     feature_columns = ["Lag1", "MA_Ratio", "Vol"]
     split = int(len(feature_frame) * 0.8)
     if split <= 0 or split >= len(feature_frame):
         raise ValueError("Not enough data to train and test the model.")
 
+    historical_monthly_mean = float(feature_frame["Monthly_Return"].mean())
     x_train = feature_frame.iloc[:split][feature_columns]
-    y_train = feature_frame.iloc[:split]["Target"]
+    y_train = feature_frame.iloc[:split]["Target"] - historical_monthly_mean
     x_test = feature_frame.iloc[split:][feature_columns]
+    residual_scale = float(y_train.std())
 
     model = RandomForestRegressor(
         n_estimators=100,
@@ -111,28 +115,33 @@ def train_model(feature_frame: pd.DataFrame) -> tuple[RandomForestRegressor, flo
     model.fit(x_train, y_train)
 
     noise_scale = float(x_test["Vol"].mean()) if not x_test.empty else float(feature_frame["Vol"].mean())
-    return model, noise_scale
+    return model, noise_scale, historical_monthly_mean, residual_scale
 
 
 def get_next_month_roi(
     current_features: list[float],
     model: RandomForestRegressor,
     noise_scale: float,
+    historical_monthly_mean: float,
+    residual_scale: float,
     rng: np.random.Generator,
 ) -> float:
     feature_frame = pd.DataFrame(
         [current_features],
         columns=["Lag1", "MA_Ratio", "Vol"],
     )
-    predicted_roi = float(model.predict(feature_frame)[0])
+    predicted_excess_roi = float(model.predict(feature_frame)[0])
+    bounded_excess_roi = float(np.clip(predicted_excess_roi, -residual_scale, residual_scale))
     noise = float(rng.normal(0, noise_scale))
-    return predicted_roi + noise
+    return historical_monthly_mean + MODEL_DEVIATION_WEIGHT * bounded_excess_roi + noise
 
 
 def generate_projection(
     monthly_close: pd.Series,
     model: RandomForestRegressor,
     noise_scale: float,
+    historical_monthly_mean: float,
+    residual_scale: float,
     months_to_project: int = MONTHS_TO_PROJECT,
     window: int = ROLLING_WINDOW,
 ) -> SavingsProjection:
@@ -146,7 +155,14 @@ def generate_projection(
         ma_ratio = float(simulated_close.iloc[-1] / simulated_close.rolling(window=window).mean().iloc[-1])
         vol = float(last_returns.rolling(window=window).std().iloc[-1])
 
-        next_roi = get_next_month_roi([lag1, ma_ratio, vol], model, noise_scale, rng)
+        next_roi = get_next_month_roi(
+            [lag1, ma_ratio, vol],
+            model,
+            noise_scale,
+            historical_monthly_mean,
+            residual_scale,
+            rng,
+        )
         next_month = simulated_close.index[-1] + pd.offsets.MonthEnd(1)
         next_close = simulated_close.iloc[-1] * (1 + next_roi)
 
@@ -159,8 +175,14 @@ def generate_projection(
 def main() -> None:
     monthly_close = load_price_history()
     feature_frame = build_feature_frame(monthly_close)
-    model, noise_scale = train_model(feature_frame)
-    projection = generate_projection(monthly_close, model, noise_scale)
+    model, noise_scale, historical_monthly_mean, residual_scale = train_model(feature_frame)
+    projection = generate_projection(
+        monthly_close,
+        model,
+        noise_scale,
+        historical_monthly_mean,
+        residual_scale,
+    )
     print(projection)
     plot_projection_roi(projection)
 

@@ -1,0 +1,193 @@
+import argparse
+from dataclasses import dataclass, field
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import yfinance as yf
+
+
+TICKER = "SPY"
+START_DATE = "2010-01-01"
+END_DATE = "2025-01-01"
+MONTHS_TO_PROJECT = 120
+ROLLING_AVERAGE_WINDOW = 12
+
+
+@dataclass
+class MonthlySavingsRoi:
+    month: pd.Timestamp
+    roi: float
+    rolling_average_12m: float
+
+
+@dataclass
+class SavingsProjection:
+    monthly_roi: list[MonthlySavingsRoi] = field(default_factory=list)
+
+    def add(self, month: pd.Timestamp, roi: float) -> None:
+        recent_roi = [item.roi for item in self.monthly_roi[-(ROLLING_AVERAGE_WINDOW - 1):]]
+        recent_roi.append(roi)
+        rolling_average_12m = float(np.mean(recent_roi))
+        self.monthly_roi.append(
+            MonthlySavingsRoi(
+                month=month,
+                roi=roi,
+                rolling_average_12m=rolling_average_12m,
+            )
+        )
+
+    def __str__(self) -> str:
+        lines = ["Projected monthly ROI"]
+        for item in self.monthly_roi:
+            lines.append(
+                f"{item.month.strftime('%Y-%m')}: ROI {item.roi:.2%}, "
+                f"12M Avg {item.rolling_average_12m:.2%}"
+            )
+        lines.append(f"Ending growth of $1.00: ${self.ending_value():.2f}")
+        return "\n".join(lines)
+
+    def ending_value(self, starting_value: float = 1.0) -> float:
+        value = starting_value
+        for item in self.monthly_roi:
+            value *= 1 + item.roi
+        return value
+
+
+def plot_projection_roi(projection: SavingsProjection) -> None:
+    months = [item.month for item in projection.monthly_roi]
+    roi_values = [item.roi for item in projection.monthly_roi]
+    rolling_average_values = [item.rolling_average_12m for item in projection.monthly_roi]
+    cumulative_values = np.cumprod([1 + item.roi for item in projection.monthly_roi])
+
+    fig, axis_left = plt.subplots(figsize=(12, 6))
+    axis_left.plot(months, roi_values, marker="o", linewidth=1.2, label="Monthly ROI")
+    axis_left.plot(months, rolling_average_values, linewidth=2.0, label="12M Rolling Average")
+    axis_left.set_xlabel("Month")
+    axis_left.set_ylabel("ROI")
+    axis_left.grid(True, alpha=0.3)
+
+    axis_right = axis_left.twinx()
+    axis_right.plot(months, cumulative_values, color="black", linestyle="--", linewidth=1.8, label="Growth of $1")
+    axis_right.set_ylabel("Growth of $1")
+
+    plt.title("Projected Monthly ROI Over Time")
+    lines_left, labels_left = axis_left.get_legend_handles_labels()
+    lines_right, labels_right = axis_right.get_legend_handles_labels()
+    axis_left.legend(lines_left + lines_right, labels_left + labels_right, loc="upper left")
+    plt.tight_layout()
+    plt.show()
+
+
+def load_price_history(
+    ticker: str = TICKER,
+    start_date: str = START_DATE,
+    end_date: str = END_DATE,
+) -> pd.Series:
+    data = yf.download(ticker, start=start_date, end=end_date, auto_adjust=True, progress=False)
+    if data.empty:
+        raise ValueError(f"No price history returned for {ticker}.")
+
+    close_data = data["Close"]
+    if isinstance(close_data, pd.DataFrame):
+        close_data = close_data.iloc[:, 0]
+
+    monthly_close = close_data.resample("ME").last().dropna()
+    if monthly_close.empty:
+        raise ValueError(f"No monthly close data available for {ticker}.")
+    return monthly_close
+
+
+def build_return_frame(monthly_close: pd.Series) -> pd.DataFrame:
+    frame = pd.DataFrame({"Close": monthly_close})
+    frame["Monthly_Return"] = frame["Close"].pct_change()
+    return frame.dropna()
+
+
+def calibrate_growth_model(return_frame: pd.DataFrame) -> tuple[float, float, np.ndarray]:
+    monthly_mean_return = float(return_frame["Monthly_Return"].mean())
+    monthly_volatility = float(return_frame["Monthly_Return"].std())
+    historical_returns = return_frame["Monthly_Return"].to_numpy()
+    return monthly_mean_return, monthly_volatility, historical_returns
+
+
+def get_next_month_roi(
+    monthly_mean_return: float,
+    monthly_volatility: float,
+    historical_returns: np.ndarray,
+    rng: np.random.Generator,
+) -> float:
+    sampled_return = float(rng.choice(historical_returns))
+    mean_reversion = 0.15 * (monthly_mean_return - sampled_return)
+    shock = float(rng.normal(0, monthly_volatility * 0.15))
+    return sampled_return + mean_reversion + shock
+
+
+def generate_projection(
+    monthly_close: pd.Series,
+    monthly_mean_return: float,
+    monthly_volatility: float,
+    historical_returns: np.ndarray,
+    months_to_project: int = MONTHS_TO_PROJECT,
+    seed: int | None = None,
+) -> SavingsProjection:
+    projection = SavingsProjection()
+    simulated_close = monthly_close.copy()
+    rng = np.random.default_rng(seed)
+
+    for _ in range(months_to_project):
+        next_roi = get_next_month_roi(
+            monthly_mean_return,
+            monthly_volatility,
+            historical_returns,
+            rng,
+        )
+        next_month = simulated_close.index[-1] + pd.offsets.MonthEnd(1)
+        next_close = simulated_close.iloc[-1] * (1 + next_roi)
+
+        simulated_close.loc[next_month] = next_close
+        projection.add(next_month, next_roi)
+
+    return projection
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Monte Carlo monthly ROI projection anchored to historical long-run growth."
+    )
+    parser.add_argument("--ticker", default=TICKER, help="Ticker symbol to download, default: SPY")
+    parser.add_argument("--months", type=int, default=MONTHS_TO_PROJECT, help="Months to project")
+    parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed for reproducible runs")
+    return parser.parse_args()
+
+
+
+
+def main() -> None:
+    args = parse_args()
+    monthly_close = load_price_history(ticker=args.ticker)
+    return_frame = build_return_frame(monthly_close)
+    monthly_mean_return, monthly_volatility, historical_returns = calibrate_growth_model(return_frame)
+    projection = generate_projection(
+        monthly_close,
+        monthly_mean_return,
+        monthly_volatility,
+        historical_returns,
+        months_to_project=args.months,
+        seed=args.seed,
+    )
+
+    annualized_mean = (1 + monthly_mean_return) ** 12 - 1
+    print(
+        f"Ticker: {args.ticker}\n"
+        f"Historical monthly mean return: {monthly_mean_return:.2%}\n"
+        f"Implied annualized return: {annualized_mean:.2%}\n"
+        f"Monthly volatility: {monthly_volatility:.2%}\n"
+        f"Seed: {args.seed}"
+    )
+    print(projection)
+    plot_projection_roi(projection)
+
+
+if __name__ == "__main__":
+    main()
