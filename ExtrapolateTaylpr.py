@@ -8,7 +8,7 @@ import yfinance as yf
 
 
 TICKER = "SPY"
-START_DATE = "2010-01-01"
+START_DATE = "2000-01-01"
 END_DATE = "2025-01-01"
 MONTHS_TO_PROJECT = 120
 ROLLING_AVERAGE_WINDOW = 12
@@ -72,6 +72,47 @@ def plot_projection_roi(projection: SavingsProjection) -> None:
     axis_right.set_ylabel("Growth of $1")
 
     plt.title("Projected Monthly ROI Over Time")
+    lines_left, labels_left = axis_left.get_legend_handles_labels()
+    lines_right, labels_right = axis_right.get_legend_handles_labels()
+    axis_left.legend(lines_left + lines_right, labels_left + labels_right, loc="upper left")
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_projection_with_history(return_frame: pd.DataFrame, projection: SavingsProjection) -> None:
+    historical_roi = return_frame["Monthly_Return"].copy()
+    historical_rolling = historical_roi.rolling(ROLLING_AVERAGE_WINDOW, min_periods=1).mean()
+    projected_months = [item.month for item in projection.monthly_roi]
+    projected_roi = pd.Series([item.roi for item in projection.monthly_roi], index=projected_months)
+    projected_rolling = pd.Series(
+        [item.rolling_average_12m for item in projection.monthly_roi],
+        index=projected_months,
+    )
+
+    full_roi = pd.concat([historical_roi, projected_roi])
+    full_rolling = pd.concat([historical_rolling, projected_rolling])
+    full_growth = (1 + full_roi).cumprod()
+
+    fig, axis_left = plt.subplots(figsize=(14, 7))
+    axis_left.plot(full_roi.index, full_roi.values, linewidth=1.0, label="Monthly ROI")
+    axis_left.plot(full_rolling.index, full_rolling.values, linewidth=2.0, label="12M Rolling Average")
+    axis_left.axvline(projected_months[0], color="gray", linestyle=":", linewidth=1.5, label="Projection Start")
+    axis_left.set_xlabel("Month")
+    axis_left.set_ylabel("ROI")
+    axis_left.grid(True, alpha=0.3)
+
+    axis_right = axis_left.twinx()
+    axis_right.plot(
+        full_growth.index,
+        full_growth.values,
+        color="black",
+        linestyle="--",
+        linewidth=1.8,
+        label="Growth of $1",
+    )
+    axis_right.set_ylabel("Growth of $1")
+
+    plt.title("Historical and Projected Monthly ROI Over Time")
     lines_left, labels_left = axis_left.get_legend_handles_labels()
     lines_right, labels_right = axis_right.get_legend_handles_labels()
     axis_left.legend(lines_left + lines_right, labels_left + labels_right, loc="upper left")
@@ -165,7 +206,7 @@ def prep_projection(
     ticker: str = TICKER,
     months_to_project: int = MONTHS_TO_PROJECT,
     seed: int | None = None,
-) -> tuple[SavingsProjection, float, float]:
+) -> tuple[SavingsProjection, float, float, pd.DataFrame]:
     monthly_close = load_price_history(ticker=ticker)
     return_frame = build_return_frame(monthly_close)
     monthly_mean_return, monthly_volatility, historical_returns = calibrate_growth_model(return_frame)
@@ -177,12 +218,12 @@ def prep_projection(
         months_to_project=months_to_project,
         seed=seed,
     )
-    return projection, monthly_mean_return, monthly_volatility
+    return projection, monthly_mean_return, monthly_volatility, return_frame
 
 
 def main() -> None:
     args = parse_args()
-    projection, monthly_mean_return, monthly_volatility = prep_projection(
+    projection, monthly_mean_return, monthly_volatility, return_frame = prep_projection(
         ticker=args.ticker,
         months_to_project=args.months,
         seed=args.seed,
@@ -198,6 +239,7 @@ def main() -> None:
     )
     print(projection)
     plot_projection_roi(projection)
+    plot_projection_with_history(return_frame, projection)
 
 
 if __name__ == "__main__":
