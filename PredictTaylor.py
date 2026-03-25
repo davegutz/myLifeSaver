@@ -1,60 +1,137 @@
+from dataclasses import dataclass, field
+
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor  # scikit-learn
-from sklearn.model_selection import train_test_split
-
-# 1. Simulate Historical Data (Replace with actual data)
-np.random.seed(42)
-n_months = 120
-data = pd.DataFrame({
-    'roi': np.random.normal(0.005, 0.05, n_months) + np.linspace(0, 0.02, n_months),
-    'volatility': np.random.uniform(0.01, 0.03, n_months),
-    'market_trend': np.random.normal(0, 1, n_months)
-})
+import yfinance as yf
+from sklearn.ensemble import RandomForestRegressor
 
 
-# 2. Prepare Features: Predict ROI next month based on last 3 months
-def create_lags(df, lags=3):
-    df_lagged = df.copy()
-    for lag in range(1, lags + 1):
-        df_lagged[f'roi_lag_{lag}'] = df_lagged['roi'].shift(lag)
-    return df_lagged.dropna()
+TICKER = "SPY"
+START_DATE = "2010-01-01"
+END_DATE = "2025-01-01"
+MONTHS_TO_PROJECT = 120
+ROLLING_WINDOW = 6
+RANDOM_SEED = 42
 
 
-data_lagged = create_lags(data)
-X = data_lagged.drop(['roi'], axis=1)
-y = data_lagged['roi']
-
-# 3. Train Model
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
-rf_model.fit(X_train, y_train)
+@dataclass
+class MonthlySavingsRoi:
+    month: pd.Timestamp
+    roi: float
 
 
-# 4. Monte Carlo Simulation Function (One Month per Call)
-def predict_next_month(model, current_data):
-    """
-    Takes current data, creates lags, and predicts next month's ROI.
-    """
-    latest_lags = create_lags(current_data.tail(4))  # Need at least 3+1 for lag
-    prediction = model.predict(latest_lags.drop(['roi'], axis=1).tail(1))
+@dataclass
+class SavingsProjection:
+    monthly_roi: list[MonthlySavingsRoi] = field(default_factory=list)
 
-    # Add noise for Monte Carlo sampling
-    # The standard deviation of residuals can be added here
-    sampled_prediction = np.random.normal(prediction[0], 0.02)
-    return sampled_prediction
+    def add(self, month: pd.Timestamp, roi: float) -> None:
+        self.monthly_roi.append(MonthlySavingsRoi(month=month, roi=roi))
+
+    def __str__(self) -> str:
+        lines = ["Projected monthly ROI"]
+        for item in self.monthly_roi:
+            lines.append(f"{item.month.strftime('%Y-%m')}: {item.roi:.2%}")
+        return "\n".join(lines)
 
 
-# --- Monte Carlo Loop Example ---
-simulated_returns = []
-current_market = data.copy()
+def load_price_history(
+    ticker: str = TICKER,
+    start_date: str = START_DATE,
+    end_date: str = END_DATE,
+) -> pd.Series:
+    data = yf.download(ticker, start=start_date, end=end_date, auto_adjust=True, progress=False)
+    if data.empty:
+        raise ValueError(f"No price history returned for {ticker}.")
 
-for _ in range(12):  # Simulate 12 future months
-    next_roi = predict_next_month(rf_model, current_market)
-    simulated_returns.append(next_roi)
+    close_data = data["Close"]
+    if isinstance(close_data, pd.DataFrame):
+        close_data = close_data.iloc[:, 0]
 
-    # Update market behavior for next prediction
-    new_row = pd.DataFrame({'roi': [next_roi], 'volatility': [0.02], 'market_trend': [0.1]})
-    current_market = pd.concat([current_market, new_row], ignore_index=True)
+    monthly_close = close_data.resample("ME").last().dropna()
+    if monthly_close.empty:
+        raise ValueError(f"No monthly close data available for {ticker}.")
+    return monthly_close
 
-print("Simulated Returns:", simulated_returns)
+
+def build_feature_frame(monthly_close: pd.Series, window: int = ROLLING_WINDOW) -> pd.DataFrame:
+    frame = pd.DataFrame({"Close": monthly_close})
+    frame["Lag1"] = frame["Close"].pct_change()
+    frame["MA_Ratio"] = frame["Close"] / frame["Close"].rolling(window=window).mean()
+    frame["Vol"] = frame["Lag1"].rolling(window=window).std()
+    frame["Target"] = frame["Close"].shift(-1) / frame["Close"] - 1
+    return frame.dropna()
+
+
+def train_model(feature_frame: pd.DataFrame) -> tuple[RandomForestRegressor, float]:
+    feature_columns = ["Lag1", "MA_Ratio", "Vol"]
+    split = int(len(feature_frame) * 0.8)
+    if split <= 0 or split >= len(feature_frame):
+        raise ValueError("Not enough data to train and test the model.")
+
+    x_train = feature_frame.iloc[:split][feature_columns]
+    y_train = feature_frame.iloc[:split]["Target"]
+    x_test = feature_frame.iloc[split:][feature_columns]
+
+    model = RandomForestRegressor(
+        n_estimators=100,
+        min_samples_split=10,
+        random_state=RANDOM_SEED,
+    )
+    model.fit(x_train, y_train)
+
+    noise_scale = float(x_test["Vol"].mean()) if not x_test.empty else float(feature_frame["Vol"].mean())
+    return model, noise_scale
+
+
+def get_next_month_roi(
+    current_features: list[float],
+    model: RandomForestRegressor,
+    noise_scale: float,
+    rng: np.random.Generator,
+) -> float:
+    feature_frame = pd.DataFrame(
+        [current_features],
+        columns=["Lag1", "MA_Ratio", "Vol"],
+    )
+    predicted_roi = float(model.predict(feature_frame)[0])
+    noise = float(rng.normal(0, noise_scale))
+    return predicted_roi + noise
+
+
+def generate_projection(
+    monthly_close: pd.Series,
+    model: RandomForestRegressor,
+    noise_scale: float,
+    months_to_project: int = MONTHS_TO_PROJECT,
+    window: int = ROLLING_WINDOW,
+) -> SavingsProjection:
+    projection = SavingsProjection()
+    simulated_close = monthly_close.copy()
+    rng = np.random.default_rng(RANDOM_SEED)
+
+    for _ in range(months_to_project):
+        last_returns = simulated_close.pct_change().dropna()
+        lag1 = float(last_returns.iloc[-1])
+        ma_ratio = float(simulated_close.iloc[-1] / simulated_close.rolling(window=window).mean().iloc[-1])
+        vol = float(last_returns.rolling(window=window).std().iloc[-1])
+
+        next_roi = get_next_month_roi([lag1, ma_ratio, vol], model, noise_scale, rng)
+        next_month = simulated_close.index[-1] + pd.offsets.MonthEnd(1)
+        next_close = simulated_close.iloc[-1] * (1 + next_roi)
+
+        simulated_close.loc[next_month] = next_close
+        projection.add(next_month, next_roi)
+
+    return projection
+
+
+def main() -> None:
+    monthly_close = load_price_history()
+    feature_frame = build_feature_frame(monthly_close)
+    model, noise_scale = train_model(feature_frame)
+    projection = generate_projection(monthly_close, model, noise_scale)
+    print(projection)
+
+
+if __name__ == "__main__":
+    main()
