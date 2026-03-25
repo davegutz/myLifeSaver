@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -18,6 +19,7 @@ RANDOM_SEED = 42
 class MonthlySavingsRoi:
     month: pd.Timestamp
     roi: float
+    rolling_average_12m: float
 
 
 @dataclass
@@ -25,13 +27,42 @@ class SavingsProjection:
     monthly_roi: list[MonthlySavingsRoi] = field(default_factory=list)
 
     def add(self, month: pd.Timestamp, roi: float) -> None:
-        self.monthly_roi.append(MonthlySavingsRoi(month=month, roi=roi))
+        recent_roi = [item.roi for item in self.monthly_roi[-11:]]
+        recent_roi.append(roi)
+        rolling_average_12m = float(np.mean(recent_roi))
+        self.monthly_roi.append(
+            MonthlySavingsRoi(
+                month=month,
+                roi=roi,
+                rolling_average_12m=rolling_average_12m,
+            )
+        )
 
     def __str__(self) -> str:
         lines = ["Projected monthly ROI"]
         for item in self.monthly_roi:
-            lines.append(f"{item.month.strftime('%Y-%m')}: {item.roi:.2%}")
+            lines.append(
+                f"{item.month.strftime('%Y-%m')}: ROI {item.roi:.2%}, "
+                f"12M Avg {item.rolling_average_12m:.2%}"
+            )
         return "\n".join(lines)
+
+
+def plot_projection_roi(projection: SavingsProjection) -> None:
+    months = [item.month for item in projection.monthly_roi]
+    roi_values = [item.roi for item in projection.monthly_roi]
+    rolling_average_values = [item.rolling_average_12m for item in projection.monthly_roi]
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(months, roi_values, marker="o", linewidth=1.5, label="Monthly ROI")
+    plt.plot(months, rolling_average_values, linewidth=2.0, label="12M Rolling Average")
+    plt.title("Projected Monthly ROI Over Time")
+    plt.xlabel("Month")
+    plt.ylabel("ROI")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
 
 def load_price_history(
@@ -131,6 +162,7 @@ def main() -> None:
     model, noise_scale = train_model(feature_frame)
     projection = generate_projection(monthly_close, model, noise_scale)
     print(projection)
+    plot_projection_roi(projection)
 
 
 if __name__ == "__main__":
