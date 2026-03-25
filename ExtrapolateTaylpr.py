@@ -161,11 +161,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-
-
-def main() -> None:
-    args = parse_args()
-    monthly_close = load_price_history(ticker=args.ticker)
+def prep_projection(
+    ticker: str = TICKER,
+    months_to_project: int = MONTHS_TO_PROJECT,
+    seed: int | None = None,
+) -> tuple[SavingsProjection, float, float]:
+    monthly_close = load_price_history(ticker=ticker)
     return_frame = build_return_frame(monthly_close)
     monthly_mean_return, monthly_volatility, historical_returns = calibrate_growth_model(return_frame)
     projection = generate_projection(
@@ -173,6 +174,16 @@ def main() -> None:
         monthly_mean_return,
         monthly_volatility,
         historical_returns,
+        months_to_project=months_to_project,
+        seed=seed,
+    )
+    return projection, monthly_mean_return, monthly_volatility
+
+
+def main() -> None:
+    args = parse_args()
+    projection, monthly_mean_return, monthly_volatility = prep_projection(
+        ticker=args.ticker,
         months_to_project=args.months,
         seed=args.seed,
     )
