@@ -15,8 +15,8 @@ MAN_DOB = "1957-07-26"
 WOMAN_DOB = "1956-04-11"
 MAN_AGE_TO_AL = 71
 WOMAN_AGE_TO_AL = 71
-MAN_AGE_AT_DEATH = 71
-WOMAN_AGE_AT_DEATH = 71
+MAN_AGE_AT_DEATH = 77
+WOMAN_AGE_AT_DEATH = 77
 PILE_AT_START = 5700000
 NON_TAYLOR_2 = 9612
 NON_TAYLOR_1 = 5492
@@ -82,9 +82,10 @@ class TaylorLife:
             self.roi_cum = self.roi.life_horizon_roi_cum[i]
             self.count_non_taylor(i)
             self.exp_non_taylor_history.append(self.exp_non_taylor)
-            normalized_exp_non_taylor = (
-                self.exp_non_taylor / self.cpi_cum
-            )
+            if self.num_non_taylor > 0:
+                normalized_exp_non_taylor = self.exp_non_taylor / self.cpi_cum
+            else:
+                normalized_exp_non_taylor = self.exp_norm_non_taylor[-1]
             self.exp_norm_taylor.append(normalized_exp_non_taylor)
             self.exp_norm_non_taylor.append(normalized_exp_non_taylor)
 
