@@ -1,8 +1,7 @@
 import argparse
-
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import numpy as np
 from Inflation import Inflation, plot_inflation_views
 from Roi import TICKER, Roi, plot_projection_views
 from utils import age
@@ -13,13 +12,15 @@ AL_ESC_RUNNING_AVG_YRS = 2
 START_CLOCK = "2026-07-01"
 MAN_DOB = "1957-07-26"
 WOMAN_DOB = "1956-04-11"
-MAN_AGE_TO_AL = 71
-WOMAN_AGE_TO_AL = 71
-MAN_AGE_AT_DEATH = 77
-WOMAN_AGE_AT_DEATH = 77
-PILE_AT_START = 5700000
-NON_TAYLOR_2 = 9612
-NON_TAYLOR_1 = 5492
+MAN_AGE_TO_AL = 71.
+WOMAN_AGE_TO_AL = 71.
+MAN_AGE_AT_DEATH = 77.
+WOMAN_AGE_AT_DEATH = 77.
+PILE_AT_START = 5700000.
+NON_TAYLOR_2 = 9612.
+NON_TAYLOR_1 = 5492.
+AL_1 = 9200.
+AL_2 = AL_1 * 2.
 
 class TaylorLife:
     def __init__(
@@ -33,8 +34,8 @@ class TaylorLife:
         woman_age_to_al: float = WOMAN_AGE_TO_AL,
         woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
         pile_at_start: float = PILE_AT_START,
-        esc: float = 1,
-        exp: float = 1000,
+        al_2: float = AL_2,
+        al_1: float = AL_1,
         non_taylor_2: float = NON_TAYLOR_2,
         non_taylor_1: float = NON_TAYLOR_1,
     ) -> None:
@@ -53,11 +54,17 @@ class TaylorLife:
         self.pile_at_start = pile_at_start
         self.cpi_cum = 0.0
         self.roi_cum = 0.0
-        # self.esc_al = esc_al
-        # self.esc_cc = esc_cc
-        # self.non_Taylor_exp = non_Taylor_exp
-        # self.exp_2 = exp_2
-        # self.exp_1 = exp_1
+
+        self.num_al = 0
+        self.al_2 = al_2
+        self.al_1 = al_1
+        self.mo_al_del_2 = 0.
+        self.mo_al_del_1 = 0.
+        self.mo_al = 0.
+        self.exp_al = 0.
+        self.exp_al_history: list[float] = []
+        self.exp_norm_al: list[float] = []
+
         self.num_non_taylor = 0
         self.non_taylor_2 = non_taylor_2
         self.non_taylor_1 = non_taylor_1
@@ -66,38 +73,73 @@ class TaylorLife:
         self.mo_non_taylor = 0.
         self.exp_non_taylor = 0.
         self.exp_non_taylor_history: list[float] = []
-        self.exp_norm_taylor: list[float] = []
         self.exp_norm_non_taylor: list[float] = []
+
+        self.exp_norm_taylor: list[float] = []
 
     def calc_result(self):
         self.num_non_taylor = 0.0
         self.mo_non_taylor = 0.0
         self.exp_non_taylor = 0.0
+        self.exp_al_history = []
+        self.exp_norm_al = []
         self.exp_non_taylor_history = []
-        self.exp_norm_taylor = []
         self.exp_norm_non_taylor = []
         n = len(self.cpi.life_horizon_dates)
         for i in range(n):
             self.cpi_cum = self.cpi.life_horizon_inflation_cum[i]
             self.roi_cum = self.roi.life_horizon_roi_cum[i]
+
+            self.count_al(i)
+            self.exp_al_history.append(self.exp_al)
+            if self.num_al > 0:
+                normalized_exp_al = self.exp_al / self.cpi_cum
+            elif len(self.exp_norm_al) > 0:
+                normalized_exp_al = self.exp_norm_al[-1]
+            else:
+                normalized_exp_al = 0.
+            self.exp_norm_al.append(normalized_exp_al)
+
             self.count_non_taylor(i)
             self.exp_non_taylor_history.append(self.exp_non_taylor)
             if self.num_non_taylor > 0:
                 normalized_exp_non_taylor = self.exp_non_taylor / self.cpi_cum
             else:
                 normalized_exp_non_taylor = self.exp_norm_non_taylor[-1]
-            self.exp_norm_taylor.append(normalized_exp_non_taylor)
             self.exp_norm_non_taylor.append(normalized_exp_non_taylor)
 
+            self.exp_norm_taylor.append(normalized_exp_non_taylor)
+
+        self.exp_al_lc_history = np.array(self.exp_al_history).copy()*0.
+        self.exp_norm_lc = np.array(self.exp_norm_al).copy()*0.
         result = self.exp_non_taylor
 
         return result
 
-    def count_al(self, date: str | pd.Timestamp) -> int:
-        date_ts = pd.Timestamp(date)
-        man_in_al = self.man_age_to_al <= age(date_ts, self.man_dob) < self.man_age_at_death
-        woman_in_al = self.woman_age_to_al <= age(date_ts, self.woman_dob) < self.woman_age_at_death
-        return int(man_in_al) + int(woman_in_al)
+    def count_al(self, i: int = 0) -> None:
+        date = self.roi.life_horizon_dates[i]
+        man_in_al = self.man_age_to_al <= age(date, self.man_dob) < self.man_age_at_death
+        woman_in_al = self.woman_age_to_al <= age(date, self.woman_dob) < self.woman_age_at_death
+        self.num_al = int(man_in_al) + int(woman_in_al)
+        self.mo_al_del_2 = self.cpi.life_horizon_inflation[i] * self.al_2
+        self.mo_al_del_1 = self.cpi.life_horizon_inflation[i] * self.al_1
+        self.al_2 += self.mo_al_del_2
+        self.al_1 += self.mo_al_del_1
+        if self.num_al == 2:
+            self.mo_al = self.mo_al_del_2
+            if i == 0:
+                self.exp_al = self.al_2
+        elif self.num_al == 1:
+            self.mo_al = self.mo_al_del_1
+            if i == 0:
+                self.exp_al = self.al_1
+        else:
+            self.mo_al = 0
+            if i == 0:
+                self.exp_al = 0.
+        self.exp_al += self.mo_al
+
+
 
     def count_lc(self, date: str | pd.Timestamp) -> int:
         date_ts = pd.Timestamp(date)
@@ -127,7 +169,6 @@ class TaylorLife:
             if i == 0:
                 self.exp_non_taylor = 0.
         self.exp_non_taylor += self.mo_non_taylor
-        i = 1
 
     def deceased(self, date: str | pd.Timestamp) -> bool:
         date_ts = pd.Timestamp(date)
@@ -170,10 +211,23 @@ def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) ->
     )
     axis.plot(
         pd.DatetimeIndex(this_life.dates),
-        this_life.exp_norm_taylor,
+        this_life.exp_norm_non_taylor,
         linewidth=2.0,
         linestyle="--",
-        label="exp_norm_taylor",
+        label="exp_norm_non_taylor",
+    )
+    axis.plot(
+        pd.DatetimeIndex(this_life.dates),
+        this_life.exp_al_history,
+        linewidth=2.0,
+        label="exp_al",
+    )
+    axis.plot(
+        pd.DatetimeIndex(this_life.dates),
+        this_life.exp_norm_al,
+        linewidth=2.0,
+        linestyle="--",
+        label="exp_norm_al",
     )
     axis.set_xlabel("Date")
     axis.set_ylabel("exp_non_taylor")
