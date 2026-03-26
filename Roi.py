@@ -35,6 +35,17 @@ class Roi:
     historical_returns: np.ndarray | None = None
     life_horizon_roi: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     life_horizon_dates: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))
+    life_horizon_roi_cum: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+
+    def __str__(self) -> str:
+        lines = ["Projected monthly ROI"]
+        for item in self.monthly_roi:
+            lines.append(
+                f"{item.month.strftime('%Y-%m')}: ROI {item.roi:.2%}, "
+                f"12M Avg {item.rolling_average_12m:.2%}"
+            )
+        lines.append(f"Ending growth of $1.00: ${self.ending_value():.2f}")
+        return "\n".join(lines)
 
     def add(self, month: pd.Timestamp, roi: float) -> None:
         recent_roi = [item.roi for item in self.monthly_roi[-(ROLLING_AVERAGE_WINDOW - 1):]]
@@ -48,46 +59,7 @@ class Roi:
             )
         )
 
-    def __str__(self) -> str:
-        lines = ["Projected monthly ROI"]
-        for item in self.monthly_roi:
-            lines.append(
-                f"{item.month.strftime('%Y-%m')}: ROI {item.roi:.2%}, "
-                f"12M Avg {item.rolling_average_12m:.2%}"
-            )
-        lines.append(f"Ending growth of $1.00: ${self.ending_value():.2f}")
-        return "\n".join(lines)
-
-    def ending_value(self, starting_value: float = 1.0) -> float:
-        value = starting_value
-        for item in self.monthly_roi:
-            value *= 1 + item.roi
-        return value
-
-    def train(self, ticker: str = TICKER) -> pd.DataFrame:
-        self.ticker = ticker
-        if self.current_date is None or self.history_years is None:
-            raise ValueError("current_date and history_years must be set at Roi instantiation before training.")
-        self.monthly_close = load_price_history(
-            ticker=ticker,
-            end_date=self.current_date,
-            years=self.history_years,
-        )
-        self.return_frame = build_return_frame(self.monthly_close)
-        (
-            self.monthly_mean_return,
-            self.monthly_volatility,
-            self.historical_returns,
-        ) = calibrate_growth_model(self.return_frame)
-        return self.return_frame
-
-    def project(
-        self,
-        ticker: str = TICKER,
-        seed: int | None = None,
-    ) -> "Roi":
-        if self.return_frame is None or self.monthly_close is None or self.historical_returns is None:
-            self.train(ticker=ticker)
+    def build_life_horizon_arrays(self) -> tuple[np.ndarray, np.ndarray]:
         if (
             self.start_clock is None
             or self.man_dob is None
@@ -96,35 +68,159 @@ class Roi:
             or self.woman_age_at_death is None
         ):
             raise ValueError("Roi life-horizon parameters must be set at instantiation.")
-        months_to_project = _required_projection_months(
-            last_historical_month=self.return_frame.index[-1],
+
+        start_month = pd.Timestamp(self.start_clock) + pd.offsets.MonthEnd(0)
+        end_date = max(
+            date_at_age(self.man_dob, self.man_age_at_death),
+            date_at_age(self.woman_dob, self.woman_age_at_death),
+        )
+        end_month = end_date + pd.offsets.MonthEnd(0)
+        horizon_dates = pd.date_range(start=start_month, end=end_month, freq="ME")
+        projected_roi = pd.Series(
+            [item.roi for item in self.monthly_roi],
+            index=pd.DatetimeIndex([item.month for item in self.monthly_roi]),
+        )
+        horizon_roi = projected_roi.reindex(horizon_dates)
+        if horizon_roi.isna().any():
+            missing_dates = horizon_roi.index[horizon_roi.isna()]
+            raise ValueError(
+                "ROI projection does not cover the required life horizon: "
+                f"{missing_dates[0].date()} to {missing_dates[-1].date()}"
+            )
+        return horizon_roi.to_numpy(dtype=float), horizon_dates.to_numpy()
+
+    def build_return_frame(self, monthly_close: pd.Series) -> pd.DataFrame:
+        frame = pd.DataFrame({"Close": monthly_close})
+        frame["Monthly_Return"] = frame["Close"].pct_change()
+        return frame.dropna()
+
+    def calibrate_growth_model(self) -> tuple[float, float, np.ndarray]:
+        if self.return_frame is None:
+            raise ValueError("return_frame must be loaded before calibrating the growth model.")
+        monthly_mean_return = float(self.return_frame["Monthly_Return"].mean())
+        monthly_volatility = float(self.return_frame["Monthly_Return"].std())
+        historical_returns = self.return_frame["Monthly_Return"].to_numpy()
+        return monthly_mean_return, monthly_volatility, historical_returns
+
+    def ending_value(self, starting_value: float = 1.0) -> float:
+        value = starting_value
+        for item in self.monthly_roi:
+            value *= 1 + item.roi
+        return value
+
+    def generate_projection(self, months_to_project: int, seed: int | None = None) -> "Roi":
+        if self.monthly_close is None or self.historical_returns is None or self.return_frame is None:
+            raise ValueError("ROI history must be trained before generating a projection.")
+
+        roi = Roi(
+            ticker=self.ticker,
+            current_date=self.current_date,
+            history_years=self.history_years,
             start_clock=self.start_clock,
             man_dob=self.man_dob,
             woman_dob=self.woman_dob,
             man_age_at_death=self.man_age_at_death,
             woman_age_at_death=self.woman_age_at_death,
-        )
-
-        generated = generate_projection(
-            monthly_close=self.monthly_close,
+            monthly_close=self.monthly_close.copy(),
+            return_frame=self.return_frame,
             monthly_mean_return=self.monthly_mean_return,
             monthly_volatility=self.monthly_volatility,
             historical_returns=self.historical_returns,
-            months_to_project=months_to_project,
-            seed=seed,
-            ticker=self.ticker,
-            return_frame=self.return_frame,
-            start_clock=self.start_clock,
-            man_dob=self.man_dob,
-            woman_dob=self.woman_dob,
-            man_age_at_death=self.man_age_at_death,
-            woman_age_at_death=self.woman_age_at_death,
         )
+        simulated_close = self.monthly_close.copy()
+        rng = np.random.default_rng(seed)
+
+        for _ in range(months_to_project):
+            next_roi = self.get_next_month_roi(rng)
+            next_month = simulated_close.index[-1] + pd.offsets.MonthEnd(1)
+            next_close = simulated_close.iloc[-1] * (1 + next_roi)
+            simulated_close.loc[next_month] = next_close
+            roi.add(next_month, next_roi)
+
+        return roi
+
+    def get_next_month_roi(self, rng: np.random.Generator) -> float:
+        if self.historical_returns is None:
+            raise ValueError("historical_returns must be available before sampling ROI.")
+        sampled_return = float(rng.choice(self.historical_returns))
+        mean_reversion = 0.15 * (self.monthly_mean_return - sampled_return)
+        shock = float(rng.normal(0, self.monthly_volatility * 0.15))
+        return sampled_return + mean_reversion + shock
+
+    def load_price_history(self, ticker: str = TICKER) -> pd.Series:
+        if self.history_years is None:
+            raise ValueError("history_years must be supplied when loading ROI price history.")
+        end_date_to_use = pd.Timestamp.today().normalize() if self.current_date is None else pd.Timestamp(self.current_date)
+        start_date_to_use = end_date_to_use - pd.DateOffset(years=self.history_years)
+        data = yf.download(
+            ticker,
+            start=start_date_to_use,
+            end=end_date_to_use,
+            auto_adjust=True,
+            progress=False,
+        )
+        if data.empty:
+            raise ValueError(f"No price history returned for {ticker}.")
+
+        close_data = data["Close"]
+        if isinstance(close_data, pd.DataFrame):
+            close_data = close_data.iloc[:, 0]
+
+        monthly_close = close_data.resample("ME").last().dropna()
+        if monthly_close.empty:
+            raise ValueError(f"No monthly close data available for {ticker}.")
+        return monthly_close
+
+    def project(
+        self,
+        ticker: str = TICKER,
+        seed: int | None = None,
+    ) -> "Roi":
+        if self.return_frame is None or self.monthly_close is None or self.historical_returns is None:
+            self.train(ticker=ticker)
+        months_to_project = self.required_projection_months(self.return_frame.index[-1])
+        generated = self.generate_projection(months_to_project=months_to_project, seed=seed)
         self.monthly_roi = generated.monthly_roi
+        self.life_horizon_roi, self.life_horizon_dates = self.build_life_horizon_arrays()
+        self.life_horizon_roi_cum = np.cumprod(1 + self.life_horizon_roi)
         return self
 
+    def required_projection_months(self, last_historical_month: pd.Timestamp) -> int:
+        if (
+            self.start_clock is None
+            or self.man_dob is None
+            or self.woman_dob is None
+            or self.man_age_at_death is None
+            or self.woman_age_at_death is None
+        ):
+            raise ValueError("Roi life-horizon parameters must be set at instantiation.")
 
-def _plot_projection_axis(axis_left: plt.Axes, roi: Roi, title: str) -> None:
+        first_projected_month = last_historical_month + pd.offsets.MonthEnd(1)
+        start_month = pd.Timestamp(self.start_clock) + pd.offsets.MonthEnd(0)
+        end_date = max(
+            date_at_age(self.man_dob, self.man_age_at_death),
+            date_at_age(self.woman_dob, self.woman_age_at_death),
+        )
+        end_month = end_date + pd.offsets.MonthEnd(0)
+        effective_start = min(first_projected_month, start_month)
+        required_months = len(pd.date_range(start=effective_start, end=end_month, freq="ME"))
+        return max(required_months, 0)
+
+    def train(self, ticker: str = TICKER) -> pd.DataFrame:
+        self.ticker = ticker
+        if self.current_date is None or self.history_years is None:
+            raise ValueError("current_date and history_years must be set at Roi instantiation before training.")
+        self.monthly_close = self.load_price_history(ticker=ticker)
+        self.return_frame = self.build_return_frame(self.monthly_close)
+        (
+            self.monthly_mean_return,
+            self.monthly_volatility,
+            self.historical_returns,
+        ) = self.calibrate_growth_model()
+        return self.return_frame
+
+
+def plot_projection_axis(axis_left: plt.Axes, roi: Roi, title: str) -> None:
     months = [item.month for item in roi.monthly_roi]
     roi_values = [item.roi for item in roi.monthly_roi]
     rolling_average_values = [item.rolling_average_12m for item in roi.monthly_roi]
@@ -146,7 +242,7 @@ def _plot_projection_axis(axis_left: plt.Axes, roi: Roi, title: str) -> None:
     axis_left.legend(lines_left + lines_right, labels_left + labels_right, loc="upper left")
 
 
-def _plot_projection_with_history_axis(
+def plot_projection_with_history_axis(
     axis_left: plt.Axes,
     return_frame: pd.DataFrame,
     roi: Roi,
@@ -191,7 +287,7 @@ def _plot_projection_with_history_axis(
 
 def plot_projection_roi(roi: Roi, show: bool = True) -> None:
     figure, axis = plt.subplots(figsize=(12, 6))
-    _plot_projection_axis(axis, roi, "Projected Monthly ROI Over Time")
+    plot_projection_axis(axis, roi, "Projected Monthly ROI Over Time")
     plt.tight_layout()
     if show:
         plt.show()
@@ -203,7 +299,7 @@ def plot_projection_with_history(
     show: bool = True,
 ) -> None:
     figure, axis = plt.subplots(figsize=(14, 7))
-    _plot_projection_with_history_axis(axis, return_frame, roi, "Historical and Projected Monthly ROI Over Time")
+    plot_projection_with_history_axis(axis, return_frame, roi, "Historical and Projected Monthly ROI Over Time")
     plt.tight_layout()
     if show:
         plt.show()
@@ -215,8 +311,8 @@ def plot_projection_views(
     show: bool = True,
 ) -> None:
     figure, axes = plt.subplots(2, 1, figsize=(14, 12))
-    _plot_projection_axis(axes[0], roi, "Projected Monthly ROI Over Time")
-    _plot_projection_with_history_axis(
+    plot_projection_axis(axes[0], roi, "Projected Monthly ROI Over Time")
+    plot_projection_with_history_axis(
         axes[1],
         return_frame,
         roi,
@@ -227,165 +323,11 @@ def plot_projection_views(
         plt.show()
 
 
-def load_price_history(
-    ticker: str = TICKER,
-    end_date: str | pd.Timestamp | None = None,
-    years: int | None = None,
-) -> pd.Series:
-    if years is None:
-        raise ValueError("years must be supplied when loading ROI price history.")
-    end_date_to_use = pd.Timestamp.today().normalize() if end_date is None else pd.Timestamp(end_date)
-    start_date_to_use = end_date_to_use - pd.DateOffset(years=years)
-    data = yf.download(
-        ticker,
-        start=start_date_to_use,
-        end=end_date_to_use,
-        auto_adjust=True,
-        progress=False,
-    )
-    if data.empty:
-        raise ValueError(f"No price history returned for {ticker}.")
-
-    close_data = data["Close"]
-    if isinstance(close_data, pd.DataFrame):
-        close_data = close_data.iloc[:, 0]
-
-    monthly_close = close_data.resample("ME").last().dropna()
-    if monthly_close.empty:
-        raise ValueError(f"No monthly close data available for {ticker}.")
-    return monthly_close
-
-
-def build_return_frame(monthly_close: pd.Series) -> pd.DataFrame:
-    frame = pd.DataFrame({"Close": monthly_close})
-    frame["Monthly_Return"] = frame["Close"].pct_change()
-    return frame.dropna()
-
-
-def calibrate_growth_model(return_frame: pd.DataFrame) -> tuple[float, float, np.ndarray]:
-    monthly_mean_return = float(return_frame["Monthly_Return"].mean())
-    monthly_volatility = float(return_frame["Monthly_Return"].std())
-    historical_returns = return_frame["Monthly_Return"].to_numpy()
-    return monthly_mean_return, monthly_volatility, historical_returns
-
-
-def get_next_month_roi(
-    monthly_mean_return: float,
-    monthly_volatility: float,
-    historical_returns: np.ndarray,
-    rng: np.random.Generator,
-) -> float:
-    sampled_return = float(rng.choice(historical_returns))
-    mean_reversion = 0.15 * (monthly_mean_return - sampled_return)
-    shock = float(rng.normal(0, monthly_volatility * 0.15))
-    return sampled_return + mean_reversion + shock
-
-
-def generate_projection(
-    monthly_close: pd.Series,
-    monthly_mean_return: float,
-    monthly_volatility: float,
-    historical_returns: np.ndarray,
-    months_to_project: int,
-    seed: int | None = None,
-    ticker: str = TICKER,
-    return_frame: pd.DataFrame | None = None,
-    start_clock: str | pd.Timestamp | None = None,
-    man_dob: str | pd.Timestamp | None = None,
-    woman_dob: str | pd.Timestamp | None = None,
-    man_age_at_death: float | None = None,
-    woman_age_at_death: float | None = None,
-) -> Roi:
-    roi = Roi(
-        ticker=ticker,
-        start_clock=start_clock,
-        man_dob=man_dob,
-        woman_dob=woman_dob,
-        man_age_at_death=man_age_at_death,
-        woman_age_at_death=woman_age_at_death,
-        monthly_close=monthly_close.copy(),
-        return_frame=return_frame,
-        monthly_mean_return=monthly_mean_return,
-        monthly_volatility=monthly_volatility,
-        historical_returns=historical_returns,
-    )
-    simulated_close = monthly_close.copy()
-    rng = np.random.default_rng(seed)
-
-    for _ in range(months_to_project):
-        next_roi = get_next_month_roi(
-            monthly_mean_return,
-            monthly_volatility,
-            historical_returns,
-            rng,
-        )
-        next_month = simulated_close.index[-1] + pd.offsets.MonthEnd(1)
-        next_close = simulated_close.iloc[-1] * (1 + next_roi)
-
-        simulated_close.loc[next_month] = next_close
-        roi.add(next_month, next_roi)
-
-    return roi
-
-
-def _date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timestamp:
+def date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timestamp:
     birth_ts = pd.Timestamp(birth_date)
     whole_years = int(age_years)
     remaining_months = int(round((age_years - whole_years) * 12))
     return birth_ts + pd.DateOffset(years=whole_years, months=remaining_months)
-
-
-def _build_life_horizon_arrays(
-    roi: Roi,
-) -> tuple[np.ndarray, np.ndarray]:
-    if (
-        roi.start_clock is None
-        or roi.man_dob is None
-        or roi.woman_dob is None
-        or roi.man_age_at_death is None
-        or roi.woman_age_at_death is None
-    ):
-        raise ValueError("Roi life-horizon parameters must be set at instantiation.")
-
-    start_month = pd.Timestamp(roi.start_clock) + pd.offsets.MonthEnd(0)
-    end_date = max(
-        _date_at_age(roi.man_dob, roi.man_age_at_death),
-        _date_at_age(roi.woman_dob, roi.woman_age_at_death),
-    )
-    end_month = end_date + pd.offsets.MonthEnd(0)
-    horizon_dates = pd.date_range(start=start_month, end=end_month, freq="ME")
-    projected_roi = pd.Series(
-        [item.roi for item in roi.monthly_roi],
-        index=pd.DatetimeIndex([item.month for item in roi.monthly_roi]),
-    )
-    horizon_roi = projected_roi.reindex(horizon_dates)
-    if horizon_roi.isna().any():
-        missing_dates = horizon_roi.index[horizon_roi.isna()]
-        raise ValueError(
-            "ROI projection does not cover the required life horizon: "
-            f"{missing_dates[0].date()} to {missing_dates[-1].date()}"
-        )
-    return horizon_roi.to_numpy(dtype=float), horizon_dates.to_numpy()
-
-
-def _required_projection_months(
-    last_historical_month: pd.Timestamp,
-    start_clock: str | pd.Timestamp,
-    man_dob: str | pd.Timestamp,
-    woman_dob: str | pd.Timestamp,
-    man_age_at_death: float,
-    woman_age_at_death: float,
-) -> int:
-    first_projected_month = last_historical_month + pd.offsets.MonthEnd(1)
-    start_month = pd.Timestamp(start_clock) + pd.offsets.MonthEnd(0)
-    end_date = max(
-        _date_at_age(man_dob, man_age_at_death),
-        _date_at_age(woman_dob, woman_age_at_death),
-    )
-    end_month = end_date + pd.offsets.MonthEnd(0)
-    effective_start = min(first_projected_month, start_month)
-    required_months = len(pd.date_range(start=effective_start, end=end_month, freq="ME"))
-    return max(required_months, 0)
 
 
 def prep_projection(
@@ -423,5 +365,4 @@ def prep_projection(
     )
     return_frame = roi.train(ticker=ticker)
     roi.project(ticker=ticker, seed=seed)
-    roi.life_horizon_roi, roi.life_horizon_dates = _build_life_horizon_arrays(roi)
     return roi, roi.monthly_mean_return, roi.monthly_volatility, return_frame

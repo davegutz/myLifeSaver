@@ -65,6 +65,7 @@ class Inflation:
     monthly_inflation: list[MonthlyInflationPoint] = field(default_factory=list)
     current_date: pd.Timestamp | None = None
     history_years: int | None = None
+    al_cum_running_avg_yrs: int | float | None = None
     start_clock: str | pd.Timestamp | None = None
     man_dob: str | pd.Timestamp | None = None
     woman_dob: str | pd.Timestamp | None = None
@@ -77,6 +78,27 @@ class Inflation:
     historical_inflation: np.ndarray | None = None
     life_horizon_inflation: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     life_horizon_dates: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))
+    life_horizon_inflation_cum: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+    life_horizon_cpi_running_avg: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+    result: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+
+    def __str__(self) -> str:
+        lines = ["Projected monthly inflation"]
+        for item in self.monthly_inflation:
+            lines.append(
+                f"{item.month.strftime('%Y-%m')}: Inflation {item.inflation:.2%}, "
+                f"12M Avg {item.rolling_average_12m:.2%}, "
+                f"95% CI [{item.lower_bound:.2%}, {item.upper_bound:.2%}]"
+            )
+        lines.append(f"Implied annualized inflation: {self.annualized_inflation:.2%}")
+        return "\n".join(lines)
+
+    @property
+    def annualized_inflation(self) -> float:
+        if not self.monthly_inflation:
+            return 0.0
+        monthly_mean = float(np.mean([item.inflation for item in self.monthly_inflation]))
+        return float((1 + monthly_mean) ** 12 - 1)
 
     def add(
         self,
@@ -100,19 +122,209 @@ class Inflation:
             )
         )
 
-    def train(self, current_date: str | pd.Timestamp) -> pd.DataFrame:
-        self.current_date = pd.Timestamp(current_date)
+    def build_life_horizon_arrays(self) -> tuple[np.ndarray, np.ndarray]:
+        if (
+            self.start_clock is None
+            or self.man_dob is None
+            or self.woman_dob is None
+            or self.man_age_at_death is None
+            or self.woman_age_at_death is None
+        ):
+            raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
+
+        start_month = pd.Timestamp(self.start_clock) + pd.offsets.MonthEnd(0)
+        end_date = max(
+            date_at_age(self.man_dob, self.man_age_at_death),
+            date_at_age(self.woman_dob, self.woman_age_at_death),
+        )
+        end_month = end_date + pd.offsets.MonthEnd(0)
+        horizon_dates = pd.date_range(start=start_month, end=end_month, freq="ME")
+        projected_inflation = pd.Series(
+            [item.inflation for item in self.monthly_inflation],
+            index=pd.DatetimeIndex([item.month for item in self.monthly_inflation]),
+        )
+        horizon_inflation = projected_inflation.reindex(horizon_dates)
+        if horizon_inflation.isna().any():
+            missing_dates = horizon_inflation.index[horizon_inflation.isna()]
+            raise ValueError(
+                "Inflation projection does not cover the required life horizon: "
+                f"{missing_dates[0].date()} to {missing_dates[-1].date()}"
+            )
+        return horizon_inflation.to_numpy(dtype=float), horizon_dates.to_numpy()
+
+    def build_inflation_frame(self, monthly_cpi: pd.Series) -> pd.DataFrame:
+        frame = pd.DataFrame({"CPI": monthly_cpi})
+        frame["Monthly_Inflation"] = frame["CPI"].pct_change()
+        return frame.dropna()
+
+    def build_life_horizon_cpi_running_avg(self) -> np.ndarray:
+        if self.al_cum_running_avg_yrs is None:
+            raise ValueError("Inflation running-average years must be set at instantiation.")
+        if self.life_horizon_inflation.size == 0:
+            return np.array([], dtype=float)
+
+        window_months = max(1, int(round(float(self.al_cum_running_avg_yrs) * 12)))
+        running_average = pd.Series(self.life_horizon_inflation).rolling(window_months, min_periods=1).mean()
+        return running_average.to_numpy(dtype=float)
+
+    def build_life_horizon_inflation_cum(self) -> np.ndarray:
+        if self.life_horizon_inflation.size == 0:
+            return np.array([], dtype=float)
+        return np.cumprod(1 + self.life_horizon_inflation)
+
+    def build_life_horizon_result(self) -> np.ndarray:
+        if self.life_horizon_dates.size == 0:
+            return np.array([], dtype=float)
+        return np.array(
+            [self.de_escalate(pd.Timestamp(date)) for date in self.life_horizon_dates],
+            dtype=float,
+        )
+
+    def calibrate_inflation_model(self) -> GaussianProcessRegression:
+        if self.inflation_frame is None:
+            raise ValueError("inflation_frame must be loaded before calibrating the inflation model.")
+        recent_mean = float(
+            self.inflation_frame["Monthly_Inflation"]
+            .tail(ROLLING_AVERAGE_WINDOW)
+            .mean()
+        )
+        gp_model = GaussianProcessRegression(mean_value=recent_mean)
+        x_train = np.arange(len(self.inflation_frame), dtype=float)
+        y_train = self.inflation_frame["Monthly_Inflation"].to_numpy(dtype=float)
+        gp_model.fit(x_train, y_train)
+        return gp_model
+
+    def calibrate_inflation_statistics(self) -> tuple[float, float, np.ndarray]:
+        if self.inflation_frame is None:
+            raise ValueError("inflation_frame must be loaded before calibrating inflation statistics.")
+        monthly_mean_inflation = float(self.inflation_frame["Monthly_Inflation"].mean())
+        monthly_inflation_volatility = float(self.inflation_frame["Monthly_Inflation"].std())
+        historical_inflation = self.inflation_frame["Monthly_Inflation"].to_numpy(dtype=float)
+        return monthly_mean_inflation, monthly_inflation_volatility, historical_inflation
+
+    def de_escalate(
+        self,
+        date: str | pd.Timestamp,
+        start_clock: str | pd.Timestamp | None = None,
+    ) -> float:
+        date_ts = pd.Timestamp(date)
+        start_clock_to_use = self.start_clock if start_clock is None else start_clock
+        if start_clock_to_use is None:
+            raise ValueError("start_clock must be provided either at Inflation instantiation or method call.")
+        start_ts = pd.Timestamp(start_clock_to_use)
+
+        if date_ts <= start_ts:
+            return 1.0
+        if self.life_horizon_dates.size == 0 or self.life_horizon_inflation.size == 0:
+            raise ValueError("life_horizon_inflation must be built before calling de_escalate.")
+
+        horizon_dates = pd.DatetimeIndex(self.life_horizon_dates)
+        matching_positions = np.where(horizon_dates == date_ts)[0]
+        if matching_positions.size == 0:
+            raise ValueError(f"No inflation value available for {date_ts.date()}.")
+
+        return 1 / float(self.life_horizon_inflation[int(matching_positions[0])])
+
+    def load_cpi_history(self) -> pd.Series:
         if self.history_years is None:
-            raise ValueError("history_years must be set at Inflation instantiation before training.")
-        monthly_cpi = load_cpi_history(end_date=self.current_date, years=self.history_years)
-        self.inflation_frame = build_inflation_frame(monthly_cpi)
-        self.gp_model = calibrate_inflation_model(self.inflation_frame)
-        (
-            self.monthly_mean_inflation,
-            self.monthly_inflation_volatility,
-            self.historical_inflation,
-        ) = calibrate_inflation_statistics(self.inflation_frame)
-        return self.inflation_frame
+            raise ValueError("history_years must be set at Inflation instantiation before loading CPI history.")
+        end_timestamp = pd.Timestamp.today().normalize() if self.current_date is None else pd.Timestamp(self.current_date)
+        start_timestamp = end_timestamp - pd.DateOffset(years=self.history_years)
+        fred_url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={CPI_SERIES_ID}"
+
+        try:
+            with urlopen(fred_url) as response:
+                cpi_frame = pd.read_csv(response)
+        except (URLError, OSError) as exc:
+            raise ValueError(f"Unable to download CPI history for {CPI_SERIES_ID}.") from exc
+
+        cpi_frame.columns = [str(column).strip().lstrip("\ufeff") for column in cpi_frame.columns]
+        date_column = next(
+            (column for column in cpi_frame.columns if column.upper() == "DATE"),
+            cpi_frame.columns[0] if len(cpi_frame.columns) > 0 else None,
+        )
+        value_column = next(
+            (column for column in cpi_frame.columns if column.strip() == CPI_SERIES_ID),
+            cpi_frame.columns[1] if len(cpi_frame.columns) > 1 else None,
+        )
+        if date_column is None or value_column is None:
+            raise ValueError(f"Unexpected CPI CSV schema for {CPI_SERIES_ID}: {list(cpi_frame.columns)}")
+
+        cpi_frame = cpi_frame.rename(columns={date_column: "DATE", value_column: CPI_SERIES_ID})
+        cpi_frame["DATE"] = pd.to_datetime(cpi_frame["DATE"])
+        cpi_frame[CPI_SERIES_ID] = pd.to_numeric(cpi_frame[CPI_SERIES_ID], errors="coerce")
+        cpi_frame = cpi_frame.dropna(subset=[CPI_SERIES_ID])
+        cpi_frame = cpi_frame.loc[
+            (cpi_frame["DATE"] >= start_timestamp) & (cpi_frame["DATE"] <= end_timestamp),
+            ["DATE", CPI_SERIES_ID],
+        ]
+        if cpi_frame.empty:
+            raise ValueError(f"No CPI history returned for {CPI_SERIES_ID}.")
+
+        monthly_cpi = cpi_frame.set_index("DATE")[CPI_SERIES_ID].resample("ME").last().dropna()
+        if monthly_cpi.empty:
+            raise ValueError(f"No monthly CPI data available for {CPI_SERIES_ID}.")
+        return monthly_cpi
+
+    def generate_inflation_projection(
+        self,
+        current_date: str | pd.Timestamp,
+        months_to_project: int,
+        seed: int | None = None,
+    ) -> "Inflation":
+        if self.gp_model is None:
+            raise ValueError("A fit GaussianProcessRegression model is required for inflation projection.")
+        if self.historical_inflation is None:
+            raise ValueError("Historical inflation data is required for inflation projection.")
+        if self.inflation_frame is None:
+            raise ValueError("inflation_frame must be loaded before projection.")
+
+        current_timestamp = pd.Timestamp(current_date)
+        last_historical_month = self.inflation_frame.index[-1]
+        first_projection_month = max(
+            last_historical_month + pd.offsets.MonthEnd(1),
+            current_timestamp + pd.offsets.MonthEnd(0),
+        )
+        projection_months = pd.date_range(
+            start=first_projection_month,
+            periods=months_to_project,
+            freq="ME",
+        )
+        rng = np.random.default_rng(seed)
+        inflation = Inflation(
+            current_date=current_timestamp,
+            history_years=self.history_years,
+            al_cum_running_avg_yrs=self.al_cum_running_avg_yrs,
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
+            gp_model=self.gp_model,
+            inflation_frame=self.inflation_frame,
+            monthly_mean_inflation=self.monthly_mean_inflation,
+            monthly_inflation_volatility=self.monthly_inflation_volatility,
+            historical_inflation=self.historical_inflation,
+        )
+        x_test = np.arange(len(self.inflation_frame), len(self.inflation_frame) + months_to_project, dtype=float)
+        _, predicted_std = self.gp_model.predict(x_test)
+
+        for month, std_value in zip(projection_months, predicted_std):
+            next_inflation = get_next_month_inflation(
+                self.monthly_mean_inflation,
+                self.monthly_inflation_volatility,
+                self.historical_inflation,
+                rng,
+            )
+            lower_bound = float(next_inflation - 1.96 * std_value)
+            upper_bound = float(next_inflation + 1.96 * std_value)
+            inflation.add(
+                month=month,
+                inflation=float(next_inflation),
+                lower_bound=lower_bound,
+                upper_bound=upper_bound,
+            )
+        return inflation
 
     def project(
         self,
@@ -134,84 +346,131 @@ class Inflation:
             self.inflation_frame.index[-1] + pd.offsets.MonthEnd(1),
             pd.Timestamp(current_date) + pd.offsets.MonthEnd(0),
         )
-        months_to_project = _required_projection_months(
-            first_projection_month=first_projection_month,
-            start_clock=self.start_clock,
-            man_dob=self.man_dob,
-            woman_dob=self.woman_dob,
-            man_age_at_death=self.man_age_at_death,
-            woman_age_at_death=self.woman_age_at_death,
-        )
+        months_to_project = self.required_projection_months(first_projection_month)
 
-        generated = generate_inflation_projection(
-            inflation_frame=self.inflation_frame,
-            gp_model=self.gp_model,
+        generated = self.generate_inflation_projection(
             current_date=current_date,
             months_to_project=months_to_project,
-            monthly_mean_inflation=self.monthly_mean_inflation,
-            monthly_inflation_volatility=self.monthly_inflation_volatility,
-            historical_inflation=self.historical_inflation,
             seed=seed,
-            start_clock=self.start_clock,
-            man_dob=self.man_dob,
-            woman_dob=self.woman_dob,
-            man_age_at_death=self.man_age_at_death,
-            woman_age_at_death=self.woman_age_at_death,
         )
         self.monthly_inflation = generated.monthly_inflation
-        self.life_horizon_inflation, self.life_horizon_dates = _build_life_horizon_arrays(self)
+        self.life_horizon_inflation, self.life_horizon_dates = self.build_life_horizon_arrays()
+        self.life_horizon_inflation_cum = self.build_life_horizon_inflation_cum()
+        self.life_horizon_cpi_running_avg = self.build_life_horizon_cpi_running_avg()
+        self.result = self.build_life_horizon_result()
+        self.validate_life_horizon_result()
         return self
 
-    def __str__(self) -> str:
-        lines = ["Projected monthly inflation"]
-        for item in self.monthly_inflation:
-            lines.append(
-                f"{item.month.strftime('%Y-%m')}: Inflation {item.inflation:.2%}, "
-                f"12M Avg {item.rolling_average_12m:.2%}, "
-                f"95% CI [{item.lower_bound:.2%}, {item.upper_bound:.2%}]"
-            )
-        lines.append(f"Implied annualized inflation: {self.annualized_inflation:.2%}")
-        return "\n".join(lines)
+    def required_projection_months(self, first_projection_month: pd.Timestamp) -> int:
+        if (
+            self.start_clock is None
+            or self.man_dob is None
+            or self.woman_dob is None
+            or self.man_age_at_death is None
+            or self.woman_age_at_death is None
+        ):
+            raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
 
-    @property
-    def annualized_inflation(self) -> float:
-        if not self.monthly_inflation:
-            return 0.0
-        monthly_mean = float(np.mean([item.inflation for item in self.monthly_inflation]))
-        return float((1 + monthly_mean) ** 12 - 1)
+        start_month = pd.Timestamp(self.start_clock) + pd.offsets.MonthEnd(0)
+        end_date = max(
+            date_at_age(self.man_dob, self.man_age_at_death),
+            date_at_age(self.woman_dob, self.woman_age_at_death),
+        )
+        end_month = end_date + pd.offsets.MonthEnd(0)
+        effective_start = min(first_projection_month, start_month)
+        required_months = len(pd.date_range(start=effective_start, end=end_month, freq="ME"))
+        return max(required_months, 0)
 
-    def de_escalate(
-        self,
-        date: str | pd.Timestamp,
+    def train(self, current_date: str | pd.Timestamp) -> pd.DataFrame:
+        self.current_date = pd.Timestamp(current_date)
+        monthly_cpi = self.load_cpi_history()
+        self.inflation_frame = self.build_inflation_frame(monthly_cpi)
+        self.gp_model = self.calibrate_inflation_model()
+        (
+            self.monthly_mean_inflation,
+            self.monthly_inflation_volatility,
+            self.historical_inflation,
+        ) = self.calibrate_inflation_statistics()
+        return self.inflation_frame
+
+    @classmethod
+    def prep_inflation(
+        cls,
+        current_date: str | pd.Timestamp,
+        history_years: int | None = None,
+        al_cum_running_avg_yrs: int | float | None = None,
+        seed: int | None = None,
         start_clock: str | pd.Timestamp | None = None,
-    ) -> float:
-        date_ts = pd.Timestamp(date)
-        start_clock_to_use = self.start_clock if start_clock is None else start_clock
-        if start_clock_to_use is None:
-            raise ValueError("start_clock must be provided either at Inflation instantiation or method call.")
-        start_ts = pd.Timestamp(start_clock_to_use)
+        man_dob: str | pd.Timestamp | None = None,
+        woman_dob: str | pd.Timestamp | None = None,
+        man_age_at_death: float | None = None,
+        woman_age_at_death: float | None = None,
+    ) -> tuple["Inflation", float, pd.DataFrame]:
+        if (
+            history_years is None
+            or al_cum_running_avg_yrs is None
+            or start_clock is None
+            or man_dob is None
+            or woman_dob is None
+            or man_age_at_death is None
+            or woman_age_at_death is None
+        ):
+            raise ValueError(
+                "Inflation history_years, al_cum_running_avg_yrs, and life-horizon parameters "
+                "must be supplied by the caller."
+            )
 
-        if date_ts <= start_ts:
-            return 1.0
+        inflation_model = cls(
+            history_years=history_years,
+            al_cum_running_avg_yrs=al_cum_running_avg_yrs,
+            start_clock=start_clock,
+            man_dob=man_dob,
+            woman_dob=woman_dob,
+            man_age_at_death=man_age_at_death,
+            woman_age_at_death=woman_age_at_death,
+        )
+        inflation_frame = inflation_model.train(current_date=current_date)
+        inflation_model.project(current_date=current_date, seed=seed)
+        annualized_inflation = inflation_model.annualized_inflation
+        if inflation_model.inflation_frame is None:
+            raise ValueError("Inflation history was not loaded during preparation.")
+        return inflation_model, annualized_inflation, inflation_frame
 
-        full_inflation_since_start = 1.0
-        for item in self.monthly_inflation:
-            if start_ts < item.month <= date_ts:
-                full_inflation_since_start *= 1 + item.inflation
+    def validate_life_horizon_result(self) -> None:
+        if self.life_horizon_inflation.size == 0 or self.result.size == 0:
+            return
 
-        return 1 / full_inflation_since_start
+        normalized_growth = self.result * self.life_horizon_inflation
+        expected_level = np.full_like(normalized_growth, normalized_growth[0], dtype=float)
+        if not np.allclose(normalized_growth, expected_level, rtol=1e-9, atol=1e-9):
+            raise ValueError(
+                "Inflation result scale factor failed validation against life_horizon_inflation."
+            )
 
 
-def _plot_inflation_axis(axis_left: plt.Axes, inflation: Inflation, title: str) -> None:
+def plot_inflation_axis(axis_left: plt.Axes, inflation: Inflation, title: str) -> None:
     months = [item.month for item in inflation.monthly_inflation]
     inflation_values = [item.inflation for item in inflation.monthly_inflation]
     rolling_average_values = [item.rolling_average_12m for item in inflation.monthly_inflation]
+    cpi_running_average = pd.Series(
+        inflation.life_horizon_cpi_running_avg,
+        index=pd.DatetimeIndex(inflation.life_horizon_dates),
+    ).reindex(months)
     lower_bounds = [item.lower_bound for item in inflation.monthly_inflation]
     upper_bounds = [item.upper_bound for item in inflation.monthly_inflation]
     growth_of_one_dollar = np.cumprod([1 + item.inflation for item in inflation.monthly_inflation])
+    running_avg_cpi_growth = (1 + cpi_running_average.fillna(0.0)).cumprod()
 
     axis_left.plot(months, inflation_values, marker="o", linewidth=1.2, label="Monthly Inflation")
     axis_left.plot(months, rolling_average_values, linewidth=2.0, label="12M Rolling Average")
+    if not cpi_running_average.isna().all():
+        axis_left.plot(
+            cpi_running_average.index,
+            cpi_running_average.values,
+            linewidth=2.0,
+            linestyle="-.",
+            label="CPI Running Average",
+        )
     axis_left.fill_between(months, lower_bounds, upper_bounds, alpha=0.2, label="95% GP Interval")
     axis_left.set_xlabel("Month")
     axis_left.set_ylabel("Inflation")
@@ -226,6 +485,15 @@ def _plot_inflation_axis(axis_left: plt.Axes, inflation: Inflation, title: str) 
         linewidth=1.8,
         label="Growth of $1",
     )
+    if not cpi_running_average.isna().all():
+        axis_right.plot(
+            running_avg_cpi_growth.index,
+            running_avg_cpi_growth.values,
+            color="dimgray",
+            linestyle="-.",
+            linewidth=1.8,
+            label="Running Avg CPI Growth",
+        )
     axis_right.set_ylabel("Growth of $1")
 
     axis_left.set_title(title)
@@ -234,7 +502,7 @@ def _plot_inflation_axis(axis_left: plt.Axes, inflation: Inflation, title: str) 
     axis_left.legend(lines_left + lines_right, labels_left + labels_right, loc="upper left")
 
 
-def _plot_inflation_with_history_axis(
+def plot_inflation_with_history_axis(
     axis_left: plt.Axes,
     inflation_frame: pd.DataFrame,
     inflation: Inflation,
@@ -259,13 +527,26 @@ def _plot_inflation_with_history_axis(
         [item.upper_bound for item in inflation.monthly_inflation],
         index=projected_months,
     )
+    projected_cpi_running_average = pd.Series(
+        inflation.life_horizon_cpi_running_avg,
+        index=pd.DatetimeIndex(inflation.life_horizon_dates),
+    ).reindex(projected_months)
 
     full_inflation = pd.concat([historical_inflation, projected_inflation])
     full_rolling = pd.concat([historical_rolling, projected_rolling])
     growth_of_one_dollar = (1 + full_inflation).cumprod()
+    running_avg_cpi_growth = (1 + projected_cpi_running_average.fillna(0.0)).cumprod()
 
     axis_left.plot(full_inflation.index, full_inflation.values, linewidth=1.0, label="Monthly Inflation")
     axis_left.plot(full_rolling.index, full_rolling.values, linewidth=2.0, label="12M Rolling Average")
+    if not projected_cpi_running_average.isna().all():
+        axis_left.plot(
+            projected_cpi_running_average.index,
+            projected_cpi_running_average.values,
+            linewidth=2.0,
+            linestyle="-.",
+            label="CPI Running Average",
+        )
     axis_left.fill_between(
         projected_months,
         projected_lower.values,
@@ -287,6 +568,15 @@ def _plot_inflation_with_history_axis(
         linewidth=1.8,
         label="Growth of $1",
     )
+    if not projected_cpi_running_average.isna().all():
+        axis_right.plot(
+            running_avg_cpi_growth.index,
+            running_avg_cpi_growth.values,
+            color="dimgray",
+            linestyle="-.",
+            linewidth=1.8,
+            label="Running Avg CPI Growth",
+        )
     axis_right.set_ylabel("Growth of $1")
 
     axis_left.set_title(title)
@@ -301,8 +591,8 @@ def plot_inflation_views(
     show: bool = True,
 ) -> None:
     figure, axes = plt.subplots(2, 1, figsize=(14, 12))
-    _plot_inflation_axis(axes[0], inflation, "Projected Monthly Inflation Over Time")
-    _plot_inflation_with_history_axis(
+    plot_inflation_axis(axes[0], inflation, "Projected Monthly Inflation Over Time")
+    plot_inflation_with_history_axis(
         axes[1],
         inflation_frame,
         inflation,
@@ -311,78 +601,6 @@ def plot_inflation_views(
     plt.tight_layout()
     if show:
         plt.show()
-
-
-def load_cpi_history(
-    series_id: str = CPI_SERIES_ID,
-    end_date: str | pd.Timestamp | None = None,
-    years: int | None = None,
-) -> pd.Series:
-    if years is None:
-        raise ValueError("years must be supplied when loading CPI history.")
-    end_timestamp = pd.Timestamp.today().normalize() if end_date is None else pd.Timestamp(end_date)
-    start_timestamp = end_timestamp - pd.DateOffset(years=years)
-    fred_url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
-
-    try:
-        with urlopen(fred_url) as response:
-            cpi_frame = pd.read_csv(response)
-    except (URLError, OSError) as exc:
-        raise ValueError(f"Unable to download CPI history for {series_id}.") from exc
-
-    cpi_frame.columns = [str(column).strip().lstrip("\ufeff") for column in cpi_frame.columns]
-    date_column = next(
-        (column for column in cpi_frame.columns if column.upper() == "DATE"),
-        cpi_frame.columns[0] if len(cpi_frame.columns) > 0 else None,
-    )
-    value_column = next(
-        (column for column in cpi_frame.columns if column.strip() == series_id),
-        cpi_frame.columns[1] if len(cpi_frame.columns) > 1 else None,
-    )
-    if date_column is None or value_column is None:
-        raise ValueError(f"Unexpected CPI CSV schema for {series_id}: {list(cpi_frame.columns)}")
-
-    cpi_frame = cpi_frame.rename(columns={date_column: "DATE", value_column: series_id})
-    cpi_frame["DATE"] = pd.to_datetime(cpi_frame["DATE"])
-    cpi_frame[series_id] = pd.to_numeric(cpi_frame[series_id], errors="coerce")
-    cpi_frame = cpi_frame.dropna(subset=[series_id])
-    cpi_frame = cpi_frame.loc[
-        (cpi_frame["DATE"] >= start_timestamp) & (cpi_frame["DATE"] <= end_timestamp),
-        ["DATE", series_id],
-    ]
-    if cpi_frame.empty:
-        raise ValueError(f"No CPI history returned for {series_id}.")
-
-    monthly_cpi = cpi_frame.set_index("DATE")[series_id].resample("ME").last().dropna()
-    if monthly_cpi.empty:
-        raise ValueError(f"No monthly CPI data available for {series_id}.")
-    return monthly_cpi
-
-
-def build_inflation_frame(monthly_cpi: pd.Series) -> pd.DataFrame:
-    frame = pd.DataFrame({"CPI": monthly_cpi})
-    frame["Monthly_Inflation"] = frame["CPI"].pct_change()
-    return frame.dropna()
-
-
-def calibrate_inflation_model(inflation_frame: pd.DataFrame) -> GaussianProcessRegression:
-    recent_mean = float(
-        inflation_frame["Monthly_Inflation"]
-        .tail(ROLLING_AVERAGE_WINDOW)
-        .mean()
-    )
-    gp_model = GaussianProcessRegression(mean_value=recent_mean)
-    x_train = np.arange(len(inflation_frame), dtype=float)
-    y_train = inflation_frame["Monthly_Inflation"].to_numpy(dtype=float)
-    gp_model.fit(x_train, y_train)
-    return gp_model
-
-
-def calibrate_inflation_statistics(inflation_frame: pd.DataFrame) -> tuple[float, float, np.ndarray]:
-    monthly_mean_inflation = float(inflation_frame["Monthly_Inflation"].mean())
-    monthly_inflation_volatility = float(inflation_frame["Monthly_Inflation"].std())
-    historical_inflation = inflation_frame["Monthly_Inflation"].to_numpy(dtype=float)
-    return monthly_mean_inflation, monthly_inflation_volatility, historical_inflation
 
 
 def get_next_month_inflation(
@@ -397,135 +615,17 @@ def get_next_month_inflation(
     return sampled_inflation + mean_reversion + shock
 
 
-def generate_inflation_projection(
-    inflation_frame: pd.DataFrame,
-    gp_model: GaussianProcessRegression | None,
-    current_date: str | pd.Timestamp,
-    months_to_project: int,
-    monthly_mean_inflation: float = 0.0,
-    monthly_inflation_volatility: float = 0.0,
-    historical_inflation: np.ndarray | None = None,
-    seed: int | None = None,
-    start_clock: str | pd.Timestamp | None = None,
-    man_dob: str | pd.Timestamp | None = None,
-    woman_dob: str | pd.Timestamp | None = None,
-    man_age_at_death: float | None = None,
-    woman_age_at_death: float | None = None,
-) -> Inflation:
-    if gp_model is None:
-        raise ValueError("A fit GaussianProcessRegression model is required for inflation projection.")
-    if historical_inflation is None:
-        raise ValueError("Historical inflation data is required for inflation projection.")
-
-    current_timestamp = pd.Timestamp(current_date)
-    last_historical_month = inflation_frame.index[-1]
-    first_projection_month = max(
-        last_historical_month + pd.offsets.MonthEnd(1),
-        current_timestamp + pd.offsets.MonthEnd(0),
-    )
-
-    projection_months = pd.date_range(
-        start=first_projection_month,
-        periods=months_to_project,
-        freq="ME",
-    )
-    rng = np.random.default_rng(seed)
-    inflation = Inflation(
-        current_date=current_timestamp,
-        start_clock=start_clock,
-        man_dob=man_dob,
-        woman_dob=woman_dob,
-        man_age_at_death=man_age_at_death,
-        woman_age_at_death=woman_age_at_death,
-        gp_model=gp_model,
-        inflation_frame=inflation_frame,
-        monthly_mean_inflation=monthly_mean_inflation,
-        monthly_inflation_volatility=monthly_inflation_volatility,
-        historical_inflation=historical_inflation,
-    )
-    x_test = np.arange(len(inflation_frame), len(inflation_frame) + months_to_project, dtype=float)
-    _, predicted_std = gp_model.predict(x_test)
-
-    for month, std_value in zip(projection_months, predicted_std):
-        next_inflation = get_next_month_inflation(
-            monthly_mean_inflation,
-            monthly_inflation_volatility,
-            historical_inflation,
-            rng,
-        )
-        lower_bound = float(next_inflation - 1.96 * std_value)
-        upper_bound = float(next_inflation + 1.96 * std_value)
-        inflation.add(
-            month=month,
-            inflation=float(next_inflation),
-            lower_bound=lower_bound,
-            upper_bound=upper_bound,
-        )
-    return inflation
-
-
-def _date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timestamp:
+def date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timestamp:
     birth_ts = pd.Timestamp(birth_date)
     whole_years = int(age_years)
     remaining_months = int(round((age_years - whole_years) * 12))
     return birth_ts + pd.DateOffset(years=whole_years, months=remaining_months)
 
 
-def _build_life_horizon_arrays(
-    inflation: Inflation,
-) -> tuple[np.ndarray, np.ndarray]:
-    if (
-        inflation.start_clock is None
-        or inflation.man_dob is None
-        or inflation.woman_dob is None
-        or inflation.man_age_at_death is None
-        or inflation.woman_age_at_death is None
-    ):
-        raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
-
-    start_month = pd.Timestamp(inflation.start_clock) + pd.offsets.MonthEnd(0)
-    end_date = max(
-        _date_at_age(inflation.man_dob, inflation.man_age_at_death),
-        _date_at_age(inflation.woman_dob, inflation.woman_age_at_death),
-    )
-    end_month = end_date + pd.offsets.MonthEnd(0)
-    horizon_dates = pd.date_range(start=start_month, end=end_month, freq="ME")
-    projected_inflation = pd.Series(
-        [item.inflation for item in inflation.monthly_inflation],
-        index=pd.DatetimeIndex([item.month for item in inflation.monthly_inflation]),
-    )
-    horizon_inflation = projected_inflation.reindex(horizon_dates)
-    if horizon_inflation.isna().any():
-        missing_dates = horizon_inflation.index[horizon_inflation.isna()]
-        raise ValueError(
-            "Inflation projection does not cover the required life horizon: "
-            f"{missing_dates[0].date()} to {missing_dates[-1].date()}"
-        )
-    return horizon_inflation.to_numpy(dtype=float), horizon_dates.to_numpy()
-
-
-def _required_projection_months(
-    first_projection_month: pd.Timestamp,
-    start_clock: str | pd.Timestamp,
-    man_dob: str | pd.Timestamp,
-    woman_dob: str | pd.Timestamp,
-    man_age_at_death: float,
-    woman_age_at_death: float,
-) -> int:
-    start_month = pd.Timestamp(start_clock) + pd.offsets.MonthEnd(0)
-    end_date = max(
-        _date_at_age(man_dob, man_age_at_death),
-        _date_at_age(woman_dob, woman_age_at_death),
-    )
-    end_month = end_date + pd.offsets.MonthEnd(0)
-    effective_start = min(first_projection_month, start_month)
-    required_months = len(pd.date_range(start=effective_start, end=end_month, freq="ME"))
-    return max(required_months, 0)
-
-
 def prep_inflation(
     current_date: str | pd.Timestamp,
     history_years: int | None = None,
+    al_cum_running_avg_yrs: int | float | None = None,
     seed: int | None = None,
     start_clock: str | pd.Timestamp | None = None,
     man_dob: str | pd.Timestamp | None = None,
@@ -533,29 +633,14 @@ def prep_inflation(
     man_age_at_death: float | None = None,
     woman_age_at_death: float | None = None,
 ) -> tuple[Inflation, float, pd.DataFrame]:
-    if (
-        history_years is None
-        or
-        start_clock is None
-        or man_dob is None
-        or woman_dob is None
-        or man_age_at_death is None
-        or woman_age_at_death is None
-    ):
-        raise ValueError("Inflation history_years and life-horizon parameters must be supplied by the caller.")
-
-    inflation_model = Inflation(
+    return Inflation.prep_inflation(
+        current_date=current_date,
         history_years=history_years,
+        al_cum_running_avg_yrs=al_cum_running_avg_yrs,
+        seed=seed,
         start_clock=start_clock,
         man_dob=man_dob,
         woman_dob=woman_dob,
         man_age_at_death=man_age_at_death,
         woman_age_at_death=woman_age_at_death,
     )
-    inflation_frame = inflation_model.train(current_date=current_date)
-    inflation_model.project(current_date=current_date, seed=seed)
-    inflation = inflation_model
-    annualized_inflation = inflation.annualized_inflation
-    if inflation.inflation_frame is None:
-        raise ValueError("Inflation history was not loaded during preparation.")
-    return inflation, annualized_inflation, inflation.inflation_frame
