@@ -29,22 +29,28 @@ WOMAN_AGE_AT_DEATH = 77,
 PILE_AT_START = 5700000,
 
 @dataclass
-class MonthlySavingsRoi:
+class MonthlyRoiPoint:
     month: pd.Timestamp
     roi: float
     rolling_average_12m: float
 
 
 @dataclass
-class SavingsProjection:
-    monthly_roi: list[MonthlySavingsRoi] = field(default_factory=list)
+class Roi:
+    monthly_roi: list[MonthlyRoiPoint] = field(default_factory=list)
+    ticker: str = TICKER
+    monthly_close: pd.Series | None = None
+    return_frame: pd.DataFrame | None = None
+    monthly_mean_return: float = 0.0
+    monthly_volatility: float = 0.0
+    historical_returns: np.ndarray | None = None
 
     def add(self, month: pd.Timestamp, roi: float) -> None:
         recent_roi = [item.roi for item in self.monthly_roi[-(ROLLING_AVERAGE_WINDOW - 1):]]
         recent_roi.append(roi)
         rolling_average_12m = float(np.mean(recent_roi))
         self.monthly_roi.append(
-            MonthlySavingsRoi(
+            MonthlyRoiPoint(
                 month=month,
                 roi=roi,
                 rolling_average_12m=rolling_average_12m,
@@ -67,12 +73,45 @@ class SavingsProjection:
             value *= 1 + item.roi
         return value
 
+    def train(self, ticker: str = TICKER) -> pd.DataFrame:
+        self.ticker = ticker
+        self.monthly_close = load_price_history(ticker=ticker)
+        self.return_frame = build_return_frame(self.monthly_close)
+        (
+            self.monthly_mean_return,
+            self.monthly_volatility,
+            self.historical_returns,
+        ) = calibrate_growth_model(self.return_frame)
+        return self.return_frame
+
+    def project(
+        self,
+        ticker: str = TICKER,
+        months_to_project: int = MONTHS_TO_PROJECT,
+        seed: int | None = None,
+    ) -> "Roi":
+        if self.return_frame is None or self.monthly_close is None or self.historical_returns is None:
+            self.train(ticker=ticker)
+
+        generated = generate_projection(
+            monthly_close=self.monthly_close,
+            monthly_mean_return=self.monthly_mean_return,
+            monthly_volatility=self.monthly_volatility,
+            historical_returns=self.historical_returns,
+            months_to_project=months_to_project,
+            seed=seed,
+            ticker=self.ticker,
+            return_frame=self.return_frame,
+        )
+        self.monthly_roi = generated.monthly_roi
+        return self
+
 
 @dataclass
 class Taylor_life:
     def __init__(
         self,
-        projection: SavingsProjection,
+        projection: Roi,
         start_clock: str = START_CLOCK,
         man_dob: str = MAN_DOB,
         woman_dob: str = WOMAN_DOB,
@@ -130,7 +169,7 @@ class Taylor_life:
     def de_escalate(
         self,
         date: str | pd.Timestamp,
-        projection: SavingsProjection | None = None,
+        projection: Roi | None = None,
     ) -> float:
         date_ts = pd.Timestamp(date)
         start_ts = pd.Timestamp(self.start_clock)
@@ -291,11 +330,11 @@ class Inflation:
         return 1 / full_inflation_since_start
 
 
-def _plot_projection_axis(axis_left: plt.Axes, projection: SavingsProjection, title: str) -> None:
-    months = [item.month for item in projection.monthly_roi]
-    roi_values = [item.roi for item in projection.monthly_roi]
-    rolling_average_values = [item.rolling_average_12m for item in projection.monthly_roi]
-    cumulative_values = np.cumprod([1 + item.roi for item in projection.monthly_roi])
+def _plot_projection_axis(axis_left: plt.Axes, roi: Roi, title: str) -> None:
+    months = [item.month for item in roi.monthly_roi]
+    roi_values = [item.roi for item in roi.monthly_roi]
+    rolling_average_values = [item.rolling_average_12m for item in roi.monthly_roi]
+    cumulative_values = np.cumprod([1 + item.roi for item in roi.monthly_roi])
 
     axis_left.plot(months, roi_values, marker="o", linewidth=1.2, label="Monthly ROI")
     axis_left.plot(months, rolling_average_values, linewidth=2.0, label="12M Rolling Average")
@@ -409,15 +448,15 @@ def _plot_inflation_with_history_axis(
 def _plot_projection_with_history_axis(
     axis_left: plt.Axes,
     return_frame: pd.DataFrame,
-    projection: SavingsProjection,
+    roi: Roi,
     title: str,
 ) -> None:
     historical_roi = return_frame["Monthly_Return"].copy()
     historical_rolling = historical_roi.rolling(ROLLING_AVERAGE_WINDOW, min_periods=1).mean()
-    projected_months = [item.month for item in projection.monthly_roi]
-    projected_roi = pd.Series([item.roi for item in projection.monthly_roi], index=projected_months)
+    projected_months = [item.month for item in roi.monthly_roi]
+    projected_roi = pd.Series([item.roi for item in roi.monthly_roi], index=projected_months)
     projected_rolling = pd.Series(
-        [item.rolling_average_12m for item in projection.monthly_roi],
+        [item.rolling_average_12m for item in roi.monthly_roi],
         index=projected_months,
     )
 
@@ -449,9 +488,9 @@ def _plot_projection_with_history_axis(
     axis_left.legend(lines_left + lines_right, labels_left + labels_right, loc="upper left")
 
 
-def plot_projection_roi(projection: SavingsProjection, show: bool = True) -> None:
+def plot_projection_roi(roi: Roi, show: bool = True) -> None:
     figure, axis = plt.subplots(figsize=(12, 6))
-    _plot_projection_axis(axis, projection, "Projected Monthly ROI Over Time")
+    _plot_projection_axis(axis, roi, "Projected Monthly ROI Over Time")
     plt.tight_layout()
     if show:
         plt.show()
@@ -459,11 +498,11 @@ def plot_projection_roi(projection: SavingsProjection, show: bool = True) -> Non
 
 def plot_projection_with_history(
     return_frame: pd.DataFrame,
-    projection: SavingsProjection,
+    roi: Roi,
     show: bool = True,
 ) -> None:
     figure, axis = plt.subplots(figsize=(14, 7))
-    _plot_projection_with_history_axis(axis, return_frame, projection, "Historical and Projected Monthly ROI Over Time")
+    _plot_projection_with_history_axis(axis, return_frame, roi, "Historical and Projected Monthly ROI Over Time")
     plt.tight_layout()
     if show:
         plt.show()
@@ -471,15 +510,15 @@ def plot_projection_with_history(
 
 def plot_projection_views(
     return_frame: pd.DataFrame,
-    projection: SavingsProjection,
+    roi: Roi,
     show: bool = True,
 ) -> None:
     figure, axes = plt.subplots(2, 1, figsize=(14, 12))
-    _plot_projection_axis(axes[0], projection, "Projected Monthly ROI Over Time")
+    _plot_projection_axis(axes[0], roi, "Projected Monthly ROI Over Time")
     _plot_projection_with_history_axis(
         axes[1],
         return_frame,
-        projection,
+        roi,
         "Historical and Projected Monthly ROI Over Time",
     )
     plt.tight_layout()
@@ -638,8 +677,17 @@ def generate_projection(
     historical_returns: np.ndarray,
     months_to_project: int = MONTHS_TO_PROJECT,
     seed: int | None = None,
-) -> SavingsProjection:
-    projection = SavingsProjection()
+    ticker: str = TICKER,
+    return_frame: pd.DataFrame | None = None,
+) -> Roi:
+    roi = Roi(
+        ticker=ticker,
+        monthly_close=monthly_close.copy(),
+        return_frame=return_frame,
+        monthly_mean_return=monthly_mean_return,
+        monthly_volatility=monthly_volatility,
+        historical_returns=historical_returns,
+    )
     simulated_close = monthly_close.copy()
     rng = np.random.default_rng(seed)
 
@@ -654,9 +702,9 @@ def generate_projection(
         next_close = simulated_close.iloc[-1] * (1 + next_roi)
 
         simulated_close.loc[next_month] = next_close
-        projection.add(next_month, next_roi)
+        roi.add(next_month, next_roi)
 
-    return projection
+    return roi
 
 
 def generate_inflation_projection(
@@ -730,19 +778,11 @@ def prep_projection(
     ticker: str = TICKER,
     months_to_project: int = MONTHS_TO_PROJECT,
     seed: int | None = None,
-) -> tuple[SavingsProjection, float, float, pd.DataFrame]:
-    monthly_close = load_price_history(ticker=ticker)
-    return_frame = build_return_frame(monthly_close)
-    monthly_mean_return, monthly_volatility, historical_returns = calibrate_growth_model(return_frame)
-    projection = generate_projection(
-        monthly_close,
-        monthly_mean_return,
-        monthly_volatility,
-        historical_returns,
-        months_to_project=months_to_project,
-        seed=seed,
-    )
-    return projection, monthly_mean_return, monthly_volatility, return_frame
+) -> tuple[Roi, float, float, pd.DataFrame]:
+    roi = Roi()
+    return_frame = roi.train(ticker=ticker)
+    roi.project(ticker=ticker, months_to_project=months_to_project, seed=seed)
+    return roi, roi.monthly_mean_return, roi.monthly_volatility, return_frame
 
 
 def prep_inflation(
@@ -770,7 +810,7 @@ def prep_inflation(
 
 def main() -> None:
     args = parse_args()
-    projection, monthly_mean_return, monthly_volatility, return_frame = prep_projection(
+    roi, monthly_mean_return, monthly_volatility, return_frame = prep_projection(
         ticker=args.ticker,
         months_to_project=args.months,
         seed=args.seed,
@@ -793,9 +833,9 @@ def main() -> None:
         f"CPI current date: {current_date.date()}\n"
         f"Implied annualized CPI inflation: {annualized_mean_cpi:.2%}"
     )
-    print(projection)
+    print(roi)
     print(inflation)
-    plot_projection_views(return_frame, projection, show=False)
+    plot_projection_views(return_frame, roi, show=False)
     plot_inflation_views(inflation_frame, inflation, show=False)
     plt.show()
 
