@@ -7,8 +7,6 @@ import yfinance as yf
 
 
 TICKER = "SPY"
-START_DATE = "2000-01-01"
-END_DATE = "2025-01-01"
 ROLLING_AVERAGE_WINDOW = 12
 
 
@@ -23,6 +21,8 @@ class MonthlyRoiPoint:
 class Roi:
     monthly_roi: list[MonthlyRoiPoint] = field(default_factory=list)
     ticker: str = TICKER
+    current_date: pd.Timestamp | None = None
+    history_years: int | None = None
     start_clock: str | pd.Timestamp | None = None
     man_dob: str | pd.Timestamp | None = None
     woman_dob: str | pd.Timestamp | None = None
@@ -66,7 +66,13 @@ class Roi:
 
     def train(self, ticker: str = TICKER) -> pd.DataFrame:
         self.ticker = ticker
-        self.monthly_close = load_price_history(ticker=ticker)
+        if self.current_date is None or self.history_years is None:
+            raise ValueError("current_date and history_years must be set at Roi instantiation before training.")
+        self.monthly_close = load_price_history(
+            ticker=ticker,
+            end_date=self.current_date,
+            years=self.history_years,
+        )
         self.return_frame = build_return_frame(self.monthly_close)
         (
             self.monthly_mean_return,
@@ -223,10 +229,20 @@ def plot_projection_views(
 
 def load_price_history(
     ticker: str = TICKER,
-    start_date: str = START_DATE,
-    end_date: str = END_DATE,
+    end_date: str | pd.Timestamp | None = None,
+    years: int | None = None,
 ) -> pd.Series:
-    data = yf.download(ticker, start=start_date, end=end_date, auto_adjust=True, progress=False)
+    if years is None:
+        raise ValueError("years must be supplied when loading ROI price history.")
+    end_date_to_use = pd.Timestamp.today().normalize() if end_date is None else pd.Timestamp(end_date)
+    start_date_to_use = end_date_to_use - pd.DateOffset(years=years)
+    data = yf.download(
+        ticker,
+        start=start_date_to_use,
+        end=end_date_to_use,
+        auto_adjust=True,
+        progress=False,
+    )
     if data.empty:
         raise ValueError(f"No price history returned for {ticker}.")
 
@@ -374,6 +390,8 @@ def _required_projection_months(
 
 def prep_projection(
     ticker: str = TICKER,
+    current_date: str | pd.Timestamp | None = None,
+    history_years: int | None = None,
     seed: int | None = None,
     start_clock: str | pd.Timestamp | None = None,
     man_dob: str | pd.Timestamp | None = None,
@@ -382,15 +400,21 @@ def prep_projection(
     woman_age_at_death: float | None = None,
 ) -> tuple[Roi, float, float, pd.DataFrame]:
     if (
+        current_date is None
+        or
+        history_years is None
+        or
         start_clock is None
         or man_dob is None
         or woman_dob is None
         or man_age_at_death is None
         or woman_age_at_death is None
     ):
-        raise ValueError("Roi life-horizon parameters must be supplied by the caller.")
+        raise ValueError("Roi current date, history_years, and life-horizon parameters must be supplied by the caller.")
 
     roi = Roi(
+        current_date=pd.Timestamp(current_date),
+        history_years=history_years,
         start_clock=start_clock,
         man_dob=man_dob,
         woman_dob=woman_dob,

@@ -8,7 +8,6 @@ import pandas as pd
 
 ROLLING_AVERAGE_WINDOW = 12
 CPI_SERIES_ID = "CPIAUCSL"
-CPI_HISTORY_YEARS = 25
 GP_LENGTH_SCALE = 18.0
 GP_SIGNAL_VARIANCE = 0.000025
 GP_NOISE_VARIANCE = 0.000004
@@ -65,6 +64,7 @@ class GaussianProcessRegression:
 class Inflation:
     monthly_inflation: list[MonthlyInflationPoint] = field(default_factory=list)
     current_date: pd.Timestamp | None = None
+    history_years: int | None = None
     start_clock: str | pd.Timestamp | None = None
     man_dob: str | pd.Timestamp | None = None
     woman_dob: str | pd.Timestamp | None = None
@@ -102,7 +102,9 @@ class Inflation:
 
     def train(self, current_date: str | pd.Timestamp) -> pd.DataFrame:
         self.current_date = pd.Timestamp(current_date)
-        monthly_cpi = load_cpi_history(end_date=self.current_date)
+        if self.history_years is None:
+            raise ValueError("history_years must be set at Inflation instantiation before training.")
+        monthly_cpi = load_cpi_history(end_date=self.current_date, years=self.history_years)
         self.inflation_frame = build_inflation_frame(monthly_cpi)
         self.gp_model = calibrate_inflation_model(self.inflation_frame)
         (
@@ -314,8 +316,10 @@ def plot_inflation_views(
 def load_cpi_history(
     series_id: str = CPI_SERIES_ID,
     end_date: str | pd.Timestamp | None = None,
-    years: int = CPI_HISTORY_YEARS,
+    years: int | None = None,
 ) -> pd.Series:
+    if years is None:
+        raise ValueError("years must be supplied when loading CPI history.")
     end_timestamp = pd.Timestamp.today().normalize() if end_date is None else pd.Timestamp(end_date)
     start_timestamp = end_timestamp - pd.DateOffset(years=years)
     fred_url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
@@ -521,6 +525,7 @@ def _required_projection_months(
 
 def prep_inflation(
     current_date: str | pd.Timestamp,
+    history_years: int | None = None,
     seed: int | None = None,
     start_clock: str | pd.Timestamp | None = None,
     man_dob: str | pd.Timestamp | None = None,
@@ -529,15 +534,18 @@ def prep_inflation(
     woman_age_at_death: float | None = None,
 ) -> tuple[Inflation, float, pd.DataFrame]:
     if (
+        history_years is None
+        or
         start_clock is None
         or man_dob is None
         or woman_dob is None
         or man_age_at_death is None
         or woman_age_at_death is None
     ):
-        raise ValueError("Inflation life-horizon parameters must be supplied by the caller.")
+        raise ValueError("Inflation history_years and life-horizon parameters must be supplied by the caller.")
 
     inflation_model = Inflation(
+        history_years=history_years,
         start_clock=start_clock,
         man_dob=man_dob,
         woman_dob=woman_dob,

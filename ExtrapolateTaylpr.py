@@ -7,7 +7,7 @@ from Inflation import plot_inflation_views, prep_inflation
 from Roi import TICKER, Roi, plot_projection_views, prep_projection
 
 
-MONTHS_TO_PROJECT = 120
+HISTORY_YEARS = 25
 START_CLOCK = "2026-07-01"
 MAN_DOB = "1957-07-26"
 WOMAN_DOB = "1956-04-11"
@@ -96,20 +96,17 @@ def parse_args() -> argparse.Namespace:
         description="Monte Carlo monthly ROI projection anchored to historical long-run growth."
     )
     parser.add_argument("--ticker", default=TICKER, help="Ticker symbol to download, default: SPY")
-    parser.add_argument(
-        "--months",
-        type=int,
-        default=MONTHS_TO_PROJECT,
-        help="Months to project",
-    )
     parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed for reproducible runs")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    current_date = pd.Timestamp.today().normalize()
     roi, monthly_mean_return, monthly_volatility, return_frame = prep_projection(
         ticker=args.ticker,
+        current_date=current_date,
+        history_years=HISTORY_YEARS,
         seed=args.seed,
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
@@ -117,9 +114,9 @@ def main() -> None:
         man_age_at_death=MAN_AGE_AT_DEATH,
         woman_age_at_death=WOMAN_AGE_AT_DEATH,
     )
-    current_date = pd.Timestamp.today().normalize()
     inflation, annualized_inflation, inflation_frame = prep_inflation(
         current_date=current_date,
+        history_years=HISTORY_YEARS,
         seed=args.seed,
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
@@ -127,6 +124,11 @@ def main() -> None:
         man_age_at_death=MAN_AGE_AT_DEATH,
         woman_age_at_death=WOMAN_AGE_AT_DEATH,
     )
+    # results = calc_result(
+    #     dates=roi.life_horizon_dates,
+    #     roi=roi.life_horizon_roi,
+    #     inflation=inflation.life_horizon_inflation,
+    # )
 
     annualized_mean = (1 + monthly_mean_return) ** 12 - 1
     annualized_mean_cpi = annualized_inflation
