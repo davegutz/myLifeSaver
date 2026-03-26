@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from utils import date_at_age
+from utils import build_life_horizon_dates, reindex_life_horizon_values, required_life_horizon_months
 
 ROLLING_AVERAGE_WINDOW = 12
 CPI_SERIES_ID = "CPIAUCSL"
@@ -125,36 +125,25 @@ class Inflation:
         )
 
     def build_life_horizon_arrays(self) -> tuple[np.ndarray, np.ndarray]:
-        if (
-            self.start_clock is None
-            or self.man_dob is None
-            or self.woman_dob is None
-            or self.man_age_at_death is None
-            or self.woman_age_at_death is None
-        ):
-            raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
-
-        start_month = pd.Timestamp(self.start_clock) + pd.offsets.MonthEnd(0)
-        end_date = max(
-            date_at_age(self.man_dob, self.man_age_at_death),
-            date_at_age(self.woman_dob, self.woman_age_at_death),
+        horizon_dates = build_life_horizon_dates(
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
         )
-        end_month = end_date + pd.offsets.MonthEnd(0)
-        horizon_dates = pd.date_range(start=start_month, end=end_month, freq="ME")
-        projected_inflation = pd.Series(
-            [item.inflation for item in self.monthly_inflation],
-            index=pd.DatetimeIndex([item.month for item in self.monthly_inflation]),
+        historical_inflation = pd.Series(dtype=float)
+        if self.inflation_frame is not None:
+            historical_inflation = self.inflation_frame["Monthly_Inflation"].copy()
+        return reindex_life_horizon_values(
+            horizon_dates=horizon_dates,
+            projected_dates=list(historical_inflation.index) + [item.month for item in self.monthly_inflation],
+            projected_values=list(historical_inflation.to_numpy(dtype=float)) + [item.inflation for item in self.monthly_inflation],
+            series_label="Inflation",
         )
-        horizon_inflation = projected_inflation.reindex(horizon_dates)
-        if horizon_inflation.isna().any():
-            missing_dates = horizon_inflation.index[horizon_inflation.isna()]
-            raise ValueError(
-                "Inflation projection does not cover the required life horizon: "
-                f"{missing_dates[0].date()} to {missing_dates[-1].date()}"
-            )
-        return horizon_inflation.to_numpy(dtype=float), horizon_dates.to_numpy()
 
-    def build_inflation_frame(self, monthly_cpi: pd.Series) -> pd.DataFrame:
+    @staticmethod
+    def build_inflation_frame(monthly_cpi: pd.Series) -> pd.DataFrame:
         frame = pd.DataFrame({"CPI": monthly_cpi})
         frame["Monthly_Inflation"] = frame["CPI"].pct_change()
         return frame.dropna()
@@ -419,15 +408,14 @@ class Inflation:
         ):
             raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
 
-        start_month = pd.Timestamp(self.start_clock) + pd.offsets.MonthEnd(0)
-        end_date = max(
-            date_at_age(self.man_dob, self.man_age_at_death),
-            date_at_age(self.woman_dob, self.woman_age_at_death),
+        return required_life_horizon_months(
+            first_projection_month=first_projection_month,
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
         )
-        end_month = end_date + pd.offsets.MonthEnd(0)
-        effective_start = min(first_projection_month, start_month)
-        required_months = len(pd.date_range(start=effective_start, end=end_month, freq="ME"))
-        return max(required_months, 0)
 
     def train(self, current_date: str | pd.Timestamp) -> pd.DataFrame:
         self.current_date = pd.Timestamp(current_date)
@@ -515,7 +503,7 @@ def plot_inflation_with_history_axis(
 ) -> None:
     historical_inflation = inflation_frame["Monthly_Inflation"].copy()
     historical_rolling = historical_inflation.rolling(ROLLING_AVERAGE_WINDOW, min_periods=1).mean()
-    projected_months = [item.month for item in inflation.monthly_inflation]
+    projected_months = pd.DatetimeIndex([item.month for item in inflation.monthly_inflation])
     projected_inflation = pd.Series(
         [item.inflation for item in inflation.monthly_inflation],
         index=projected_months,
@@ -559,7 +547,8 @@ def plot_inflation_with_history_axis(
         alpha=0.2,
         label="95% GP Interval",
     )
-    axis_left.axvline(projected_months[0], color="gray", linestyle=":", linewidth=1.5, label="Projection Start")
+    if len(projected_months) > 0:
+        axis_left.axvline(projected_months[0], color="gray", linestyle=":", linewidth=1.5, label="Projection Start")
     axis_left.set_xlabel("Month")
     axis_left.set_ylabel("Inflation")
     axis_left.grid(True, alpha=0.3)

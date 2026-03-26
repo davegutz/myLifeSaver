@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from utils import date_at_age
+from utils import build_life_horizon_dates, reindex_life_horizon_values, required_life_horizon_months
 
 
 TICKER = "SPY"
@@ -62,36 +62,25 @@ class Roi:
         )
 
     def build_life_horizon_arrays(self) -> tuple[np.ndarray, np.ndarray]:
-        if (
-            self.start_clock is None
-            or self.man_dob is None
-            or self.woman_dob is None
-            or self.man_age_at_death is None
-            or self.woman_age_at_death is None
-        ):
-            raise ValueError("Roi life-horizon parameters must be set at instantiation.")
-
-        start_month = pd.Timestamp(self.start_clock) + pd.offsets.MonthEnd(0)
-        end_date = max(
-            date_at_age(self.man_dob, self.man_age_at_death),
-            date_at_age(self.woman_dob, self.woman_age_at_death),
+        horizon_dates = build_life_horizon_dates(
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
         )
-        end_month = end_date + pd.offsets.MonthEnd(0)
-        horizon_dates = pd.date_range(start=start_month, end=end_month, freq="ME")
-        projected_roi = pd.Series(
-            [item.roi for item in self.monthly_roi],
-            index=pd.DatetimeIndex([item.month for item in self.monthly_roi]),
+        historical_roi = pd.Series(dtype=float)
+        if self.return_frame is not None:
+            historical_roi = self.return_frame["Monthly_Return"].copy()
+        return reindex_life_horizon_values(
+            horizon_dates=horizon_dates,
+            projected_dates=list(historical_roi.index) + [item.month for item in self.monthly_roi],
+            projected_values=list(historical_roi.to_numpy(dtype=float)) + [item.roi for item in self.monthly_roi],
+            series_label="ROI",
         )
-        horizon_roi = projected_roi.reindex(horizon_dates)
-        if horizon_roi.isna().any():
-            missing_dates = horizon_roi.index[horizon_roi.isna()]
-            raise ValueError(
-                "ROI projection does not cover the required life horizon: "
-                f"{missing_dates[0].date()} to {missing_dates[-1].date()}"
-            )
-        return horizon_roi.to_numpy(dtype=float), horizon_dates.to_numpy()
 
-    def build_return_frame(self, monthly_close: pd.Series) -> pd.DataFrame:
+    @staticmethod
+    def build_return_frame(monthly_close: pd.Series) -> pd.DataFrame:
         frame = pd.DataFrame({"Close": monthly_close})
         frame["Monthly_Return"] = frame["Close"].pct_change()
         return frame.dropna()
@@ -236,15 +225,14 @@ class Roi:
             raise ValueError("Roi life-horizon parameters must be set at instantiation.")
 
         first_projected_month = last_historical_month + pd.offsets.MonthEnd(1)
-        start_month = pd.Timestamp(self.start_clock) + pd.offsets.MonthEnd(0)
-        end_date = max(
-            date_at_age(self.man_dob, self.man_age_at_death),
-            date_at_age(self.woman_dob, self.woman_age_at_death),
+        return required_life_horizon_months(
+            first_projection_month=first_projected_month,
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
         )
-        end_month = end_date + pd.offsets.MonthEnd(0)
-        effective_start = min(first_projected_month, start_month)
-        required_months = len(pd.date_range(start=effective_start, end=end_month, freq="ME"))
-        return max(required_months, 0)
 
     def train(self, ticker: str = TICKER) -> pd.DataFrame:
         self.ticker = ticker
@@ -290,7 +278,7 @@ def plot_projection_with_history_axis(
 ) -> None:
     historical_roi = return_frame["Monthly_Return"].copy()
     historical_rolling = historical_roi.rolling(ROLLING_AVERAGE_WINDOW, min_periods=1).mean()
-    projected_months = [item.month for item in roi.monthly_roi]
+    projected_months = pd.DatetimeIndex([item.month for item in roi.monthly_roi])
     projected_roi = pd.Series([item.roi for item in roi.monthly_roi], index=projected_months)
     projected_rolling = pd.Series(
         [item.rolling_average_12m for item in roi.monthly_roi],
@@ -303,7 +291,8 @@ def plot_projection_with_history_axis(
 
     axis_left.plot(full_roi.index, full_roi.values, linewidth=1.0, label="Monthly ROI")
     axis_left.plot(full_rolling.index, full_rolling.values, linewidth=2.0, label="12M Rolling Average")
-    axis_left.axvline(projected_months[0], color="gray", linestyle=":", linewidth=1.5, label="Projection Start")
+    if len(projected_months) > 0:
+        axis_left.axvline(projected_months[0], color="gray", linestyle=":", linewidth=1.5, label="Projection Start")
     axis_left.set_xlabel("Month")
     axis_left.set_ylabel("ROI")
     axis_left.grid(True, alpha=0.3)
@@ -323,6 +312,18 @@ def plot_projection_with_history_axis(
     lines_left, labels_left = axis_left.get_legend_handles_labels()
     lines_right, labels_right = axis_right.get_legend_handles_labels()
     axis_left.legend(lines_left + lines_right, labels_left + labels_right, loc="upper left")
+
+
+def plot_projection_with_history(
+    return_frame: pd.DataFrame,
+    roi: Roi,
+    show: bool = True,
+) -> None:
+    figure, axis = plt.subplots(figsize=(14, 7))
+    plot_projection_with_history_axis(axis, return_frame, roi, "Historical and Projected Monthly ROI Over Time")
+    plt.tight_layout()
+    if show:
+        plt.show()
 
 
 def plot_projection_views(
