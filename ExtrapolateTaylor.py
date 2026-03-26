@@ -18,10 +18,8 @@ WOMAN_AGE_TO_AL = 71
 MAN_AGE_AT_DEATH = 71
 WOMAN_AGE_AT_DEATH = 71
 PILE_AT_START = 5700000
-# NON_TAYLOR_2 = 9612
-# NON_TAYLOR_1 = 5492
-NON_TAYLOR_2 = 0.5 # 9612
-NON_TAYLOR_1 = 0.5  #5492
+NON_TAYLOR_2 = 9612
+NON_TAYLOR_1 = 5492
 
 class TaylorLife:
     def __init__(
@@ -53,8 +51,6 @@ class TaylorLife:
         self.woman_age_to_al = woman_age_to_al
         self.woman_age_at_death = woman_age_at_death
         self.pile_at_start = pile_at_start
-        self.mo_non_taylor_2 = non_taylor_2
-        self.mo_non_taylor_1 = non_taylor_1
         self.cpi_cum = 0.0
         self.roi_cum = 0.0
         # self.esc_al = esc_al
@@ -63,6 +59,10 @@ class TaylorLife:
         # self.exp_2 = exp_2
         # self.exp_1 = exp_1
         self.num_non_taylor = 0
+        self.non_taylor_2 = non_taylor_2
+        self.non_taylor_1 = non_taylor_1
+        self.mo_non_taylor_del_2 = 0.
+        self.mo_non_taylor_del_1 = 0.
         self.mo_non_taylor = 0.
         self.exp_non_taylor = 0.
         self.exp_non_taylor_history: list[float] = []
@@ -83,7 +83,7 @@ class TaylorLife:
             self.count_non_taylor(i)
             self.exp_non_taylor_history.append(self.exp_non_taylor)
             normalized_exp_non_taylor = (
-                self.exp_non_taylor / self.cpi.life_horizon_inflation[i]
+                self.exp_non_taylor / self.cpi_cum
             )
             self.exp_norm_taylor.append(normalized_exp_non_taylor)
             self.exp_norm_non_taylor.append(normalized_exp_non_taylor)
@@ -109,16 +109,24 @@ class TaylorLife:
         man_non_taylor = age(date, self.man_dob) < self.man_age_to_al
         woman_non_taylor = age(date, self.woman_dob) < self.woman_age_to_al
         self.num_non_taylor = int(man_non_taylor) + int(woman_non_taylor)
-        self.mo_non_taylor_2 += self.cpi.life_horizon_inflation[i] * self.mo_non_taylor_2
-        self.mo_non_taylor_1 += self.cpi.life_horizon_inflation[i] * self.mo_non_taylor_1
+        self.mo_non_taylor_del_2 = self.cpi.life_horizon_inflation[i] * self.non_taylor_2
+        self.mo_non_taylor_del_1 = self.cpi.life_horizon_inflation[i] * self.non_taylor_1
+        self.non_taylor_2 += self.mo_non_taylor_del_2
+        self.non_taylor_1 += self.mo_non_taylor_del_1
         if self.num_non_taylor == 2:
-            del_non_taylor = self.mo_non_taylor_2
+            self.mo_non_taylor = self.mo_non_taylor_del_2
+            if i == 0:
+                self.exp_non_taylor = self.non_taylor_2
         elif self.num_non_taylor == 1:
-            del_non_taylor = self.mo_non_taylor_1
+            self.mo_non_taylor = self.mo_non_taylor_del_1
+            if i == 0:
+                self.exp_non_taylor = self.non_taylor_1
         else:
-            del_non_taylor = 0
-        self.mo_non_taylor += del_non_taylor
+            self.mo_non_taylor = 0
+            if i == 0:
+                self.exp_non_taylor = 0.
         self.exp_non_taylor += self.mo_non_taylor
+        i = 1
 
     def deceased(self, date: str | pd.Timestamp) -> bool:
         date_ts = pd.Timestamp(date)
