@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from Inflation import plot_inflation_views, prep_inflation
-from Roi import MONTHS_TO_PROJECT, TICKER, Roi, plot_projection_views, prep_projection
+from Roi import TICKER, Roi, plot_projection_views, prep_projection
 
 
+MONTHS_TO_PROJECT = 120
 START_CLOCK = "2026-07-01"
 MAN_DOB = "1957-07-26"
 WOMAN_DOB = "1956-04-11"
@@ -109,7 +110,6 @@ def main() -> None:
     args = parse_args()
     roi, monthly_mean_return, monthly_volatility, return_frame = prep_projection(
         ticker=args.ticker,
-        months_to_project=args.months,
         seed=args.seed,
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
@@ -120,7 +120,6 @@ def main() -> None:
     current_date = pd.Timestamp.today().normalize()
     inflation, annualized_inflation, inflation_frame = prep_inflation(
         current_date=current_date,
-        months_to_project=args.months,
         seed=args.seed,
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,

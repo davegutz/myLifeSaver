@@ -112,6 +112,54 @@ class Inflation:
         ) = calibrate_inflation_statistics(self.inflation_frame)
         return self.inflation_frame
 
+    def project(
+        self,
+        current_date: str | pd.Timestamp,
+        seed: int | None = None,
+    ) -> "Inflation":
+        if self.inflation_frame is None or self.gp_model is None or self.historical_inflation is None:
+            self.train(current_date=current_date)
+        if (
+            self.start_clock is None
+            or self.man_dob is None
+            or self.woman_dob is None
+            or self.man_age_at_death is None
+            or self.woman_age_at_death is None
+        ):
+            raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
+
+        first_projection_month = max(
+            self.inflation_frame.index[-1] + pd.offsets.MonthEnd(1),
+            pd.Timestamp(current_date) + pd.offsets.MonthEnd(0),
+        )
+        months_to_project = _required_projection_months(
+            first_projection_month=first_projection_month,
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
+        )
+
+        generated = generate_inflation_projection(
+            inflation_frame=self.inflation_frame,
+            gp_model=self.gp_model,
+            current_date=current_date,
+            months_to_project=months_to_project,
+            monthly_mean_inflation=self.monthly_mean_inflation,
+            monthly_inflation_volatility=self.monthly_inflation_volatility,
+            historical_inflation=self.historical_inflation,
+            seed=seed,
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
+        )
+        self.monthly_inflation = generated.monthly_inflation
+        self.life_horizon_inflation, self.life_horizon_dates = _build_life_horizon_arrays(self)
+        return self
+
     def __str__(self) -> str:
         lines = ["Projected monthly inflation"]
         for item in self.monthly_inflation:
@@ -473,7 +521,6 @@ def _required_projection_months(
 
 def prep_inflation(
     current_date: str | pd.Timestamp,
-    months_to_project: int,
     seed: int | None = None,
     start_clock: str | pd.Timestamp | None = None,
     man_dob: str | pd.Timestamp | None = None,
@@ -498,36 +545,8 @@ def prep_inflation(
         woman_age_at_death=woman_age_at_death,
     )
     inflation_frame = inflation_model.train(current_date=current_date)
-    first_projection_month = max(
-        inflation_frame.index[-1] + pd.offsets.MonthEnd(1),
-        pd.Timestamp(current_date) + pd.offsets.MonthEnd(0),
-    )
-    required_months = _required_projection_months(
-        first_projection_month=first_projection_month,
-        start_clock=start_clock,
-        man_dob=man_dob,
-        woman_dob=woman_dob,
-        man_age_at_death=man_age_at_death,
-        woman_age_at_death=woman_age_at_death,
-    )
-    inflation = generate_inflation_projection(
-        inflation_frame=inflation_frame,
-        gp_model=inflation_model.gp_model,
-        current_date=current_date,
-        months_to_project=max(months_to_project, required_months),
-        monthly_mean_inflation=inflation_model.monthly_mean_inflation,
-        monthly_inflation_volatility=inflation_model.monthly_inflation_volatility,
-        historical_inflation=inflation_model.historical_inflation,
-        seed=seed,
-        start_clock=inflation_model.start_clock,
-        man_dob=inflation_model.man_dob,
-        woman_dob=inflation_model.woman_dob,
-        man_age_at_death=inflation_model.man_age_at_death,
-        woman_age_at_death=inflation_model.woman_age_at_death,
-    )
-    inflation.life_horizon_inflation, inflation.life_horizon_dates = _build_life_horizon_arrays(
-        inflation,
-    )
+    inflation_model.project(current_date=current_date, seed=seed)
+    inflation = inflation_model
     annualized_inflation = inflation.annualized_inflation
     if inflation.inflation_frame is None:
         raise ValueError("Inflation history was not loaded during preparation.")

@@ -9,7 +9,6 @@ import yfinance as yf
 TICKER = "SPY"
 START_DATE = "2000-01-01"
 END_DATE = "2025-01-01"
-MONTHS_TO_PROJECT = 120
 ROLLING_AVERAGE_WINDOW = 12
 
 
@@ -79,11 +78,26 @@ class Roi:
     def project(
         self,
         ticker: str = TICKER,
-        months_to_project: int = MONTHS_TO_PROJECT,
         seed: int | None = None,
     ) -> "Roi":
         if self.return_frame is None or self.monthly_close is None or self.historical_returns is None:
             self.train(ticker=ticker)
+        if (
+            self.start_clock is None
+            or self.man_dob is None
+            or self.woman_dob is None
+            or self.man_age_at_death is None
+            or self.woman_age_at_death is None
+        ):
+            raise ValueError("Roi life-horizon parameters must be set at instantiation.")
+        months_to_project = _required_projection_months(
+            last_historical_month=self.return_frame.index[-1],
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
+        )
 
         generated = generate_projection(
             monthly_close=self.monthly_close,
@@ -256,7 +270,7 @@ def generate_projection(
     monthly_mean_return: float,
     monthly_volatility: float,
     historical_returns: np.ndarray,
-    months_to_project: int = MONTHS_TO_PROJECT,
+    months_to_project: int,
     seed: int | None = None,
     ticker: str = TICKER,
     return_frame: pd.DataFrame | None = None,
@@ -360,7 +374,6 @@ def _required_projection_months(
 
 def prep_projection(
     ticker: str = TICKER,
-    months_to_project: int = MONTHS_TO_PROJECT,
     seed: int | None = None,
     start_clock: str | pd.Timestamp | None = None,
     man_dob: str | pd.Timestamp | None = None,
@@ -385,14 +398,6 @@ def prep_projection(
         woman_age_at_death=woman_age_at_death,
     )
     return_frame = roi.train(ticker=ticker)
-    required_months = _required_projection_months(
-        last_historical_month=return_frame.index[-1],
-        start_clock=start_clock,
-        man_dob=man_dob,
-        woman_dob=woman_dob,
-        man_age_at_death=man_age_at_death,
-        woman_age_at_death=woman_age_at_death,
-    )
-    roi.project(ticker=ticker, months_to_project=max(months_to_project, required_months), seed=seed)
+    roi.project(ticker=ticker, seed=seed)
     roi.life_horizon_roi, roi.life_horizon_dates = _build_life_horizon_arrays(roi)
     return roi, roi.monthly_mean_return, roi.monthly_volatility, return_frame
