@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+from utils import date_at_age
+
 
 TICKER = "SPY"
 ROLLING_AVERAGE_WINDOW = 12
@@ -171,6 +173,44 @@ class Roi:
             raise ValueError(f"No monthly close data available for {ticker}.")
         return monthly_close
 
+    @classmethod
+    def prep_projection(
+        cls,
+        ticker: str = TICKER,
+        current_date: str | pd.Timestamp | None = None,
+        history_years: int | None = None,
+        seed: int | None = None,
+        start_clock: str | pd.Timestamp | None = None,
+        man_dob: str | pd.Timestamp | None = None,
+        woman_dob: str | pd.Timestamp | None = None,
+        man_age_at_death: float | None = None,
+        woman_age_at_death: float | None = None,
+    ) -> "Roi":
+        if (
+            current_date is None
+            or history_years is None
+            or start_clock is None
+            or man_dob is None
+            or woman_dob is None
+            or man_age_at_death is None
+            or woman_age_at_death is None
+        ):
+            raise ValueError("Roi current date, history_years, and life-horizon parameters must be supplied by the caller.")
+
+        roi = cls(
+            ticker=ticker,
+            current_date=pd.Timestamp(current_date),
+            history_years=history_years,
+            start_clock=start_clock,
+            man_dob=man_dob,
+            woman_dob=woman_dob,
+            man_age_at_death=man_age_at_death,
+            woman_age_at_death=woman_age_at_death,
+        )
+        roi.train(ticker=ticker)
+        roi.project(ticker=ticker, seed=seed)
+        return roi
+
     def project(
         self,
         ticker: str = TICKER,
@@ -285,26 +325,6 @@ def plot_projection_with_history_axis(
     axis_left.legend(lines_left + lines_right, labels_left + labels_right, loc="upper left")
 
 
-def plot_projection_roi(roi: Roi, show: bool = True) -> None:
-    figure, axis = plt.subplots(figsize=(12, 6))
-    plot_projection_axis(axis, roi, "Projected Monthly ROI Over Time")
-    plt.tight_layout()
-    if show:
-        plt.show()
-
-
-def plot_projection_with_history(
-    return_frame: pd.DataFrame,
-    roi: Roi,
-    show: bool = True,
-) -> None:
-    figure, axis = plt.subplots(figsize=(14, 7))
-    plot_projection_with_history_axis(axis, return_frame, roi, "Historical and Projected Monthly ROI Over Time")
-    plt.tight_layout()
-    if show:
-        plt.show()
-
-
 def plot_projection_views(
     return_frame: pd.DataFrame,
     roi: Roi,
@@ -321,48 +341,3 @@ def plot_projection_views(
     plt.tight_layout()
     if show:
         plt.show()
-
-
-def date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timestamp:
-    birth_ts = pd.Timestamp(birth_date)
-    whole_years = int(age_years)
-    remaining_months = int(round((age_years - whole_years) * 12))
-    return birth_ts + pd.DateOffset(years=whole_years, months=remaining_months)
-
-
-def prep_projection(
-    ticker: str = TICKER,
-    current_date: str | pd.Timestamp | None = None,
-    history_years: int | None = None,
-    seed: int | None = None,
-    start_clock: str | pd.Timestamp | None = None,
-    man_dob: str | pd.Timestamp | None = None,
-    woman_dob: str | pd.Timestamp | None = None,
-    man_age_at_death: float | None = None,
-    woman_age_at_death: float | None = None,
-) -> tuple[Roi, float, float, pd.DataFrame]:
-    if (
-        current_date is None
-        or
-        history_years is None
-        or
-        start_clock is None
-        or man_dob is None
-        or woman_dob is None
-        or man_age_at_death is None
-        or woman_age_at_death is None
-    ):
-        raise ValueError("Roi current date, history_years, and life-horizon parameters must be supplied by the caller.")
-
-    roi = Roi(
-        current_date=pd.Timestamp(current_date),
-        history_years=history_years,
-        start_clock=start_clock,
-        man_dob=man_dob,
-        woman_dob=woman_dob,
-        man_age_at_death=man_age_at_death,
-        woman_age_at_death=woman_age_at_death,
-    )
-    return_frame = roi.train(ticker=ticker)
-    roi.project(ticker=ticker, seed=seed)
-    return roi, roi.monthly_mean_return, roi.monthly_volatility, return_frame

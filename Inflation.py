@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from utils import date_at_age
+
 ROLLING_AVERAGE_WINDOW = 12
 CPI_SERIES_ID = "CPIAUCSL"
 GP_LENGTH_SCALE = 18.0
@@ -266,6 +268,14 @@ class Inflation:
             raise ValueError(f"No monthly CPI data available for {CPI_SERIES_ID}.")
         return monthly_cpi
 
+    def get_next_month_inflation(self, rng: np.random.Generator) -> float:
+        if self.historical_inflation is None:
+            raise ValueError("historical_inflation must be available before sampling inflation.")
+        sampled_inflation = float(rng.choice(self.historical_inflation))
+        mean_reversion = 0.15 * (self.monthly_mean_inflation - sampled_inflation)
+        shock = float(rng.normal(0, self.monthly_inflation_volatility * 0.15))
+        return sampled_inflation + mean_reversion + shock
+
     def generate_inflation_projection(
         self,
         current_date: str | pd.Timestamp,
@@ -310,12 +320,7 @@ class Inflation:
         _, predicted_std = self.gp_model.predict(x_test)
 
         for month, std_value in zip(projection_months, predicted_std):
-            next_inflation = get_next_month_inflation(
-                self.monthly_mean_inflation,
-                self.monthly_inflation_volatility,
-                self.historical_inflation,
-                rng,
-            )
+            next_inflation = self.get_next_month_inflation(rng)
             lower_bound = float(next_inflation - 1.96 * std_value)
             upper_bound = float(next_inflation + 1.96 * std_value)
             inflation.add(
@@ -325,6 +330,49 @@ class Inflation:
                 upper_bound=upper_bound,
             )
         return inflation
+
+    @classmethod
+    def prep_inflation(
+        cls,
+        current_date: str | pd.Timestamp,
+        history_years: int | None = None,
+        al_cum_running_avg_yrs: int | float | None = None,
+        seed: int | None = None,
+        start_clock: str | pd.Timestamp | None = None,
+        man_dob: str | pd.Timestamp | None = None,
+        woman_dob: str | pd.Timestamp | None = None,
+        man_age_at_death: float | None = None,
+        woman_age_at_death: float | None = None,
+    ) -> tuple["Inflation", float, pd.DataFrame]:
+        if (
+            history_years is None
+            or al_cum_running_avg_yrs is None
+            or start_clock is None
+            or man_dob is None
+            or woman_dob is None
+            or man_age_at_death is None
+            or woman_age_at_death is None
+        ):
+            raise ValueError(
+                "Inflation history_years, al_cum_running_avg_yrs, and life-horizon parameters "
+                "must be supplied by the caller."
+            )
+
+        inflation_model = cls(
+            history_years=history_years,
+            al_cum_running_avg_yrs=al_cum_running_avg_yrs,
+            start_clock=start_clock,
+            man_dob=man_dob,
+            woman_dob=woman_dob,
+            man_age_at_death=man_age_at_death,
+            woman_age_at_death=woman_age_at_death,
+        )
+        inflation_frame = inflation_model.train(current_date=current_date)
+        inflation_model.project(current_date=current_date, seed=seed)
+        annualized_inflation = inflation_model.annualized_inflation
+        if inflation_model.inflation_frame is None:
+            raise ValueError("Inflation history was not loaded during preparation.")
+        return inflation_model, annualized_inflation, inflation_frame
 
     def project(
         self,
@@ -392,49 +440,6 @@ class Inflation:
             self.historical_inflation,
         ) = self.calibrate_inflation_statistics()
         return self.inflation_frame
-
-    @classmethod
-    def prep_inflation(
-        cls,
-        current_date: str | pd.Timestamp,
-        history_years: int | None = None,
-        al_cum_running_avg_yrs: int | float | None = None,
-        seed: int | None = None,
-        start_clock: str | pd.Timestamp | None = None,
-        man_dob: str | pd.Timestamp | None = None,
-        woman_dob: str | pd.Timestamp | None = None,
-        man_age_at_death: float | None = None,
-        woman_age_at_death: float | None = None,
-    ) -> tuple["Inflation", float, pd.DataFrame]:
-        if (
-            history_years is None
-            or al_cum_running_avg_yrs is None
-            or start_clock is None
-            or man_dob is None
-            or woman_dob is None
-            or man_age_at_death is None
-            or woman_age_at_death is None
-        ):
-            raise ValueError(
-                "Inflation history_years, al_cum_running_avg_yrs, and life-horizon parameters "
-                "must be supplied by the caller."
-            )
-
-        inflation_model = cls(
-            history_years=history_years,
-            al_cum_running_avg_yrs=al_cum_running_avg_yrs,
-            start_clock=start_clock,
-            man_dob=man_dob,
-            woman_dob=woman_dob,
-            man_age_at_death=man_age_at_death,
-            woman_age_at_death=woman_age_at_death,
-        )
-        inflation_frame = inflation_model.train(current_date=current_date)
-        inflation_model.project(current_date=current_date, seed=seed)
-        annualized_inflation = inflation_model.annualized_inflation
-        if inflation_model.inflation_frame is None:
-            raise ValueError("Inflation history was not loaded during preparation.")
-        return inflation_model, annualized_inflation, inflation_frame
 
     def validate_life_horizon_result(self) -> None:
         if self.life_horizon_inflation.size == 0 or self.result.size == 0:
@@ -601,46 +606,3 @@ def plot_inflation_views(
     plt.tight_layout()
     if show:
         plt.show()
-
-
-def get_next_month_inflation(
-    monthly_mean_inflation: float,
-    monthly_inflation_volatility: float,
-    historical_inflation: np.ndarray,
-    rng: np.random.Generator,
-) -> float:
-    sampled_inflation = float(rng.choice(historical_inflation))
-    mean_reversion = 0.15 * (monthly_mean_inflation - sampled_inflation)
-    shock = float(rng.normal(0, monthly_inflation_volatility * 0.15))
-    return sampled_inflation + mean_reversion + shock
-
-
-def date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timestamp:
-    birth_ts = pd.Timestamp(birth_date)
-    whole_years = int(age_years)
-    remaining_months = int(round((age_years - whole_years) * 12))
-    return birth_ts + pd.DateOffset(years=whole_years, months=remaining_months)
-
-
-def prep_inflation(
-    current_date: str | pd.Timestamp,
-    history_years: int | None = None,
-    al_cum_running_avg_yrs: int | float | None = None,
-    seed: int | None = None,
-    start_clock: str | pd.Timestamp | None = None,
-    man_dob: str | pd.Timestamp | None = None,
-    woman_dob: str | pd.Timestamp | None = None,
-    man_age_at_death: float | None = None,
-    woman_age_at_death: float | None = None,
-) -> tuple[Inflation, float, pd.DataFrame]:
-    return Inflation.prep_inflation(
-        current_date=current_date,
-        history_years=history_years,
-        al_cum_running_avg_yrs=al_cum_running_avg_yrs,
-        seed=seed,
-        start_clock=start_clock,
-        man_dob=man_dob,
-        woman_dob=woman_dob,
-        man_age_at_death=man_age_at_death,
-        woman_age_at_death=woman_age_at_death,
-    )

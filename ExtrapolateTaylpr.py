@@ -3,8 +3,8 @@ import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from Inflation import Inflation, plot_inflation_views, prep_inflation
-from Roi import TICKER, Roi, plot_projection_views, prep_projection
+from Inflation import Inflation, plot_inflation_views
+from Roi import TICKER, Roi, plot_projection_views
 
 
 HISTORY_YEARS = 25
@@ -187,21 +187,20 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     current_date = pd.Timestamp.today().normalize()
-    roi, monthly_mean_return, monthly_volatility, return_frame = prep_projection(
+    roi = Roi(
         ticker=args.ticker,
         current_date=current_date,
         history_years=HISTORY_YEARS,
-        seed=args.seed,
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
         woman_dob=WOMAN_DOB,
         man_age_at_death=MAN_AGE_AT_DEATH,
         woman_age_at_death=WOMAN_AGE_AT_DEATH,
     )
-    cpi, annualized_inflation, inflation_frame = prep_inflation(
-        current_date=current_date,
+    roi.train(ticker=args.ticker)
+    roi.project(ticker=args.ticker, seed=args.seed)
+    cpi = Inflation(
         history_years=HISTORY_YEARS,
-        seed=args.seed,
         al_cum_running_avg_yrs=AL_ESC_RUNNING_AVG_YRS,
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
@@ -209,23 +208,31 @@ def main() -> None:
         man_age_at_death=MAN_AGE_AT_DEATH,
         woman_age_at_death=WOMAN_AGE_AT_DEATH,
     )
+    cpi.train(current_date=current_date)
+    cpi.project(current_date=current_date, seed=args.seed)
+    annualized_inflation = cpi.annualized_inflation
+    if cpi.inflation_frame is None:
+        raise ValueError("Inflation history was not loaded during projection.")
+    inflation_frame = cpi.inflation_frame
     this_life = Taylor_life(roi=roi, cpi=cpi)
     this_life.calc_result()
 
-    annualized_mean = (1 + monthly_mean_return) ** 12 - 1
+    annualized_mean = (1 + roi.monthly_mean_return) ** 12 - 1
     annualized_mean_cpi = annualized_inflation
     print(
         f"Ticker: {args.ticker}\n"
-        f"Historical monthly mean return: {monthly_mean_return:.2%}\n"
+        f"Historical monthly mean return: {roi.monthly_mean_return:.2%}\n"
         f"Implied annualized return: {annualized_mean:.2%}\n"
-        f"Monthly volatility: {monthly_volatility:.2%}\n"
+        f"Monthly volatility: {roi.monthly_volatility:.2%}\n"
         f"Seed: {args.seed}\n"
         f"CPI current date: {current_date.date()}\n"
         f"Implied annualized CPI inflation: {annualized_mean_cpi:.2%}"
     )
     print(roi)
     print(cpi)
-    plot_projection_views(return_frame, roi, show=False)
+    if roi.return_frame is None:
+        raise ValueError("ROI history was not loaded during projection.")
+    plot_projection_views(roi.return_frame, roi, show=False)
     plot_inflation_views(inflation_frame, cpi, show=False)
     plot_taylor_life_exp_non_taylor(this_life, show=False)
     plt.show()
