@@ -2,6 +2,12 @@ import pandas as pd
 import numpy as np
 
 
+def age(date: str | pd.Timestamp, birth_date: str | pd.Timestamp) -> float:
+    date_ts = pd.Timestamp(date)
+    birth_ts = pd.Timestamp(birth_date)
+    return float((date_ts - birth_ts).days / 365.2425)
+
+
 def date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timestamp:
     birth_ts = pd.Timestamp(birth_date)
     whole_years = int(age_years)

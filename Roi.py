@@ -153,9 +153,9 @@ class Roi:
         if data.empty:
             raise ValueError(f"No price history returned for {ticker}.")
 
-        close_data = data["Close"]
-        if isinstance(close_data, pd.DataFrame):
-            close_data = close_data.iloc[:, 0]
+        close_data: pd.Series = data["Close"].squeeze("columns")
+        if not isinstance(close_data, pd.Series):
+            raise ValueError(f"Unexpected close-data shape returned for {ticker}.")
 
         monthly_close = close_data.resample("ME").last().dropna()
         if monthly_close.empty:

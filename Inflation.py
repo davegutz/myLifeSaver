@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from io import StringIO
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -148,6 +149,35 @@ class Inflation:
         frame["Monthly_Inflation"] = frame["CPI"].pct_change()
         return frame.dropna()
 
+    @staticmethod
+    def build_right_axis(
+        axis_left: plt.Axes,
+        growth_dates: pd.Index | pd.DatetimeIndex | list[pd.Timestamp],
+        growth_values: pd.Series | np.ndarray,
+        running_avg_cpi_growth: pd.Series,
+        cpi_running_average: pd.Series,
+    ) -> plt.Axes:
+        axis_right = axis_left.twinx()
+        axis_right.plot(
+            growth_dates,
+            growth_values,
+            color="black",
+            linestyle="--",
+            linewidth=1.8,
+            label="Growth of $1",
+        )
+        if not cpi_running_average.isna().all():
+            axis_right.plot(
+                running_avg_cpi_growth.index,
+                running_avg_cpi_growth.values,
+                color="dimgray",
+                linestyle="-.",
+                linewidth=1.8,
+                label="Running Avg CPI Growth",
+            )
+        axis_right.set_ylabel("Growth of $1")
+        return axis_right
+
     def build_life_horizon_cpi_running_avg(self) -> np.ndarray:
         if self.al_cum_running_avg_yrs is None:
             raise ValueError("Inflation running-average years must be set at instantiation.")
@@ -225,7 +255,8 @@ class Inflation:
 
         try:
             with urlopen(fred_url) as response:
-                cpi_frame = pd.read_csv(response)
+                csv_text = response.read().decode("utf-8-sig")
+                cpi_frame = pd.read_csv(StringIO(csv_text))
         except (URLError, OSError) as exc:
             raise ValueError(f"Unable to download CPI history for {CPI_SERIES_ID}.") from exc
 
@@ -469,25 +500,13 @@ def plot_inflation_axis(axis_left: plt.Axes, inflation: Inflation, title: str) -
     axis_left.set_ylabel("Inflation")
     axis_left.grid(True, alpha=0.3)
 
-    axis_right = axis_left.twinx()
-    axis_right.plot(
-        months,
-        growth_of_one_dollar,
-        color="black",
-        linestyle="--",
-        linewidth=1.8,
-        label="Growth of $1",
+    axis_right = Inflation.build_right_axis(
+        axis_left=axis_left,
+        growth_dates=months,
+        growth_values=growth_of_one_dollar,
+        running_avg_cpi_growth=running_avg_cpi_growth,
+        cpi_running_average=cpi_running_average,
     )
-    if not cpi_running_average.isna().all():
-        axis_right.plot(
-            running_avg_cpi_growth.index,
-            running_avg_cpi_growth.values,
-            color="dimgray",
-            linestyle="-.",
-            linewidth=1.8,
-            label="Running Avg CPI Growth",
-        )
-    axis_right.set_ylabel("Growth of $1")
 
     axis_left.set_title(title)
     lines_left, labels_left = axis_left.get_legend_handles_labels()
@@ -553,25 +572,13 @@ def plot_inflation_with_history_axis(
     axis_left.set_ylabel("Inflation")
     axis_left.grid(True, alpha=0.3)
 
-    axis_right = axis_left.twinx()
-    axis_right.plot(
-        growth_of_one_dollar.index,
-        growth_of_one_dollar.values,
-        color="black",
-        linestyle="--",
-        linewidth=1.8,
-        label="Growth of $1",
+    axis_right = Inflation.build_right_axis(
+        axis_left=axis_left,
+        growth_dates=growth_of_one_dollar.index,
+        growth_values=growth_of_one_dollar.values,
+        running_avg_cpi_growth=running_avg_cpi_growth,
+        cpi_running_average=projected_cpi_running_average,
     )
-    if not projected_cpi_running_average.isna().all():
-        axis_right.plot(
-            running_avg_cpi_growth.index,
-            running_avg_cpi_growth.values,
-            color="dimgray",
-            linestyle="-.",
-            linewidth=1.8,
-            label="Running Avg CPI Growth",
-        )
-    axis_right.set_ylabel("Growth of $1")
 
     axis_left.set_title(title)
     lines_left, labels_left = axis_left.get_legend_handles_labels()

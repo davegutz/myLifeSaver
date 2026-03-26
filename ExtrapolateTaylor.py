@@ -5,6 +5,7 @@ import pandas as pd
 
 from Inflation import Inflation, plot_inflation_views
 from Roi import TICKER, Roi, plot_projection_views
+from utils import age
 
 
 HISTORY_YEARS = 25
@@ -22,7 +23,7 @@ PILE_AT_START = 5700000
 NON_TAYLOR_2 = 0.5 # 9612
 NON_TAYLOR_1 = 0.5  #5492
 
-class Taylor_life:
+class TaylorLife:
     def __init__(
         self,
         roi: Roi,
@@ -43,6 +44,7 @@ class Taylor_life:
             raise ValueError("roi and an cpi vectors must be supplied by the caller")
         self.roi = roi
         self.cpi = cpi
+        self.start_clock = roi.start_clock if roi.start_clock is not None else cpi.start_clock
         self.dates = roi.life_horizon_dates
         self.man_dob = man_dob
         self.woman_dob = woman_dob
@@ -53,22 +55,19 @@ class Taylor_life:
         self.pile_at_start = pile_at_start
         self.mo_non_taylor_2 = non_taylor_2
         self.mo_non_taylor_1 = non_taylor_1
+        self.cpi_cum = 0.0
+        self.roi_cum = 0.0
         # self.esc_al = esc_al
         # self.esc_cc = esc_cc
         # self.non_Taylor_exp = non_Taylor_exp
         # self.exp_2 = exp_2
         # self.exp_1 = exp_1
-        self.num_non_taylor = 0.
+        self.num_non_taylor = 0
         self.mo_non_taylor = 0.
         self.exp_non_taylor = 0.
         self.exp_non_taylor_history: list[float] = []
         self.exp_norm_taylor: list[float] = []
         self.exp_norm_non_taylor: list[float] = []
-
-    def age(self, date: str | pd.Timestamp, birth_date: str | pd.Timestamp) -> float:
-        date_ts = pd.Timestamp(date)
-        birth_ts = pd.Timestamp(birth_date)
-        return float((date_ts - birth_ts).days / 365.2425)
 
     def calc_result(self):
         self.num_non_taylor = 0.0
@@ -93,22 +92,22 @@ class Taylor_life:
 
         return result
 
-    def count_al(self, date: str | pd.Timestamp) -> bool:
+    def count_al(self, date: str | pd.Timestamp) -> int:
         date_ts = pd.Timestamp(date)
-        man_in_al = self.man_age_to_al <= self.age(date_ts, self.man_dob) < self.man_age_at_death
-        woman_in_al = self.woman_age_to_al <= self.age(date_ts, self.woman_dob) < self.woman_age_at_death
+        man_in_al = self.man_age_to_al <= age(date_ts, self.man_dob) < self.man_age_at_death
+        woman_in_al = self.woman_age_to_al <= age(date_ts, self.woman_dob) < self.woman_age_at_death
         return int(man_in_al) + int(woman_in_al)
 
     def count_lc(self, date: str | pd.Timestamp) -> int:
         date_ts = pd.Timestamp(date)
-        man_alive = self.age(date_ts, self.man_dob) < self.man_age_at_death
-        woman_alive = self.age(date_ts, self.woman_dob) < self.woman_age_at_death
+        man_alive = age(date_ts, self.man_dob) < self.man_age_at_death
+        woman_alive = age(date_ts, self.woman_dob) < self.woman_age_at_death
         return int(man_alive) + int(woman_alive)
     
-    def count_non_taylor(self, i=0):
+    def count_non_taylor(self, i: int = 0) -> None:
         date = self.roi.life_horizon_dates[i]
-        man_non_taylor = self.age(date, self.man_dob) < self.man_age_to_al
-        woman_non_taylor = self.age(date, self.woman_dob) < self.woman_age_to_al
+        man_non_taylor = age(date, self.man_dob) < self.man_age_to_al
+        woman_non_taylor = age(date, self.woman_dob) < self.woman_age_to_al
         self.num_non_taylor = int(man_non_taylor) + int(woman_non_taylor)
         self.mo_non_taylor_2 += self.cpi.life_horizon_inflation[i] * self.mo_non_taylor_2
         self.mo_non_taylor_1 += self.cpi.life_horizon_inflation[i] * self.mo_non_taylor_1
@@ -123,8 +122,8 @@ class Taylor_life:
 
     def deceased(self, date: str | pd.Timestamp) -> bool:
         date_ts = pd.Timestamp(date)
-        man_deceased = self.age(date_ts, self.man_dob) >= self.man_age_at_death
-        woman_deceased = self.age(date_ts, self.woman_dob) >= self.woman_age_at_death
+        man_deceased = age(date_ts, self.man_dob) >= self.man_age_at_death
+        woman_deceased = age(date_ts, self.woman_dob) >= self.woman_age_at_death
         return man_deceased and woman_deceased
 
     def de_cumalate(
@@ -133,8 +132,10 @@ class Taylor_life:
         projection: Roi | None = None,
     ) -> float:
         date_ts = pd.Timestamp(date)
+        if self.start_clock is None:
+            raise ValueError("start_clock must be set on roi or cpi before calling de_cumalate.")
         start_ts = pd.Timestamp(self.start_clock)
-        projection_to_use = projection if projection is not None else self.projection
+        projection_to_use = projection if projection is not None else self.roi
 
         if date_ts <= start_ts:
             return 1.0
@@ -147,7 +148,7 @@ class Taylor_life:
         return 1 / full_growth_since_start
 
 
-def plot_taylor_life_exp_non_taylor(this_life: Taylor_life, show: bool = True) -> None:
+def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) -> None:
     if not this_life.exp_non_taylor_history:
         this_life.calc_result()
 
@@ -214,7 +215,7 @@ def main() -> None:
     if cpi.inflation_frame is None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
-    this_life = Taylor_life(roi=roi, cpi=cpi)
+    this_life = TaylorLife(roi=roi, cpi=cpi)
     this_life.calc_result()
 
     annualized_mean = (1 + roi.monthly_mean_return) ** 12 - 1
