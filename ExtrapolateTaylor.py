@@ -19,8 +19,10 @@ WOMAN_AGE_AT_DEATH = 77.
 PILE_AT_START = 5700000.
 NON_TAYLOR_2 = 9612.
 NON_TAYLOR_1 = 5492.
-AL_1 = 9200.
-AL_2 = AL_1 * 2.
+AL_CC_1 = 9200.
+AL_CC_2 = AL_CC_1 * 2.
+CC_1 = 3150.
+CC_2 = 3750.
 
 class TaylorLife:
     def __init__(
@@ -34,8 +36,10 @@ class TaylorLife:
         woman_age_to_al: float = WOMAN_AGE_TO_AL,
         woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
         pile_at_start: float = PILE_AT_START,
-        al_2: float = AL_2,
-        al_1: float = AL_1,
+        al_cc_2: float = AL_CC_2,
+        al_cc_1: float = AL_CC_1,
+        cc_2: float = CC_2,
+        cc_1: float = CC_1,
         non_taylor_2: float = NON_TAYLOR_2,
         non_taylor_1: float = NON_TAYLOR_1,
     ) -> None:
@@ -55,15 +59,28 @@ class TaylorLife:
         self.cpi_cum = 0.0
         self.roi_cum = 0.0
 
-        self.num_al = 0
-        self.al_2 = al_2
-        self.al_1 = al_1
-        self.mo_al_del_2 = 0.
-        self.mo_al_del_1 = 0.
-        self.mo_al = 0.
-        self.exp_al = 0.
-        self.exp_al_history: list[float] = []
-        self.exp_norm_al: list[float] = []
+        self.num_al_cc = 0.
+        self.al_cc_2 = al_cc_2
+        self.al_cc_1 = al_cc_1
+        self.mo_al_cc_del_2 = 0.
+        self.mo_al_cc_del_1 = 0.
+        self.mo_al_cc = 0.
+        self.exp_al_cc = 0.
+        self.exp_al_cc_history: list[float] = []
+        self.exp_norm_al_cc: list[float] = []
+
+        self.exp_al_lc_history = None
+        self.exp_norm_al_lc = None
+
+        self.num_cc = 0
+        self.cc_2 = cc_2
+        self.cc_1 = cc_1
+        self.mo_cc_del_2 = 0.
+        self.mo_cc_del_1 = 0.
+        self.mo_cc = 0.
+        self.exp_cc = 0.
+        self.exp_cc_history: list[float] = []
+        self.exp_norm_cc: list[float] = []
 
         self.num_non_taylor = 0
         self.non_taylor_2 = non_taylor_2
@@ -81,8 +98,10 @@ class TaylorLife:
         self.num_non_taylor = 0.0
         self.mo_non_taylor = 0.0
         self.exp_non_taylor = 0.0
-        self.exp_al_history = []
-        self.exp_norm_al = []
+        self.exp_al_cc_history = []
+        self.exp_norm_al_cc = []
+        self.exp_cc_history = []
+        self.exp_norm_cc = []
         self.exp_non_taylor_history = []
         self.exp_norm_non_taylor = []
         n = len(self.cpi.life_horizon_dates)
@@ -90,15 +109,25 @@ class TaylorLife:
             self.cpi_cum = self.cpi.life_horizon_inflation_cum[i]
             self.roi_cum = self.roi.life_horizon_roi_cum[i]
 
-            self.count_al(i)
-            self.exp_al_history.append(self.exp_al)
-            if self.num_al > 0:
-                normalized_exp_al = self.exp_al / self.cpi_cum
-            elif len(self.exp_norm_al) > 0:
-                normalized_exp_al = self.exp_norm_al[-1]
+            self.count_al_cc(i)
+            self.exp_al_cc_history.append(self.exp_al_cc)
+            if self.num_al_cc > 0:
+                normalized_exp_al_cc = self.exp_al_cc / self.cpi_cum
+            elif len(self.exp_norm_al_cc) > 0:
+                normalized_exp_al_cc = self.exp_norm_al_cc[-1]
             else:
-                normalized_exp_al = 0.
-            self.exp_norm_al.append(normalized_exp_al)
+                normalized_exp_al_cc = 0.
+            self.exp_norm_al_cc.append(normalized_exp_al_cc)
+
+            self.count_cc(i)
+            self.exp_cc_history.append(self.exp_cc)
+            if self.num_cc > 0:
+                normalized_exp_cc = self.exp_cc / self.cpi_cum
+            elif len(self.exp_norm_cc) > 0:
+                normalized_exp_cc = self.exp_norm_cc[-1]
+            else:
+                normalized_exp_cc = 0.
+            self.exp_norm_cc.append(normalized_exp_cc)
 
             self.count_non_taylor(i)
             self.exp_non_taylor_history.append(self.exp_non_taylor)
@@ -110,36 +139,58 @@ class TaylorLife:
 
             self.exp_norm_taylor.append(normalized_exp_non_taylor)
 
-        self.exp_al_lc_history = np.array(self.exp_al_history).copy()*0.
-        self.exp_norm_lc = np.array(self.exp_norm_al).copy()*0.
+        self.exp_al_lc_history = np.array(self.exp_al_cc_history).copy()*0.
+        self.exp_norm_al_lc = np.array(self.exp_norm_al_cc).copy()*0.
+
         result = self.exp_non_taylor
 
         return result
 
-    def count_al(self, i: int = 0) -> None:
+    def count_al_cc(self, i: int = 0) -> None:
         date = self.roi.life_horizon_dates[i]
-        man_in_al = self.man_age_to_al <= age(date, self.man_dob) < self.man_age_at_death
-        woman_in_al = self.woman_age_to_al <= age(date, self.woman_dob) < self.woman_age_at_death
-        self.num_al = int(man_in_al) + int(woman_in_al)
-        self.mo_al_del_2 = self.cpi.life_horizon_inflation[i] * self.al_2
-        self.mo_al_del_1 = self.cpi.life_horizon_inflation[i] * self.al_1
-        self.al_2 += self.mo_al_del_2
-        self.al_1 += self.mo_al_del_1
-        if self.num_al == 2:
-            self.mo_al = self.mo_al_del_2
+        man_in_al_cc = self.man_age_to_al <= age(date, self.man_dob) < self.man_age_at_death
+        woman_in_al_cc = self.woman_age_to_al <= age(date, self.woman_dob) < self.woman_age_at_death
+        self.num_al_cc = int(man_in_al_cc) + int(woman_in_al_cc)
+        self.mo_al_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.al_cc_2
+        self.mo_al_cc_del_1 = self.cpi.life_horizon_inflation[i] * self.al_cc_1
+        self.al_cc_2 += self.mo_al_cc_del_2
+        self.al_cc_1 += self.mo_al_cc_del_1
+        if self.num_al_cc == 2:
+            self.mo_al_cc = self.mo_al_cc_del_2
             if i == 0:
-                self.exp_al = self.al_2
-        elif self.num_al == 1:
-            self.mo_al = self.mo_al_del_1
+                self.exp_al_cc = self.al_cc_2
+        elif self.num_al_cc == 1:
+            self.mo_al_cc = self.mo_al_cc_del_1
             if i == 0:
-                self.exp_al = self.al_1
+                self.exp_al_cc = self.al_cc_1
         else:
-            self.mo_al = 0
+            self.mo_al_cc = 0
             if i == 0:
-                self.exp_al = 0.
-        self.exp_al += self.mo_al
+                self.exp_al_cc = 0.
+        self.exp_al_cc += self.mo_al_cc
 
-
+    def count_cc(self, i: int = 0) -> None:
+        date = self.roi.life_horizon_dates[i]
+        man_in_cc = age(date, self.man_dob) < self.man_age_to_al
+        woman_in_cc = age(date, self.man_dob) < self.woman_age_to_al
+        self.num_cc = int(man_in_cc) + int(woman_in_cc)
+        self.mo_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.cc_2
+        self.mo_cc_del_1 = self.cpi.life_horizon_inflation[i] * self.cc_1
+        self.cc_2 += self.mo_cc_del_2
+        self.cc_1 += self.mo_cc_del_1
+        if self.num_cc == 2:
+            self.mo_cc = self.mo_cc_del_2
+            if i == 0:
+                self.exp_cc = self.cc_2
+        elif self.num_cc == 1:
+            self.mo_cc = self.mo_cc_del_1
+            if i == 0:
+                self.exp_cc = self.cc_1
+        else:
+            self.mo_cc = 0
+            if i == 0:
+                self.exp_cc = 0.
+        self.exp_cc += self.mo_cc
 
     def count_lc(self, date: str | pd.Timestamp) -> int:
         date_ts = pd.Timestamp(date)
@@ -218,16 +269,29 @@ def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) ->
     )
     axis.plot(
         pd.DatetimeIndex(this_life.dates),
-        this_life.exp_al_history,
+        this_life.exp_al_cc_history,
         linewidth=2.0,
-        label="exp_al",
+        label="exp_al_cc",
     )
     axis.plot(
         pd.DatetimeIndex(this_life.dates),
-        this_life.exp_norm_al,
+        this_life.exp_norm_al_cc,
         linewidth=2.0,
         linestyle="--",
-        label="exp_norm_al",
+        label="exp_norm_al_cc",
+    )
+    axis.plot(
+        pd.DatetimeIndex(this_life.dates),
+        this_life.exp_cc_history,
+        linewidth=2.0,
+        label="exp_cc",
+    )
+    axis.plot(
+        pd.DatetimeIndex(this_life.dates),
+        this_life.exp_norm_cc,
+        linewidth=2.0,
+        linestyle="--",
+        label="exp_norm_cc",
     )
     axis.set_xlabel("Date")
     axis.set_ylabel("exp_non_taylor")
