@@ -3,7 +3,6 @@ import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from Inflation import MONTHS_TO_PROJECT as INFLATION_MONTHS_TO_PROJECT
 from Inflation import plot_inflation_views, prep_inflation
 from Roi import MONTHS_TO_PROJECT, TICKER, Roi, plot_projection_views, prep_projection
 
@@ -99,7 +98,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--months",
         type=int,
-        default=min(MONTHS_TO_PROJECT, INFLATION_MONTHS_TO_PROJECT),
+        default=MONTHS_TO_PROJECT,
         help="Months to project",
     )
     parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed for reproducible runs")
@@ -112,12 +111,22 @@ def main() -> None:
         ticker=args.ticker,
         months_to_project=args.months,
         seed=args.seed,
+        start_clock=START_CLOCK,
+        man_dob=MAN_DOB,
+        woman_dob=WOMAN_DOB,
+        man_age_at_death=MAN_AGE_AT_DEATH,
+        woman_age_at_death=WOMAN_AGE_AT_DEATH,
     )
     current_date = pd.Timestamp.today().normalize()
     inflation, annualized_inflation, inflation_frame = prep_inflation(
         current_date=current_date,
         months_to_project=args.months,
         seed=args.seed,
+        start_clock=START_CLOCK,
+        man_dob=MAN_DOB,
+        woman_dob=WOMAN_DOB,
+        man_age_at_death=MAN_AGE_AT_DEATH,
+        woman_age_at_death=WOMAN_AGE_AT_DEATH,
     )
 
     annualized_mean = (1 + monthly_mean_return) ** 12 - 1

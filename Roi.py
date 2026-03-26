@@ -11,11 +11,6 @@ START_DATE = "2000-01-01"
 END_DATE = "2025-01-01"
 MONTHS_TO_PROJECT = 120
 ROLLING_AVERAGE_WINDOW = 12
-START_CLOCK = "2026-07-01"
-MAN_DOB = "1957-07-26"
-WOMAN_DOB = "1956-04-11"
-MAN_AGE_AT_DEATH = 77
-WOMAN_AGE_AT_DEATH = 77
 
 
 @dataclass
@@ -29,6 +24,11 @@ class MonthlyRoiPoint:
 class Roi:
     monthly_roi: list[MonthlyRoiPoint] = field(default_factory=list)
     ticker: str = TICKER
+    start_clock: str | pd.Timestamp | None = None
+    man_dob: str | pd.Timestamp | None = None
+    woman_dob: str | pd.Timestamp | None = None
+    man_age_at_death: float | None = None
+    woman_age_at_death: float | None = None
     monthly_close: pd.Series | None = None
     return_frame: pd.DataFrame | None = None
     monthly_mean_return: float = 0.0
@@ -94,6 +94,11 @@ class Roi:
             seed=seed,
             ticker=self.ticker,
             return_frame=self.return_frame,
+            start_clock=self.start_clock,
+            man_dob=self.man_dob,
+            woman_dob=self.woman_dob,
+            man_age_at_death=self.man_age_at_death,
+            woman_age_at_death=self.woman_age_at_death,
         )
         self.monthly_roi = generated.monthly_roi
         return self
@@ -255,9 +260,19 @@ def generate_projection(
     seed: int | None = None,
     ticker: str = TICKER,
     return_frame: pd.DataFrame | None = None,
+    start_clock: str | pd.Timestamp | None = None,
+    man_dob: str | pd.Timestamp | None = None,
+    woman_dob: str | pd.Timestamp | None = None,
+    man_age_at_death: float | None = None,
+    woman_age_at_death: float | None = None,
 ) -> Roi:
     roi = Roi(
         ticker=ticker,
+        start_clock=start_clock,
+        man_dob=man_dob,
+        woman_dob=woman_dob,
+        man_age_at_death=man_age_at_death,
+        woman_age_at_death=woman_age_at_death,
         monthly_close=monthly_close.copy(),
         return_frame=return_frame,
         monthly_mean_return=monthly_mean_return,
@@ -292,16 +307,20 @@ def _date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timesta
 
 def _build_life_horizon_arrays(
     roi: Roi,
-    start_clock: str | pd.Timestamp = START_CLOCK,
-    man_dob: str | pd.Timestamp = MAN_DOB,
-    woman_dob: str | pd.Timestamp = WOMAN_DOB,
-    man_age_at_death: float = MAN_AGE_AT_DEATH,
-    woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
 ) -> tuple[np.ndarray, np.ndarray]:
-    start_month = pd.Timestamp(start_clock) + pd.offsets.MonthEnd(0)
+    if (
+        roi.start_clock is None
+        or roi.man_dob is None
+        or roi.woman_dob is None
+        or roi.man_age_at_death is None
+        or roi.woman_age_at_death is None
+    ):
+        raise ValueError("Roi life-horizon parameters must be set at instantiation.")
+
+    start_month = pd.Timestamp(roi.start_clock) + pd.offsets.MonthEnd(0)
     end_date = max(
-        _date_at_age(man_dob, man_age_at_death),
-        _date_at_age(woman_dob, woman_age_at_death),
+        _date_at_age(roi.man_dob, roi.man_age_at_death),
+        _date_at_age(roi.woman_dob, roi.woman_age_at_death),
     )
     end_month = end_date + pd.offsets.MonthEnd(0)
     horizon_dates = pd.date_range(start=start_month, end=end_month, freq="ME")
@@ -321,11 +340,11 @@ def _build_life_horizon_arrays(
 
 def _required_projection_months(
     last_historical_month: pd.Timestamp,
-    start_clock: str | pd.Timestamp = START_CLOCK,
-    man_dob: str | pd.Timestamp = MAN_DOB,
-    woman_dob: str | pd.Timestamp = WOMAN_DOB,
-    man_age_at_death: float = MAN_AGE_AT_DEATH,
-    woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
+    start_clock: str | pd.Timestamp,
+    man_dob: str | pd.Timestamp,
+    woman_dob: str | pd.Timestamp,
+    man_age_at_death: float,
+    woman_age_at_death: float,
 ) -> int:
     first_projected_month = last_historical_month + pd.offsets.MonthEnd(1)
     start_month = pd.Timestamp(start_clock) + pd.offsets.MonthEnd(0)
@@ -343,13 +362,28 @@ def prep_projection(
     ticker: str = TICKER,
     months_to_project: int = MONTHS_TO_PROJECT,
     seed: int | None = None,
-    start_clock: str | pd.Timestamp = START_CLOCK,
-    man_dob: str | pd.Timestamp = MAN_DOB,
-    woman_dob: str | pd.Timestamp = WOMAN_DOB,
-    man_age_at_death: float = MAN_AGE_AT_DEATH,
-    woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
+    start_clock: str | pd.Timestamp | None = None,
+    man_dob: str | pd.Timestamp | None = None,
+    woman_dob: str | pd.Timestamp | None = None,
+    man_age_at_death: float | None = None,
+    woman_age_at_death: float | None = None,
 ) -> tuple[Roi, float, float, pd.DataFrame]:
-    roi = Roi()
+    if (
+        start_clock is None
+        or man_dob is None
+        or woman_dob is None
+        or man_age_at_death is None
+        or woman_age_at_death is None
+    ):
+        raise ValueError("Roi life-horizon parameters must be supplied by the caller.")
+
+    roi = Roi(
+        start_clock=start_clock,
+        man_dob=man_dob,
+        woman_dob=woman_dob,
+        man_age_at_death=man_age_at_death,
+        woman_age_at_death=woman_age_at_death,
+    )
     return_frame = roi.train(ticker=ticker)
     required_months = _required_projection_months(
         last_historical_month=return_frame.index[-1],
@@ -360,12 +394,5 @@ def prep_projection(
         woman_age_at_death=woman_age_at_death,
     )
     roi.project(ticker=ticker, months_to_project=max(months_to_project, required_months), seed=seed)
-    roi.life_horizon_roi, roi.life_horizon_dates = _build_life_horizon_arrays(
-        roi,
-        start_clock=start_clock,
-        man_dob=man_dob,
-        woman_dob=woman_dob,
-        man_age_at_death=man_age_at_death,
-        woman_age_at_death=woman_age_at_death,
-    )
+    roi.life_horizon_roi, roi.life_horizon_dates = _build_life_horizon_arrays(roi)
     return roi, roi.monthly_mean_return, roi.monthly_volatility, return_frame

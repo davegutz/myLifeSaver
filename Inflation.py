@@ -6,19 +6,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
-MONTHS_TO_PROJECT = 120
 ROLLING_AVERAGE_WINDOW = 12
 CPI_SERIES_ID = "CPIAUCSL"
 CPI_HISTORY_YEARS = 25
 GP_LENGTH_SCALE = 18.0
 GP_SIGNAL_VARIANCE = 0.000025
 GP_NOISE_VARIANCE = 0.000004
-START_CLOCK = "2026-07-01"
-MAN_DOB = "1957-07-26"
-WOMAN_DOB = "1956-04-11"
-MAN_AGE_AT_DEATH = 77
-WOMAN_AGE_AT_DEATH = 77
 
 
 @dataclass
@@ -72,6 +65,11 @@ class GaussianProcessRegression:
 class Inflation:
     monthly_inflation: list[MonthlyInflationPoint] = field(default_factory=list)
     current_date: pd.Timestamp | None = None
+    start_clock: str | pd.Timestamp | None = None
+    man_dob: str | pd.Timestamp | None = None
+    woman_dob: str | pd.Timestamp | None = None
+    man_age_at_death: float | None = None
+    woman_age_at_death: float | None = None
     gp_model: GaussianProcessRegression | None = None
     inflation_frame: pd.DataFrame | None = None
     monthly_mean_inflation: float = 0.0
@@ -135,10 +133,13 @@ class Inflation:
     def de_escalate(
         self,
         date: str | pd.Timestamp,
-        start_clock: str | pd.Timestamp = START_CLOCK,
+        start_clock: str | pd.Timestamp | None = None,
     ) -> float:
         date_ts = pd.Timestamp(date)
-        start_ts = pd.Timestamp(start_clock)
+        start_clock_to_use = self.start_clock if start_clock is None else start_clock
+        if start_clock_to_use is None:
+            raise ValueError("start_clock must be provided either at Inflation instantiation or method call.")
+        start_ts = pd.Timestamp(start_clock_to_use)
 
         if date_ts <= start_ts:
             return 1.0
@@ -348,11 +349,16 @@ def generate_inflation_projection(
     inflation_frame: pd.DataFrame,
     gp_model: GaussianProcessRegression | None,
     current_date: str | pd.Timestamp,
-    months_to_project: int = MONTHS_TO_PROJECT,
+    months_to_project: int,
     monthly_mean_inflation: float = 0.0,
     monthly_inflation_volatility: float = 0.0,
     historical_inflation: np.ndarray | None = None,
     seed: int | None = None,
+    start_clock: str | pd.Timestamp | None = None,
+    man_dob: str | pd.Timestamp | None = None,
+    woman_dob: str | pd.Timestamp | None = None,
+    man_age_at_death: float | None = None,
+    woman_age_at_death: float | None = None,
 ) -> Inflation:
     if gp_model is None:
         raise ValueError("A fit GaussianProcessRegression model is required for inflation projection.")
@@ -374,6 +380,11 @@ def generate_inflation_projection(
     rng = np.random.default_rng(seed)
     inflation = Inflation(
         current_date=current_timestamp,
+        start_clock=start_clock,
+        man_dob=man_dob,
+        woman_dob=woman_dob,
+        man_age_at_death=man_age_at_death,
+        woman_age_at_death=woman_age_at_death,
         gp_model=gp_model,
         inflation_frame=inflation_frame,
         monthly_mean_inflation=monthly_mean_inflation,
@@ -410,16 +421,20 @@ def _date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timesta
 
 def _build_life_horizon_arrays(
     inflation: Inflation,
-    start_clock: str | pd.Timestamp = START_CLOCK,
-    man_dob: str | pd.Timestamp = MAN_DOB,
-    woman_dob: str | pd.Timestamp = WOMAN_DOB,
-    man_age_at_death: float = MAN_AGE_AT_DEATH,
-    woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
 ) -> tuple[np.ndarray, np.ndarray]:
-    start_month = pd.Timestamp(start_clock) + pd.offsets.MonthEnd(0)
+    if (
+        inflation.start_clock is None
+        or inflation.man_dob is None
+        or inflation.woman_dob is None
+        or inflation.man_age_at_death is None
+        or inflation.woman_age_at_death is None
+    ):
+        raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
+
+    start_month = pd.Timestamp(inflation.start_clock) + pd.offsets.MonthEnd(0)
     end_date = max(
-        _date_at_age(man_dob, man_age_at_death),
-        _date_at_age(woman_dob, woman_age_at_death),
+        _date_at_age(inflation.man_dob, inflation.man_age_at_death),
+        _date_at_age(inflation.woman_dob, inflation.woman_age_at_death),
     )
     end_month = end_date + pd.offsets.MonthEnd(0)
     horizon_dates = pd.date_range(start=start_month, end=end_month, freq="ME")
@@ -439,11 +454,11 @@ def _build_life_horizon_arrays(
 
 def _required_projection_months(
     first_projection_month: pd.Timestamp,
-    start_clock: str | pd.Timestamp = START_CLOCK,
-    man_dob: str | pd.Timestamp = MAN_DOB,
-    woman_dob: str | pd.Timestamp = WOMAN_DOB,
-    man_age_at_death: float = MAN_AGE_AT_DEATH,
-    woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
+    start_clock: str | pd.Timestamp,
+    man_dob: str | pd.Timestamp,
+    woman_dob: str | pd.Timestamp,
+    man_age_at_death: float,
+    woman_age_at_death: float,
 ) -> int:
     start_month = pd.Timestamp(start_clock) + pd.offsets.MonthEnd(0)
     end_date = max(
@@ -458,15 +473,30 @@ def _required_projection_months(
 
 def prep_inflation(
     current_date: str | pd.Timestamp,
-    months_to_project: int = MONTHS_TO_PROJECT,
+    months_to_project: int,
     seed: int | None = None,
-    start_clock: str | pd.Timestamp = START_CLOCK,
-    man_dob: str | pd.Timestamp = MAN_DOB,
-    woman_dob: str | pd.Timestamp = WOMAN_DOB,
-    man_age_at_death: float = MAN_AGE_AT_DEATH,
-    woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
+    start_clock: str | pd.Timestamp | None = None,
+    man_dob: str | pd.Timestamp | None = None,
+    woman_dob: str | pd.Timestamp | None = None,
+    man_age_at_death: float | None = None,
+    woman_age_at_death: float | None = None,
 ) -> tuple[Inflation, float, pd.DataFrame]:
-    inflation_model = Inflation()
+    if (
+        start_clock is None
+        or man_dob is None
+        or woman_dob is None
+        or man_age_at_death is None
+        or woman_age_at_death is None
+    ):
+        raise ValueError("Inflation life-horizon parameters must be supplied by the caller.")
+
+    inflation_model = Inflation(
+        start_clock=start_clock,
+        man_dob=man_dob,
+        woman_dob=woman_dob,
+        man_age_at_death=man_age_at_death,
+        woman_age_at_death=woman_age_at_death,
+    )
     inflation_frame = inflation_model.train(current_date=current_date)
     first_projection_month = max(
         inflation_frame.index[-1] + pd.offsets.MonthEnd(1),
@@ -489,14 +519,14 @@ def prep_inflation(
         monthly_inflation_volatility=inflation_model.monthly_inflation_volatility,
         historical_inflation=inflation_model.historical_inflation,
         seed=seed,
+        start_clock=inflation_model.start_clock,
+        man_dob=inflation_model.man_dob,
+        woman_dob=inflation_model.woman_dob,
+        man_age_at_death=inflation_model.man_age_at_death,
+        woman_age_at_death=inflation_model.woman_age_at_death,
     )
     inflation.life_horizon_inflation, inflation.life_horizon_dates = _build_life_horizon_arrays(
         inflation,
-        start_clock=start_clock,
-        man_dob=man_dob,
-        woman_dob=woman_dob,
-        man_age_at_death=man_age_at_death,
-        woman_age_at_death=woman_age_at_death,
     )
     annualized_inflation = inflation.annualized_inflation
     if inflation.inflation_frame is None:
