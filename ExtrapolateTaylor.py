@@ -128,7 +128,6 @@ class TaylorLife:
         self.num_il: list[float] = []
         self.num_al: list[float] = []
         self.num_non_taylor : list[float] = []
-
         self.al_cc_2 = al_cc_2
         self.al_cc_1 = al_cc_1
         self.mo_al_cc_del_2 = 0.
@@ -147,6 +146,9 @@ class TaylorLife:
         self.exp_cc = 0.
         self.exp_cc_history: list[float] = []
         self.exp_norm_cc: list[float] = []
+        self.exp_total_cc = 0.0
+        self.exp_total_cc_history: list[float] = []
+        self.exp_norm_total_cc: list[float] = []
         self.lc_2 = lc_2
         self.lc_1 = lc_1
         self.mo_lc_del_2 = 0.
@@ -155,6 +157,9 @@ class TaylorLife:
         self.exp_lc = 0.
         self.exp_lc_history: list[float] = []
         self.exp_norm_lc: list[float] = []
+        self.exp_total_lc = 0.0
+        self.exp_total_lc_history: list[float] = []
+        self.exp_norm_total_lc: list[float] = []
         self.num_non_taylor_2: list[float] = []
         self.num_non_taylor_1: list[float] = []
         self.num_non_taylor_2: list[float] = []
@@ -223,33 +228,6 @@ class TaylorLife:
         )
 
     def calc_result(self):
-        self.pile_lc = self.pile_at_start
-        self.pile_cc = self.pile_at_start
-        self.pile_norm_lc = self.pile_lc
-        self.pile_norm_cc = self.pile_cc
-        self.al_cc_2 = self.initial_al_cc_2
-        self.al_cc_1 = self.initial_al_cc_1
-        self.cc_2 = self.initial_cc_2
-        self.cc_1 = self.initial_cc_1
-        self.lc_2 = self.initial_lc_2
-        self.lc_1 = self.initial_lc_1
-        self.non_taylor_2 = self.initial_non_taylor_2
-        self.non_taylor_1 = self.initial_non_taylor_1
-        self.exp_al_cc = 0.0
-        self.exp_cc = 0.0
-        self.exp_lc = 0.0
-        self.exp_non_taylor = 0.0
-        self.exp_al_lc = 0.0
-        self.exp_al_cc_history = []
-        self.exp_norm_al_cc = []
-        self.exp_al_lc_history = []
-        self.exp_norm_al_lc = []
-        self.exp_cc_history = []
-        self.exp_norm_cc = []
-        self.exp_lc_history = []
-        self.exp_norm_lc = []
-        self.exp_non_taylor_history = []
-        self.exp_norm_non_taylor = []
         self.count_all()
         self.exp_al_cc_history = self.build_expense_history(
             self.initial_al_cc_2,
@@ -283,11 +261,23 @@ class TaylorLife:
         )
         self.exp_al_lc_history = np.zeros(len(inflation_cum), dtype=float).tolist()
         self.exp_norm_al_lc = np.zeros(len(inflation_cum), dtype=float).tolist()
+        self.exp_total_cc_history = (
+            np.asarray(self.exp_cc_history, dtype=float)
+            + np.asarray(self.exp_non_taylor_history, dtype=float)
+            + np.asarray(self.exp_al_cc_history, dtype=float)
+        ).tolist()
+        self.exp_total_lc_history = (
+            np.asarray(self.exp_lc_history, dtype=float)
+            + np.asarray(self.exp_non_taylor_history, dtype=float)
+            + np.asarray(self.exp_al_lc_history, dtype=float)
+        ).tolist()
         n = len(self.cpi.life_horizon_dates)
         for i in range(n):
             self.exp_al_cc = self.exp_al_cc_history[i]
             self.exp_cc = self.exp_cc_history[i]
+            self.exp_total_cc = self.exp_total_cc_history[i]
             self.exp_lc = self.exp_lc_history[i]
+            self.exp_total_lc = self.exp_total_lc_history[i]
             self.exp_non_taylor = self.exp_non_taylor_history[i]
 
             self.roi_lc = self.pile_lc * self.roi.life_horizon_roi[i]
@@ -304,6 +294,8 @@ class TaylorLife:
             non_taylor_active,
             inflation_cum,
         )
+        self.exp_norm_total_cc = self.normalize_history(self.exp_total_cc_history, il_active | al_active, inflation_cum)
+        self.exp_norm_total_lc = self.normalize_history(self.exp_total_lc_history, il_active | non_taylor_active, inflation_cum)
 
         self.pile_norm_lc = self.pile_lc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
         self.pile_norm_cc = self.pile_cc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
@@ -487,6 +479,32 @@ def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) ->
         linewidth=2.0,
         linestyle="--",
         label="exp_norm_lc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.exp_total_cc_history,
+        linewidth=4.0,
+        label="exp_total_cc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.exp_norm_total_cc,
+        linewidth=4.0,
+        linestyle="--",
+        label="exp_norm_total_cc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.exp_total_lc_history,
+        linewidth=4.0,
+        label="exp_total_lc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.exp_norm_total_lc,
+        linewidth=4.0,
+        linestyle="--",
+        label="exp_norm_total_lc",
     )
     axis_top.set_ylabel("Expense")
     axis_top.set_title("Taylor Life Expenses Over Time")
