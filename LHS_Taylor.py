@@ -1,8 +1,9 @@
 import argparse
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from pathlib import Path
 from Inflation import Inflation, MonthlyInflationPoint, plot_inflation_views
 from Roi import MonthlyRoiPoint, TICKER, Roi, plot_projection_views
 from utils import age
@@ -41,6 +42,18 @@ ROI_MEAN_REVERSION = 0.15
 INFLATION_MEAN_SHIFT = 0.0
 INFLATION_VOL_MULTIPLIER = 1.0
 INFLATION_MEAN_REVERSION = 0.15
+MAN_AGE_TO_AL_RANGE = (75.0, 90.0)
+WOMAN_AGE_TO_AL_RANGE = (75.0, 90.0)
+MAN_LINGER_RANGE = (0.25, 10.0)
+WOMAN_LINGER_RANGE = (0.25, 10.0)
+SEED_RANGE = (0, 1000000)
+ROI_MEAN_SHIFT_RANGE = (-0.01, 0.01)
+ROI_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
+ROI_MEAN_REVERSION_RANGE = (0.0, 0.5)
+INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
+INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
+INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
+DEFAULT_LHS_POINTS = 100
 
 
 @dataclass(frozen=True)
@@ -76,6 +89,76 @@ class TaylorLifeResult:
     principal_norm_lc: int
     principal_cc: int
     principal_norm_cc: int
+
+
+@dataclass(frozen=True)
+class LhsScenarioSummary:
+    run_id: int
+    man_age_to_al: float
+    woman_age_to_al: float
+    man_linger: float
+    woman_linger: float
+    roi_seed: int
+    inflation_seed: int
+    roi_mean_shift: float
+    roi_vol_multiplier: float
+    roi_mean_reversion: float
+    inflation_mean_shift: float
+    inflation_vol_multiplier: float
+    inflation_mean_reversion: float
+    exp_al: float
+    exp_norm_al: float
+    exp_cc: float
+    exp_norm_cc: float
+    exp_lc: float
+    exp_norm_lc: float
+    exp_non_taylor: float
+    exp_norm_non_taylor: float
+    exp_total: float
+    exp_norm_total: float
+    earn_cc: float
+    earn_norm_cc: float
+    earn_lc: float
+    earn_norm_lc: float
+    principal_lc: int
+    principal_norm_lc: int
+    principal_cc: int
+    principal_norm_cc: int
+
+
+CSV_COLUMNS = [
+    "run_id",
+    "man_age_to_al",
+    "woman_age_to_al",
+    "man_linger",
+    "woman_linger",
+    "roi_seed",
+    "inflation_seed",
+    "roi_mean_shift",
+    "roi_vol_multiplier",
+    "roi_mean_reversion",
+    "inflation_mean_shift",
+    "inflation_vol_multiplier",
+    "inflation_mean_reversion",
+    "exp_al",
+    "exp_norm_al",
+    "exp_cc",
+    "exp_norm_cc",
+    "exp_lc",
+    "exp_norm_lc",
+    "exp_non_taylor",
+    "exp_norm_non_taylor",
+    "exp_total",
+    "exp_norm_total",
+    "earn_cc",
+    "earn_norm_cc",
+    "earn_lc",
+    "earn_norm_lc",
+    "principal_lc",
+    "principal_norm_lc",
+    "principal_cc",
+    "principal_norm_cc",
+]
 
 class TaylorLife:
     def __init__(
@@ -515,6 +598,113 @@ def evaluate_lhs_scenario(
     )
 
 
+def sample_lhs_points(num_points: int, dimensions: int, seed: int) -> np.ndarray:
+    if num_points <= 0:
+        raise ValueError("num_points must be positive for LHS sampling.")
+    rng = np.random.default_rng(seed)
+    lhs = np.zeros((num_points, dimensions), dtype=float)
+    for dim in range(dimensions):
+        cut_points = (np.arange(num_points, dtype=float) + rng.random(num_points)) / num_points
+        lhs[:, dim] = cut_points[rng.permutation(num_points)]
+    return lhs
+
+
+def scale_lhs_column(values: np.ndarray, bounds: tuple[float, float]) -> np.ndarray:
+    low, high = bounds
+    return low + values * (high - low)
+
+
+def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
+    sampled = sample_lhs_points(num_points, dimensions=12, seed=seed)
+    return [
+        LhsScenario(
+            man_age_to_al=float(scale_lhs_column(sampled[:, 0], MAN_AGE_TO_AL_RANGE)[idx]),
+            woman_age_to_al=float(scale_lhs_column(sampled[:, 1], WOMAN_AGE_TO_AL_RANGE)[idx]),
+            man_linger=float(scale_lhs_column(sampled[:, 2], MAN_LINGER_RANGE)[idx]),
+            woman_linger=float(scale_lhs_column(sampled[:, 3], WOMAN_LINGER_RANGE)[idx]),
+            roi_seed=int(round(scale_lhs_column(sampled[:, 4], SEED_RANGE)[idx])),
+            inflation_seed=int(round(scale_lhs_column(sampled[:, 5], SEED_RANGE)[idx])),
+            roi_mean_shift=float(scale_lhs_column(sampled[:, 6], ROI_MEAN_SHIFT_RANGE)[idx]),
+            roi_vol_multiplier=float(scale_lhs_column(sampled[:, 7], ROI_VOL_MULTIPLIER_RANGE)[idx]),
+            roi_mean_reversion=float(scale_lhs_column(sampled[:, 8], ROI_MEAN_REVERSION_RANGE)[idx]),
+            inflation_mean_shift=float(scale_lhs_column(sampled[:, 9], INFLATION_MEAN_SHIFT_RANGE)[idx]),
+            inflation_vol_multiplier=float(scale_lhs_column(sampled[:, 10], INFLATION_VOL_MULTIPLIER_RANGE)[idx]),
+            inflation_mean_reversion=float(scale_lhs_column(sampled[:, 11], INFLATION_MEAN_REVERSION_RANGE)[idx]),
+        )
+        for idx in range(num_points)
+    ]
+
+
+def last_value(values: list[float]) -> float:
+    return float(values[-1]) if values else 0.0
+
+
+def summarize_lhs_run(run_id: int, scenario: LhsScenario, model: TaylorLife, result: TaylorLifeResult) -> LhsScenarioSummary:
+    return LhsScenarioSummary(
+        run_id=run_id,
+        man_age_to_al=scenario.man_age_to_al,
+        woman_age_to_al=scenario.woman_age_to_al,
+        man_linger=scenario.man_linger,
+        woman_linger=scenario.woman_linger,
+        roi_seed=scenario.roi_seed,
+        inflation_seed=scenario.inflation_seed,
+        roi_mean_shift=scenario.roi_mean_shift,
+        roi_vol_multiplier=scenario.roi_vol_multiplier,
+        roi_mean_reversion=scenario.roi_mean_reversion,
+        inflation_mean_shift=scenario.inflation_mean_shift,
+        inflation_vol_multiplier=scenario.inflation_vol_multiplier,
+        inflation_mean_reversion=scenario.inflation_mean_reversion,
+        exp_al=last_value(model.exp_al_cc_history),
+        exp_norm_al=last_value(model.exp_norm_al_cc),
+        exp_cc=last_value(model.exp_cc_history),
+        exp_norm_cc=last_value(model.exp_norm_cc),
+        exp_lc=last_value(model.exp_lc_history),
+        exp_norm_lc=last_value(model.exp_norm_lc),
+        exp_non_taylor=last_value(model.exp_non_taylor_history),
+        exp_norm_non_taylor=last_value(model.exp_norm_non_taylor),
+        exp_total=last_value(model.exp_total_cc_history),
+        exp_norm_total=last_value(model.exp_norm_total_cc),
+        earn_cc=last_value(model.earn_cc_history),
+        earn_norm_cc=last_value(model.earn_norm_cc_history),
+        earn_lc=last_value(model.earn_lc_history),
+        earn_norm_lc=last_value(model.earn_norm_lc_history),
+        principal_lc=result.principal_lc,
+        principal_norm_lc=result.principal_norm_lc,
+        principal_cc=result.principal_cc,
+        principal_norm_cc=result.principal_norm_cc,
+    )
+
+
+def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Path, seed: int) -> pd.DataFrame:
+    scenarios = build_lhs_scenarios(num_points=num_points, seed=seed)
+    rows = []
+    print(",".join(CSV_COLUMNS))
+    for run_id, scenario in enumerate(scenarios, start=1):
+        model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
+        row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, result=result))
+        ordered_row = {column: row[column] for column in CSV_COLUMNS}
+        print(",".join(str(ordered_row[column]) for column in CSV_COLUMNS))
+        rows.append(ordered_row)
+    frame = pd.DataFrame(rows, columns=CSV_COLUMNS)
+    frame.to_csv(output_path, index=False)
+    return frame
+
+
+def plot_lhs_summary(results: pd.DataFrame, show: bool = True) -> None:
+    linger_total = results["man_linger"] + results["woman_linger"]
+    figure, axis = plt.subplots(figsize=(12, 7))
+    axis.scatter(linger_total, results["principal_norm_lc"], alpha=0.7, label="principal_norm_lc")
+    axis.scatter(linger_total, results["principal_norm_cc"], alpha=0.7, label="principal_norm_cc")
+    axis.set_xlabel("man_linger + woman_linger")
+    axis.set_ylabel("Principal (normalized)")
+    axis.set_title("Normalized Principal vs Combined Linger")
+    axis.grid(True, alpha=0.3)
+    axis.legend(loc="best")
+    plt.tight_layout()
+    if show:
+        plt.show()
+
+
 def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) -> None:
     if not this_life.exp_non_taylor_history:
         this_life.calc_result()
@@ -692,16 +882,23 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_CURRENT_DATE,
         help=f"Historical data cutoff date in YYYY-MM-DD, default: {DEFAULT_CURRENT_DATE}",
     )
+    parser.add_argument(
+        "--lhs-points",
+        type=int,
+        default=DEFAULT_LHS_POINTS,
+        help=f"Run a Latin hypercube sample with this many points. Default: {DEFAULT_LHS_POINTS}",
+    )
+    parser.add_argument(
+        "--lhs-output",
+        default="lhs_taylor_results.csv",
+        help="CSV output path for LHS runs.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     current_date = pd.Timestamp(args.current_date).normalize()
-    scenario = LhsScenario(
-        roi_seed=args.seed,
-        inflation_seed=args.seed,
-    )
     context = ScenarioRunContext(
         ticker=args.ticker,
         current_date=current_date,
@@ -710,6 +907,27 @@ def main() -> None:
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
         woman_dob=WOMAN_DOB,
+    )
+    if args.lhs_points > 0:
+        output_path = Path(args.lhs_output)
+        results = run_lhs_driver(
+            num_points=args.lhs_points,
+            context=context,
+            output_path=output_path,
+            seed=args.seed,
+        )
+        print(
+            f"LHS runs completed: {len(results)}\n"
+            f"Output CSV: {output_path}\n"
+            f"Principal LC range: {results['principal_lc'].min():,.0f} to {results['principal_lc'].max():,.0f}\n"
+            f"Principal CC range: {results['principal_cc'].min():,.0f} to {results['principal_cc'].max():,.0f}"
+        )
+        plot_lhs_summary(results)
+        return
+
+    scenario = LhsScenario(
+        roi_seed=args.seed,
+        inflation_seed=args.seed,
     )
     this_life, result = evaluate_lhs_scenario(scenario=scenario, context=context)
     roi = this_life.roi
