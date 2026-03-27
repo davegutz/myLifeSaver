@@ -118,8 +118,6 @@ class TaylorLife:
         self.pile_cc = self.pile_at_start
         self.pile_norm_lc = self.pile_lc
         self.pile_norm_cc = self.pile_cc
-        self.roi_lc = 0.
-        self.roi_cc = 0.
         self.exp_al_lc = 0.0
         self.num_il_2: list[float] = []
         self.num_il_1: list[float] = []
@@ -279,12 +277,8 @@ class TaylorLife:
             self.exp_lc = self.exp_lc_history[i]
             self.exp_total_lc = self.exp_total_lc_history[i]
             self.exp_non_taylor = self.exp_non_taylor_history[i]
-
-            self.roi_lc = self.pile_lc * self.roi.life_horizon_roi[i]
-            self.pile_lc += self.roi_lc - self.exp_lc - self.exp_non_taylor - self.exp_al_lc
-
-            self.roi_cc = self.pile_cc * self.roi.life_horizon_roi[i]
-            self.pile_cc += self.roi_cc - self.exp_cc - self.exp_non_taylor - self.exp_al_cc
+            self.pile_lc += self.pile_lc * self.roi.life_horizon_roi[i] - self.exp_total_lc_history[i]
+            self.pile_cc += self.pile_cc * self.roi.life_horizon_roi[i] - self.exp_total_cc_history[i]
 
         self.exp_norm_al_cc = self.normalize_history(self.exp_al_cc_history, al_active, inflation_cum)
         self.exp_norm_cc = self.normalize_history(self.exp_cc_history, il_active, inflation_cum)
