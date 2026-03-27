@@ -139,8 +139,6 @@ class Roi:
         return sampled_return + mean_reversion + shock
 
     def load_price_history(self, ticker: str = TICKER) -> pd.Series:
-        if self.history_years is None:
-            raise ValueError("history_years must be supplied when loading ROI price history.")
         end_date_to_use = pd.Timestamp.today().normalize() if self.current_date is None else pd.Timestamp(self.current_date)
         start_date_to_use = end_date_to_use - pd.DateOffset(years=self.history_years)
         data = yf.download(
@@ -175,17 +173,6 @@ class Roi:
         man_age_at_death: float | None = None,
         woman_age_at_death: float | None = None,
     ) -> "Roi":
-        if (
-            current_date is None
-            or history_years is None
-            or start_clock is None
-            or man_dob is None
-            or woman_dob is None
-            or man_age_at_death is None
-            or woman_age_at_death is None
-        ):
-            raise ValueError("Roi current date, history_years, and life-horizon parameters must be supplied by the caller.")
-
         roi = cls(
             ticker=ticker,
             current_date=pd.Timestamp(current_date),
@@ -215,15 +202,6 @@ class Roi:
         return self
 
     def required_projection_months(self, last_historical_month: pd.Timestamp) -> int:
-        if (
-            self.start_clock is None
-            or self.man_dob is None
-            or self.woman_dob is None
-            or self.man_age_at_death is None
-            or self.woman_age_at_death is None
-        ):
-            raise ValueError("Roi life-horizon parameters must be set at instantiation.")
-
         first_projected_month = last_historical_month + pd.offsets.MonthEnd(1)
         return required_life_horizon_months(
             first_projection_month=first_projected_month,

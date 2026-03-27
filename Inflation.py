@@ -364,20 +364,6 @@ class Inflation:
         man_age_at_death: float | None = None,
         woman_age_at_death: float | None = None,
     ) -> tuple["Inflation", float, pd.DataFrame]:
-        if (
-            history_years is None
-            or al_cum_running_avg_yrs is None
-            or start_clock is None
-            or man_dob is None
-            or woman_dob is None
-            or man_age_at_death is None
-            or woman_age_at_death is None
-        ):
-            raise ValueError(
-                "Inflation history_years, al_cum_running_avg_yrs, and life-horizon parameters "
-                "must be supplied by the caller."
-            )
-
         inflation_model = cls(
             history_years=history_years,
             al_cum_running_avg_yrs=al_cum_running_avg_yrs,
@@ -401,14 +387,6 @@ class Inflation:
     ) -> "Inflation":
         if self.inflation_frame is None or self.gp_model is None or self.historical_inflation is None:
             self.train(current_date=current_date)
-        if (
-            self.start_clock is None
-            or self.man_dob is None
-            or self.woman_dob is None
-            or self.man_age_at_death is None
-            or self.woman_age_at_death is None
-        ):
-            raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
 
         first_projection_month = max(
             self.inflation_frame.index[-1] + pd.offsets.MonthEnd(1),
@@ -430,15 +408,6 @@ class Inflation:
         return self
 
     def required_projection_months(self, first_projection_month: pd.Timestamp) -> int:
-        if (
-            self.start_clock is None
-            or self.man_dob is None
-            or self.woman_dob is None
-            or self.man_age_at_death is None
-            or self.woman_age_at_death is None
-        ):
-            raise ValueError("Inflation life-horizon parameters must be set at instantiation.")
-
         return required_life_horizon_months(
             first_projection_month=first_projection_month,
             start_clock=self.start_clock,

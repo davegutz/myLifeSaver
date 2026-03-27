@@ -6,16 +6,12 @@ from Inflation import Inflation, plot_inflation_views
 from Roi import TICKER, Roi, plot_projection_views
 from utils import age
 
-
+#  Fixed parameters
 HISTORY_YEARS = 25
 AL_ESC_RUNNING_AVG_YRS = 2
 START_CLOCK = "2026-07-01"
 MAN_DOB = "1957-07-26"
 WOMAN_DOB = "1956-04-11"
-MAN_AGE_TO_AL = 71.
-WOMAN_AGE_TO_AL = 71.
-MAN_AGE_AT_DEATH = 77.
-WOMAN_AGE_AT_DEATH = 77.
 PILE_AT_START = 5700000.
 NON_TAYLOR_2 = 9612.
 NON_TAYLOR_1 = 5492.
@@ -26,6 +22,11 @@ CC_2 = 3750.
 LC_1 = 8100.
 LC_2 = 9600.
 
+# To be varied
+MAN_AGE_TO_AL = 71.
+WOMAN_AGE_TO_AL = 71.
+MAN_LINGER = 6.
+WOMAN_LINGER = 6.
 
 class TaylorLife:
     def __init__(
@@ -35,9 +36,9 @@ class TaylorLife:
         man_dob: str = MAN_DOB,
         woman_dob: str = WOMAN_DOB,
         man_age_to_al: float = MAN_AGE_TO_AL,
-        man_age_at_death: float = MAN_AGE_AT_DEATH,
+        man_linger: float = MAN_LINGER,
         woman_age_to_al: float = WOMAN_AGE_TO_AL,
-        woman_age_at_death: float = WOMAN_AGE_AT_DEATH,
+        woman_linger: float = WOMAN_LINGER,
         pile_at_start: float = PILE_AT_START,
         al_cc_2: float = AL_CC_2,
         al_cc_1: float = AL_CC_1,
@@ -48,8 +49,6 @@ class TaylorLife:
         non_taylor_2: float = NON_TAYLOR_2,
         non_taylor_1: float = NON_TAYLOR_1,
     ) -> None:
-        if roi is None or cpi is None:
-            raise ValueError("roi and an cpi vectors must be supplied by the caller")
         self.roi = roi
         self.cpi = cpi
         self.start_clock = roi.start_clock if roi.start_clock is not None else cpi.start_clock
@@ -57,12 +56,20 @@ class TaylorLife:
         self.man_dob = man_dob
         self.woman_dob = woman_dob
         self.man_age_to_al = man_age_to_al
-        self.man_age_at_death = man_age_at_death
+        self.man_linger = man_linger
+        self.man_age_at_death = self.man_age_to_al + self.man_linger
         self.woman_age_to_al = woman_age_to_al
-        self.woman_age_at_death = woman_age_at_death
+        self.woman_linger = woman_linger
+        self.woman_age_at_death = self.woman_age_to_al + self.woman_linger
         self.pile_at_start = pile_at_start
-        self.cpi_cum = 0.0
-        self.roi_cum = 0.0
+        self.pile_lc = self.pile_at_start
+        self.pile_cc = self.pile_at_start
+        self.pile_norm_lc = self.pile_lc
+        self.pile_norm_cc = self.pile_cc
+        self.return_lc = 0.
+        self.return_cc = 0.
+        self.cpi_cum = 0.
+        self.roi_cum = 0.
 
         self.num_al_cc = 0.
         self.al_cc_2 = al_cc_2
@@ -110,6 +117,12 @@ class TaylorLife:
         self.exp_norm_taylor: list[float] = []
 
     def calc_result(self):
+        self.pile_lc = self.pile_at_start
+        self.pile_cc = self.pile_at_start
+        self.pile_norm_lc = self.pile_lc
+        self.pile_norm_cc = self.pile_cc
+        self.return_lc = 0.0
+        self.return_cc = 0.0
         self.num_lc = 0.0
         self.mo_lc = 0.0
         self.exp_lc = 0.0
@@ -139,6 +152,10 @@ class TaylorLife:
                 normalized_exp_al_cc = 0.
             self.exp_norm_al_cc.append(normalized_exp_al_cc)
 
+            # There are no assisted living expenses for plan lc
+            self.exp_al_lc = 0.
+            self.exp_norm_al_lc = 0.
+
             self.count_cc(i)
             self.exp_cc_history.append(self.exp_cc)
             if self.num_cc > 0:
@@ -167,12 +184,19 @@ class TaylorLife:
                 normalized_exp_non_taylor = self.exp_norm_non_taylor[-1]
             self.exp_norm_non_taylor.append(normalized_exp_non_taylor)
 
-            self.exp_norm_taylor.append(normalized_exp_non_taylor)
+            self.return_lc = self.pile_lc * self.roi.life_horizon_roi[i]
+            self.pile_lc += self.return_lc - self.exp_lc - self.exp_non_taylor - self.exp_al_lc
 
-        self.exp_al_lc_history = np.array(self.exp_al_cc_history).copy()*0.
+            self.return_cc = self.pile_cc * self.roi.life_horizon_roi[i]
+            self.pile_cc += self.return_cc - self.exp_cc - self.exp_non_taylor - self.exp_al_cc
+
+        self.exp_al_lc_history = np.array(self.exp_al_cc).copy()*0.
         self.exp_norm_al_lc = np.array(self.exp_norm_al_cc).copy()*0.
 
-        result = self.exp_non_taylor
+        self.pile_norm_lc = self.pile_lc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
+        self.pile_norm_cc = self.pile_cc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
+
+        result = int(self.pile_lc), int(self.pile_norm_lc), int(self.pile_cc), int(self.pile_norm_cc)
 
         return result
 
@@ -382,8 +406,8 @@ def main() -> None:
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
         woman_dob=WOMAN_DOB,
-        man_age_at_death=MAN_AGE_AT_DEATH,
-        woman_age_at_death=WOMAN_AGE_AT_DEATH,
+        man_age_at_death=MAN_AGE_TO_AL + MAN_LINGER,
+        woman_age_at_death=WOMAN_AGE_TO_AL + WOMAN_LINGER,
     )
     roi.train(ticker=args.ticker)
     roi.project(ticker=args.ticker, seed=args.seed)
@@ -393,8 +417,8 @@ def main() -> None:
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
         woman_dob=WOMAN_DOB,
-        man_age_at_death=MAN_AGE_AT_DEATH,
-        woman_age_at_death=WOMAN_AGE_AT_DEATH,
+        man_age_at_death=MAN_AGE_TO_AL + MAN_LINGER,
+        woman_age_at_death=WOMAN_AGE_TO_AL + WOMAN_LINGER,
     )
     cpi.train(current_date=current_date)
     cpi.project(current_date=current_date, seed=args.seed)
@@ -403,7 +427,7 @@ def main() -> None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
     this_life = TaylorLife(roi=roi, cpi=cpi)
-    this_life.calc_result()
+    principal_lc, principal_norm_lc, principal_cc, principal_norm_cc = this_life.calc_result()
 
     annualized_mean = (1 + roi.monthly_mean_return) ** 12 - 1
     annualized_mean_cpi = annualized_inflation
@@ -416,8 +440,10 @@ def main() -> None:
         f"CPI current date: {current_date.date()}\n"
         f"Implied annualized CPI inflation: {annualized_mean_cpi:.2%}"
     )
-    print(roi)
-    print(cpi)
+    # print(roi)
+    # print(cpi)
+    print(f"LC Plan A {principal_lc=} {principal_norm_lc=} {float(principal_lc)/float(principal_norm_lc)}"
+          f"\nCC Plan B {principal_cc=} {principal_norm_cc=} {float(principal_cc)/float(principal_norm_cc)}")
     if roi.return_frame is None:
         raise ValueError("ROI history was not loaded during projection.")
     plot_projection_views(roi.return_frame, roi, show=False)
