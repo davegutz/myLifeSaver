@@ -124,6 +124,9 @@ class TaylorLife:
         self.roi_cum = 0.
 
         self.num_al_cc = 0.
+        self.num_al = 0.
+        self.num_al_all: list[int] = []
+        self.num_al_cc_all: list[int] = []
         self.al_cc_2 = al_cc_2
         self.al_cc_1 = al_cc_1
         self.mo_al_cc_del_2 = 0.
@@ -137,6 +140,7 @@ class TaylorLife:
         self.exp_norm_al_lc: list[float] = []
 
         self.num_cc = 0
+        self.num_cc_all: list[int] = []
         self.cc_2 = cc_2
         self.cc_1 = cc_1
         self.mo_cc_del_2 = 0.
@@ -147,6 +151,7 @@ class TaylorLife:
         self.exp_norm_cc: list[float] = []
 
         self.num_lc = 0
+        self.num_lc_all: list[int] = []
         self.lc_2 = lc_2
         self.lc_1 = lc_1
         self.mo_lc_del_2 = 0.
@@ -157,6 +162,7 @@ class TaylorLife:
         self.exp_norm_lc: list[float] = []
 
         self.num_non_taylor = 0
+        self.num_non_taylor_all: list[int] = []
         self.non_taylor_2 = non_taylor_2
         self.non_taylor_1 = non_taylor_1
         self.mo_non_taylor_del_2 = 0.
@@ -230,7 +236,10 @@ class TaylorLife:
         self.return_cc = 0.0
         self.cpi_cum = 0.0
         self.roi_cum = 0.0
+        self.num_al = 0.0
         self.num_al_cc = 0.0
+        self.num_al_all = []
+        self.num_al_cc_all = []
         self.al_cc_2 = self.initial_al_cc_2
         self.al_cc_1 = self.initial_al_cc_1
         self.mo_al_cc_del_2 = 0.0
@@ -238,6 +247,7 @@ class TaylorLife:
         self.mo_al_cc = 0.0
         self.exp_al_cc = 0.0
         self.num_cc = 0.0
+        self.num_cc_all = []
         self.cc_2 = self.initial_cc_2
         self.cc_1 = self.initial_cc_1
         self.mo_cc_del_2 = 0.0
@@ -245,6 +255,7 @@ class TaylorLife:
         self.mo_cc = 0.0
         self.exp_cc = 0.0
         self.num_lc = 0.0
+        self.num_lc_all = []
         self.lc_2 = self.initial_lc_2
         self.lc_1 = self.initial_lc_1
         self.mo_lc_del_2 = 0.0
@@ -252,6 +263,7 @@ class TaylorLife:
         self.mo_lc = 0.0
         self.exp_lc = 0.0
         self.num_non_taylor = 0.0
+        self.num_non_taylor_all = []
         self.non_taylor_2 = self.initial_non_taylor_2
         self.non_taylor_1 = self.initial_non_taylor_1
         self.mo_non_taylor_del_2 = 0.0
@@ -268,6 +280,7 @@ class TaylorLife:
         self.exp_norm_lc = []
         self.exp_non_taylor_history = []
         self.exp_norm_non_taylor = []
+        self.count_all()
         n = len(self.cpi.life_horizon_dates)
         for i in range(n):
             self.cpi_cum = self.cpi.life_horizon_inflation_cum[i]
@@ -329,11 +342,34 @@ class TaylorLife:
 
         return result
 
+    def count_all(self) -> None:
+        self.num_al_all = []
+        self.num_al_cc_all = []
+        self.num_cc_all = []
+        self.num_lc_all = []
+        self.num_non_taylor_all = []
+
+        for date in self.roi.life_horizon_dates:
+            man_age = age(date, self.man_dob)
+            woman_age = age(date, self.woman_dob)
+
+            man_in_al = self.man_age_to_al <= man_age < self.man_age_at_death
+            woman_in_al = self.woman_age_to_al <= woman_age < self.woman_age_at_death
+            num_al = int(man_in_al) + int(woman_in_al)
+
+            man_pre_al = man_age < self.man_age_to_al
+            woman_pre_al = woman_age < self.woman_age_to_al
+            num_pre_al = int(man_pre_al) + int(woman_pre_al)
+
+            self.num_al_all.append(num_al)
+            self.num_al_cc_all.append(num_al)
+            self.num_cc_all.append(num_pre_al)
+            self.num_lc_all.append(num_pre_al)
+            self.num_non_taylor_all.append(num_pre_al)
+
     def count_al_cc(self, i: int = 0) -> None:
-        date = self.roi.life_horizon_dates[i]
-        man_in_al_cc = self.man_age_to_al <= age(date, self.man_dob) < self.man_age_at_death
-        woman_in_al_cc = self.woman_age_to_al <= age(date, self.woman_dob) < self.woman_age_at_death
-        self.num_al_cc = int(man_in_al_cc) + int(woman_in_al_cc)
+        self.num_al = self.num_al_all[i]
+        self.num_al_cc = self.num_al_cc_all[i]
         self.mo_al_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.al_cc_2
         self.mo_al_cc_del_1 = self.cpi.life_horizon_inflation[i] * self.al_cc_1
         self.al_cc_2 += self.mo_al_cc_del_2
@@ -353,10 +389,7 @@ class TaylorLife:
         self.exp_al_cc += self.mo_al_cc
 
     def count_cc(self, i: int = 0) -> None:
-        date = self.roi.life_horizon_dates[i]
-        man_in_cc = age(date, self.man_dob) < self.man_age_to_al
-        woman_in_cc = age(date, self.woman_dob) < self.woman_age_to_al
-        self.num_cc = int(man_in_cc) + int(woman_in_cc)
+        self.num_cc = self.num_cc_all[i]
         self.mo_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.cc_2
         self.mo_cc_del_1 = self.cpi.life_horizon_inflation[i] * self.cc_1
         self.cc_2 += self.mo_cc_del_2
@@ -376,10 +409,7 @@ class TaylorLife:
         self.exp_cc += self.mo_cc
 
     def count_lc(self, i: int = 0) -> None:
-        date = self.roi.life_horizon_dates[i]
-        man_in_lc = age(date, self.man_dob) < self.man_age_to_al
-        woman_in_lc = age(date, self.woman_dob) < self.woman_age_to_al
-        self.num_lc = int(man_in_lc) + int(woman_in_lc)
+        self.num_lc = self.num_lc_all[i]
         self.mo_lc_del_2 = self.cpi.life_horizon_inflation[i] * self.lc_2
         self.mo_lc_del_1 = self.cpi.life_horizon_inflation[i] * self.lc_1
         self.lc_2 += self.mo_lc_del_2
@@ -399,10 +429,7 @@ class TaylorLife:
         self.exp_lc += self.mo_lc
     
     def count_non_taylor(self, i: int = 0) -> None:
-        date = self.roi.life_horizon_dates[i]
-        man_non_taylor = age(date, self.man_dob) < self.man_age_to_al
-        woman_non_taylor = age(date, self.woman_dob) < self.woman_age_to_al
-        self.num_non_taylor = int(man_non_taylor) + int(woman_non_taylor)
+        self.num_non_taylor = self.num_non_taylor_all[i]
         self.mo_non_taylor_del_2 = self.cpi.life_horizon_inflation[i] * self.non_taylor_2
         self.mo_non_taylor_del_1 = self.cpi.life_horizon_inflation[i] * self.non_taylor_1
         self.non_taylor_2 += self.mo_non_taylor_del_2
