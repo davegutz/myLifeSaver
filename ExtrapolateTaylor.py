@@ -2,7 +2,7 @@ import argparse
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
+# import numpy as np
 from Inflation import Inflation, plot_inflation_views
 from Roi import TICKER, Roi, plot_projection_views
 from utils import age
@@ -118,8 +118,9 @@ class TaylorLife:
         self.pile_cc = self.pile_at_start
         self.pile_norm_lc = self.pile_lc
         self.pile_norm_cc = self.pile_cc
-        self.return_lc = 0.
-        self.return_cc = 0.
+        self.roi_lc = 0.
+        self.roi_cc = 0.
+        self.exp_al_lc = 0.0
         self.cpi_cum = 0.
         self.roi_cum = 0.
         self.num_il_2: list[float] = []
@@ -259,14 +260,13 @@ class TaylorLife:
             self.exp_norm_al_cc.append(normalized_exp_al_cc)
 
             # There are no assisted living expenses for plan lc
-            self.exp_al_lc = 0.0
             self.exp_norm_al_lc.append(0.0 if self.cpi_cum != 0 else 0.0)
             self.exp_al_lc_history.append(self.exp_al_lc)
 
             self.count_cc(i)
             self.exp_cc_history.append(self.exp_cc)
-            if i == 0:
-                normalized_exp_cc = self.exp_cc / self.cpi_cum * (self.num_il_1[i] + self.num_il_2[i])
+            if self.num_il_1[i] + self.num_il_2[i] > 0:
+                normalized_exp_cc = self.exp_cc / self.cpi_cum
             elif len(self.exp_norm_cc) > 0:
                 normalized_exp_cc = self.exp_norm_cc[-1]
             else:
@@ -293,11 +293,11 @@ class TaylorLife:
                 normalized_exp_non_taylor = 0.
             self.exp_norm_non_taylor.append(normalized_exp_non_taylor)
 
-            self.return_lc = self.pile_lc * self.roi.life_horizon_roi[i]
-            self.pile_lc += self.return_lc - self.exp_lc - self.exp_non_taylor - self.exp_al_lc
+            self.roi_lc = self.pile_lc * self.roi.life_horizon_roi[i]
+            self.pile_lc += self.roi_lc - self.exp_lc - self.exp_non_taylor - self.exp_al_lc
 
-            self.return_cc = self.pile_cc * self.roi.life_horizon_roi[i]
-            self.pile_cc += self.return_cc - self.exp_cc - self.exp_non_taylor - self.exp_al_cc
+            self.roi_cc = self.pile_cc * self.roi.life_horizon_roi[i]
+            self.pile_cc += self.roi_cc - self.exp_cc - self.exp_non_taylor - self.exp_al_cc
 
         self.pile_norm_lc = self.pile_lc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
         self.pile_norm_cc = self.pile_cc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
@@ -311,27 +311,24 @@ class TaylorLife:
         for date in self.roi.life_horizon_dates:
             man_age = age(date, self.man_dob)
             woman_age = age(date, self.woman_dob)
-
             man_in_al = self.man_age_to_al <= man_age < self.man_age_at_death
             woman_in_al = self.woman_age_to_al <= woman_age < self.woman_age_at_death
-
             man_pre_al = man_age < self.man_age_to_al
             woman_pre_al = woman_age < self.woman_age_to_al
 
+            # Summarize
             num_il_2 = 2.0 * float(man_pre_al and woman_pre_al)
             num_il_1 = float(man_pre_al != woman_pre_al)
             num_al_2 = 2.0 * float(man_in_al and woman_in_al)
             num_al_1 = float(man_in_al != woman_in_al)
             num_non_taylor_2 = num_il_2
             num_non_taylor_1 = num_il_1
-
             self.num_il_2.append(num_il_2)
             self.num_il_1.append(num_il_1)
             self.num_al_2.append(num_al_2)
             self.num_al_1.append(num_al_1)
             self.num_non_taylor_2.append(num_non_taylor_2)
             self.num_non_taylor_1.append(num_non_taylor_1)
-
 
     def count_al_cc(self, i: int = 0) -> None:
         self.mo_al_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.al_cc_2
@@ -350,13 +347,11 @@ class TaylorLife:
         self.exp_cc += self.mo_cc
 
     def count_lc(self, i: int = 0) -> None:
-        num_lc_2 = self.num_il_2[i]
-        num_lc_1 = self.num_il_1[i]
         self.mo_lc_del_2 = self.cpi.life_horizon_inflation[i] * self.lc_2
         self.mo_lc_del_1 = self.cpi.life_horizon_inflation[i] * self.lc_1
         self.lc_2 += self.mo_lc_del_2
         self.lc_1 += self.mo_lc_del_1
-        self.mo_lc = self.lc_2 * num_lc_2 + self.lc_1 * num_lc_1
+        self.mo_lc = self.lc_2 * self.num_il_2[i] + self.lc_1 * self.num_il_1[i]
         self.exp_lc += self.mo_lc
     
     def count_non_taylor(self, i: int = 0) -> None:
@@ -533,7 +528,7 @@ def main() -> None:
     )
     # print(roi)
     # print(cpi)
-    print(f"LC Plan A {principal_lc=} {principal_norm_lc=} {(principal_lc)/principal_norm_lc:5.2f}"
+    print(f"LC Plan A {principal_lc=} {principal_norm_lc=} {principal_lc/principal_norm_lc:5.2f}"
           f"\nCC Plan B {principal_cc=} {principal_norm_cc=} {float(principal_cc)/float(principal_norm_cc):5.2f}")
     if roi.return_frame is None:
         raise ValueError("ROI history was not loaded during projection.")
