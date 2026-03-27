@@ -3,8 +3,8 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from Inflation import Inflation, plot_inflation_views
-from Roi import TICKER, Roi, plot_projection_views
+from Inflation import Inflation, MonthlyInflationPoint, plot_inflation_views
+from Roi import MonthlyRoiPoint, TICKER, Roi, plot_projection_views
 from utils import age
 
 #  Fixed parameters
@@ -25,10 +25,10 @@ LC_1 = 8100.
 LC_2 = 9600.
 
 # To be varied
-MAN_AGE_TO_AL = 71.
-WOMAN_AGE_TO_AL = 71.
-MAN_LINGER = 6.
-WOMAN_LINGER = 6.
+MAN_AGE_TO_AL = 80.
+WOMAN_AGE_TO_AL = 80.
+MAN_LINGER = 3.
+WOMAN_LINGER = 3.
 DEFAULT_SEED = 0
 ROI_MEAN_SHIFT = 0.0
 ROI_VOL_MULTIPLIER = 1.0
@@ -36,6 +36,8 @@ ROI_MEAN_REVERSION = 0.15
 INFLATION_MEAN_SHIFT = 0.0
 INFLATION_VOL_MULTIPLIER = 1.0
 INFLATION_MEAN_REVERSION = 0.15
+CONSTANT_MONTHLY_ROI: float | None = 0.
+CONSTANT_MONTHLY_CPI: float | None = 0.
 
 
 @dataclass(frozen=True)
@@ -83,7 +85,7 @@ class TaylorLife:
         man_linger: float = MAN_LINGER,
         woman_age_to_al: float = WOMAN_AGE_TO_AL,
         woman_linger: float = WOMAN_LINGER,
-        pile_at_start: float = PILE_AT_START,
+        worth_at_start: float = PILE_AT_START,
         al_cc_2: float = AL_CC_2,
         al_cc_1: float = AL_CC_1,
         cc_2: float = CC_2,
@@ -105,7 +107,7 @@ class TaylorLife:
         self.woman_age_to_al = woman_age_to_al
         self.woman_linger = woman_linger
         self.woman_age_at_death = self.woman_age_to_al + self.woman_linger
-        self.pile_at_start = pile_at_start
+        self.worth_at_start = worth_at_start
         self.initial_al_cc_2 = al_cc_2
         self.initial_al_cc_1 = al_cc_1
         self.initial_cc_2 = cc_2
@@ -114,10 +116,14 @@ class TaylorLife:
         self.initial_lc_1 = lc_1
         self.initial_non_taylor_2 = non_taylor_2
         self.initial_non_taylor_1 = non_taylor_1
-        self.pile_lc = self.pile_at_start
-        self.pile_cc = self.pile_at_start
-        self.pile_norm_lc = self.pile_lc
-        self.pile_norm_cc = self.pile_cc
+        self.worth_lc = self.worth_at_start
+        self.worth_cc = self.worth_at_start
+        self.worth_norm_lc = self.worth_lc
+        self.worth_norm_cc = self.worth_cc
+        self.worth_lc_history: list[float] = []
+        self.worth_cc_history: list[float] = []
+        self.worth_norm_lc_history: list[float] = []
+        self.worth_norm_cc_history: list[float] = []
         self.exp_al_lc = 0.0
         self.num_il_2: list[float] = []
         self.num_il_1: list[float] = []
@@ -198,6 +204,7 @@ class TaylorLife:
         )
         roi.train(ticker=run_context.ticker)
         roi.project(ticker=run_context.ticker, seed=scenario.roi_seed)
+        cls.apply_constant_roi(roi)
 
         cpi = Inflation(
             history_years=run_context.history_years,
@@ -213,6 +220,7 @@ class TaylorLife:
         )
         cpi.train(current_date=current_date)
         cpi.project(current_date=current_date, seed=scenario.inflation_seed)
+        cls.apply_constant_cpi(cpi)
 
         return cls(
             roi=roi,
@@ -225,7 +233,48 @@ class TaylorLife:
             woman_linger=scenario.woman_linger,
         )
 
+    @staticmethod
+    def apply_constant_roi(roi: Roi) -> None:
+        if CONSTANT_MONTHLY_ROI is None:
+            return
+        roi.life_horizon_roi = np.full(len(roi.life_horizon_dates), CONSTANT_MONTHLY_ROI, dtype=float)
+        roi.life_horizon_roi_cum = np.cumprod(1.0 + roi.life_horizon_roi)
+        roi.monthly_roi = [
+            MonthlyRoiPoint(
+                month=pd.Timestamp(date),
+                roi=CONSTANT_MONTHLY_ROI,
+                rolling_average_12m=CONSTANT_MONTHLY_ROI,
+            )
+            for date in pd.DatetimeIndex(roi.life_horizon_dates)
+        ]
+
+    @staticmethod
+    def apply_constant_cpi(cpi: Inflation) -> None:
+        if CONSTANT_MONTHLY_CPI is None:
+            return
+        cpi.life_horizon_inflation = np.full(len(cpi.life_horizon_dates), CONSTANT_MONTHLY_CPI, dtype=float)
+        cpi.life_horizon_inflation_cum = np.cumprod(1.0 + cpi.life_horizon_inflation)
+        cpi.life_horizon_cpi_running_avg = np.full(len(cpi.life_horizon_dates), CONSTANT_MONTHLY_CPI, dtype=float)
+        cpi.monthly_inflation = [
+            MonthlyInflationPoint(
+                month=pd.Timestamp(date),
+                inflation=CONSTANT_MONTHLY_CPI,
+                rolling_average_12m=CONSTANT_MONTHLY_CPI,
+                lower_bound=CONSTANT_MONTHLY_CPI,
+                upper_bound=CONSTANT_MONTHLY_CPI,
+            )
+            for date in pd.DatetimeIndex(cpi.life_horizon_dates)
+        ]
+
     def calc_result(self):
+        self.worth_lc = self.worth_at_start
+        self.worth_cc = self.worth_at_start
+        self.worth_norm_lc = self.worth_lc
+        self.worth_norm_cc = self.worth_cc
+        self.worth_lc_history = []
+        self.worth_cc_history = []
+        self.worth_norm_lc_history = []
+        self.worth_norm_cc_history = []
         self.count_all()
         self.exp_al_cc_history = self.build_expense_history(
             self.initial_al_cc_2,
@@ -269,16 +318,24 @@ class TaylorLife:
             + np.asarray(self.exp_non_taylor_history, dtype=float)
             + np.asarray(self.exp_al_lc_history, dtype=float)
         ).tolist()
-        n = len(self.cpi.life_horizon_dates)
-        for i in range(n):
-            self.exp_al_cc = self.exp_al_cc_history[i]
-            self.exp_cc = self.exp_cc_history[i]
-            self.exp_total_cc = self.exp_total_cc_history[i]
-            self.exp_lc = self.exp_lc_history[i]
-            self.exp_total_lc = self.exp_total_lc_history[i]
-            self.exp_non_taylor = self.exp_non_taylor_history[i]
-            self.pile_lc += self.pile_lc * self.roi.life_horizon_roi[i] - self.exp_total_lc_history[i]
-            self.pile_cc += self.pile_cc * self.roi.life_horizon_roi[i] - self.exp_total_cc_history[i]
+        worth_lc_history = self.build_worth_history(self.worth_at_start, self.exp_total_lc_history)
+        worth_cc_history = self.build_worth_history(self.worth_at_start, self.exp_total_cc_history)
+        self.worth_lc_history = worth_lc_history.tolist()
+        self.worth_cc_history = worth_cc_history.tolist()
+        self.worth_norm_lc_history = (worth_lc_history / inflation_cum).tolist()
+        self.worth_norm_cc_history = (worth_cc_history / inflation_cum).tolist()
+
+        if len(self.exp_al_cc_history) > 0:
+            self.exp_al_cc = self.exp_al_cc_history[-1]
+            self.exp_cc = self.exp_cc_history[-1]
+            self.exp_total_cc = self.exp_total_cc_history[-1]
+            self.exp_lc = self.exp_lc_history[-1]
+            self.exp_total_lc = self.exp_total_lc_history[-1]
+            self.exp_non_taylor = self.exp_non_taylor_history[-1]
+            self.worth_lc = float(worth_lc_history[-1])
+            self.worth_cc = float(worth_cc_history[-1])
+            self.worth_norm_lc = float(self.worth_norm_lc_history[-1])
+            self.worth_norm_cc = float(self.worth_norm_cc_history[-1])
 
         self.exp_norm_al_cc = self.normalize_history(self.exp_al_cc_history, al_active, inflation_cum)
         self.exp_norm_cc = self.normalize_history(self.exp_cc_history, il_active, inflation_cum)
@@ -291,10 +348,7 @@ class TaylorLife:
         self.exp_norm_total_cc = self.normalize_history(self.exp_total_cc_history, il_active | al_active, inflation_cum)
         self.exp_norm_total_lc = self.normalize_history(self.exp_total_lc_history, il_active | non_taylor_active, inflation_cum)
 
-        self.pile_norm_lc = self.pile_lc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
-        self.pile_norm_cc = self.pile_cc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
-
-        result = int(self.pile_lc), int(self.pile_norm_lc), int(self.pile_cc), int(self.pile_norm_cc)
+        result = int(self.worth_lc), int(self.worth_norm_lc), int(self.worth_cc), int(self.worth_norm_cc)
 
         return result
 
@@ -361,32 +415,45 @@ class TaylorLife:
         monthly_expense = cost_2_path * np.asarray(num_2, dtype=float) + cost_1_path * np.asarray(num_1, dtype=float)
         return np.cumsum(monthly_expense).tolist()
 
+    def build_worth_history(
+        self,
+        worth_at_start: float,
+        expense_history: list[float],
+    ) -> np.ndarray:
+        if len(expense_history) == 0:
+            return np.array([], dtype=float)
+        growth = np.cumprod(1.0 + np.asarray(self.roi.life_horizon_roi, dtype=float))
+        expense = np.asarray(expense_history, dtype=float)
+        worth = growth * worth_at_start - expense
+
+        return worth
+
     def deceased(self, date: str | pd.Timestamp) -> bool:
         date_ts = pd.Timestamp(date)
         man_deceased = age(date_ts, self.man_dob) >= self.man_age_at_death
         woman_deceased = age(date_ts, self.woman_dob) >= self.woman_age_at_death
         return man_deceased and woman_deceased
 
-    def de_cumalate(
+    def deflate(
         self,
         date: str | pd.Timestamp,
-        projection: Roi | None = None,
+        projection: Inflation | None = None,
     ) -> float:
         date_ts = pd.Timestamp(date)
         if self.start_clock is None:
-            raise ValueError("start_clock must be set on roi or cpi before calling de_cumalate.")
+            raise ValueError("start_clock must be set on roi or cpi before calling deflate.")
         start_ts = pd.Timestamp(self.start_clock)
-        projection_to_use = projection if projection is not None else self.roi
+        projection_to_use = projection if projection is not None else self.cpi
 
         if date_ts <= start_ts:
             return 1.0
 
-        full_growth_since_start = 1.0
-        for item in projection_to_use.monthly_roi:
+        full_inflation_since_start = 1.0
+        for item in projection_to_use.monthly_inflation:
             if start_ts < item.month <= date_ts:
-                full_growth_since_start *= 1 + item.roi
+                full_inflation_since_start *= 1 + item.inflation
 
-        return 1 / full_growth_since_start
+        return 1 / full_inflation_since_start
 
 
 def evaluate_lhs_scenario(
@@ -500,6 +567,32 @@ def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) ->
         linestyle="--",
         label="exp_norm_total_lc",
     )
+    axis_top.plot(
+        dates,
+        this_life.worth_lc_history,
+        linewidth=2.0,
+        label="worth_lc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.worth_norm_lc_history,
+        linewidth=2.0,
+        linestyle="--",
+        label="worth_norm_lc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.worth_cc_history,
+        linewidth=2.0,
+        label="worth_cc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.worth_norm_cc_history,
+        linewidth=2.0,
+        linestyle="--",
+        label="worth_norm_cc",
+    )
     axis_top.set_ylabel("Expense")
     axis_top.set_title("Taylor Life Expenses Over Time")
     axis_top.grid(True, alpha=0.3)
@@ -574,8 +667,37 @@ def main() -> None:
     )
     # print(roi)
     # print(cpi)
-    print(f"LC Plan A {principal_lc=} {principal_norm_lc=} {principal_lc/principal_norm_lc:5.2f}"
-          f"\nCC Plan B {principal_cc=} {principal_norm_cc=} {float(principal_cc)/float(principal_norm_cc):5.2f}")
+    total_expenses_cc = this_life.exp_cc_history[-1] if this_life.exp_cc_history else 0.0
+    total_expenses_lc = this_life.exp_lc_history[-1] if this_life.exp_lc_history else 0.0
+    total_al_expenses_cc = this_life.exp_al_cc_history[-1] if this_life.exp_al_cc_history else 0.0
+    total_al_expenses_lc = this_life.exp_al_lc_history[-1] if this_life.exp_al_lc_history else 0.0
+    total_non_taylor_cc = this_life.exp_non_taylor_history[-1] if this_life.exp_non_taylor_history else 0.0
+    total_non_taylor_lc = total_non_taylor_cc
+    grand_total_cc = this_life.exp_total_cc_history[-1] if this_life.exp_total_cc_history else 0.0
+    grand_total_lc = this_life.exp_total_lc_history[-1] if this_life.exp_total_lc_history else 0.0
+    total_returns_cc = principal_cc + grand_total_cc - this_life.worth_at_start
+    total_returns_lc = principal_lc + grand_total_lc - this_life.worth_at_start
+    header_rows = [
+        ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
+        ("man age at death", this_life.man_age_at_death, this_life.man_age_at_death),
+        ("woman age to al", this_life.woman_age_to_al, this_life.woman_age_to_al),
+        ("woman age at death", this_life.woman_age_at_death, this_life.woman_age_at_death),
+    ]
+    table_rows = [
+        ("total expenses", total_expenses_cc, total_expenses_lc),
+        ("total al expenses", total_al_expenses_cc, total_al_expenses_lc),
+        ("total non-taylor expenses", total_non_taylor_cc, total_non_taylor_lc),
+        ("grand total expenses", grand_total_cc, grand_total_lc),
+        ("total returns", total_returns_cc, total_returns_lc),
+        ("final worth", principal_cc, principal_lc),
+    ]
+    print(f"{'item':<28}{'cc':>15}{'lc':>15}")
+    print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
+    for item, cc_value, lc_value in header_rows:
+        print(f"{item:<28}{cc_value:>15.1f}{lc_value:>15.1f}")
+    print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
+    for item, cc_value, lc_value in table_rows:
+        print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
     if roi.return_frame is None:
         raise ValueError("ROI history was not loaded during projection.")
     plot_projection_views(roi.return_frame, roi, show=False)
