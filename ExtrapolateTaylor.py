@@ -15,20 +15,20 @@ DEFAULT_CURRENT_DATE = "2026-03-27"
 MAN_DOB = "1957-07-26"
 WOMAN_DOB = "1956-04-11"
 PILE_AT_START = 5700000.
-NON_TAYLOR_2 = 9612.
+NON_TAYLOR_2 = 9612./2.
 NON_TAYLOR_1 = 5492.
 AL_CC_1 = 9200.
 AL_CC_2 = AL_CC_1 * 2.
 CC_1 = 3150.
-CC_2 = 3750.
+CC_2 = 3750./2.
 LC_1 = 8100.
-LC_2 = 9600.
+LC_2 = 9600./2.
 
 # To be varied
 MAN_AGE_TO_AL = 80.
 WOMAN_AGE_TO_AL = 80.
-MAN_LINGER = 3.
-WOMAN_LINGER = 3.
+MAN_LINGER = 1.
+WOMAN_LINGER = 1.
 DEFAULT_SEED = 0
 ROI_MEAN_SHIFT = 0.0
 ROI_VOL_MULTIPLIER = 1.0
@@ -36,8 +36,8 @@ ROI_MEAN_REVERSION = 0.15
 INFLATION_MEAN_SHIFT = 0.0
 INFLATION_VOL_MULTIPLIER = 1.0
 INFLATION_MEAN_REVERSION = 0.15
-CONSTANT_MONTHLY_ROI: float | None = 0.
-CONSTANT_MONTHLY_CPI: float | None = 0.
+CONSTANT_MONTHLY_ROI: float | None = 0./100./12.  # Fraction per month
+CONSTANT_MONTHLY_CPI: float | None = 5./100./12.  # Fraction per month
 
 
 @dataclass(frozen=True)
@@ -120,6 +120,14 @@ class TaylorLife:
         self.worth_cc = self.worth_at_start
         self.worth_norm_lc = self.worth_lc
         self.worth_norm_cc = self.worth_cc
+        self.earn_lc = 0.0
+        self.earn_cc = 0.0
+        self.earn_norm_lc = 0.0
+        self.earn_norm_cc = 0.0
+        self.earn_lc_history: list[float] = []
+        self.earn_cc_history: list[float] = []
+        self.earn_norm_lc_history: list[float] = []
+        self.earn_norm_cc_history: list[float] = []
         self.worth_lc_history: list[float] = []
         self.worth_cc_history: list[float] = []
         self.worth_norm_lc_history: list[float] = []
@@ -271,6 +279,14 @@ class TaylorLife:
         self.worth_cc = self.worth_at_start
         self.worth_norm_lc = self.worth_lc
         self.worth_norm_cc = self.worth_cc
+        self.earn_lc = 0.0
+        self.earn_cc = 0.0
+        self.earn_norm_lc = 0.0
+        self.earn_norm_cc = 0.0
+        self.earn_lc_history = []
+        self.earn_cc_history = []
+        self.earn_norm_lc_history = []
+        self.earn_norm_cc_history = []
         self.worth_lc_history = []
         self.worth_cc_history = []
         self.worth_norm_lc_history = []
@@ -320,6 +336,12 @@ class TaylorLife:
         ).tolist()
         worth_lc_history = self.build_worth_history(self.worth_at_start, self.exp_total_lc_history)
         worth_cc_history = self.build_worth_history(self.worth_at_start, self.exp_total_cc_history)
+        earn_lc_history = self.build_earn_history(self.worth_at_start, worth_lc_history)
+        earn_cc_history = self.build_earn_history(self.worth_at_start, worth_cc_history)
+        self.earn_lc_history = earn_lc_history.tolist()
+        self.earn_cc_history = earn_cc_history.tolist()
+        self.earn_norm_lc_history = (earn_lc_history / inflation_cum).tolist()
+        self.earn_norm_cc_history = (earn_cc_history / inflation_cum).tolist()
         self.worth_lc_history = worth_lc_history.tolist()
         self.worth_cc_history = worth_cc_history.tolist()
         self.worth_norm_lc_history = (worth_lc_history / inflation_cum).tolist()
@@ -332,6 +354,10 @@ class TaylorLife:
             self.exp_lc = self.exp_lc_history[-1]
             self.exp_total_lc = self.exp_total_lc_history[-1]
             self.exp_non_taylor = self.exp_non_taylor_history[-1]
+            self.earn_lc = float(earn_lc_history[-1])
+            self.earn_cc = float(earn_cc_history[-1])
+            self.earn_norm_lc = float(self.earn_norm_lc_history[-1])
+            self.earn_norm_cc = float(self.earn_norm_cc_history[-1])
             self.worth_lc = float(worth_lc_history[-1])
             self.worth_cc = float(worth_cc_history[-1])
             self.worth_norm_lc = float(self.worth_norm_lc_history[-1])
@@ -427,6 +453,17 @@ class TaylorLife:
         worth = growth * worth_at_start - expense
 
         return worth
+
+    def build_earn_history(
+        self,
+        worth_at_start: float,
+        worth_history: np.ndarray,
+    ) -> np.ndarray:
+        if worth_history.size == 0:
+            return np.array([], dtype=float)
+        prior_worth = np.concatenate(([worth_at_start], worth_history[:-1]))
+        monthly_earn = prior_worth * np.asarray(self.roi.life_horizon_roi, dtype=float)
+        return np.cumsum(monthly_earn)
 
     def deceased(self, date: str | pd.Timestamp) -> bool:
         date_ts = pd.Timestamp(date)
@@ -593,6 +630,32 @@ def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) ->
         linestyle="--",
         label="worth_norm_cc",
     )
+    axis_top.plot(
+        dates,
+        this_life.earn_lc_history,
+        linewidth=2.0,
+        label="earn_lc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.earn_norm_lc_history,
+        linewidth=2.0,
+        linestyle="--",
+        label="earn_norm_lc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.earn_cc_history,
+        linewidth=2.0,
+        label="earn_cc",
+    )
+    axis_top.plot(
+        dates,
+        this_life.earn_norm_cc_history,
+        linewidth=2.0,
+        linestyle="--",
+        label="earn_norm_cc",
+    )
     axis_top.set_ylabel("Expense")
     axis_top.set_title("Taylor Life Expenses Over Time")
     axis_top.grid(True, alpha=0.3)
@@ -648,9 +711,7 @@ def main() -> None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
     principal_lc = result.principal_lc
-    principal_norm_lc = result.principal_norm_lc
     principal_cc = result.principal_cc
-    principal_norm_cc = result.principal_norm_cc
 
     annualized_mean = (1 + roi.monthly_mean_return) ** 12 - 1
     annualized_mean_cpi = annualized_inflation
@@ -675,8 +736,8 @@ def main() -> None:
     total_non_taylor_lc = total_non_taylor_cc
     grand_total_cc = this_life.exp_total_cc_history[-1] if this_life.exp_total_cc_history else 0.0
     grand_total_lc = this_life.exp_total_lc_history[-1] if this_life.exp_total_lc_history else 0.0
-    total_returns_cc = principal_cc + grand_total_cc - this_life.worth_at_start
-    total_returns_lc = principal_lc + grand_total_lc - this_life.worth_at_start
+    total_returns_cc = this_life.earn_cc_history[-1] if this_life.earn_cc_history else 0.0
+    total_returns_lc = this_life.earn_lc_history[-1] if this_life.earn_lc_history else 0.0
     header_rows = [
         ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
         ("man age at death", this_life.man_age_at_death, this_life.man_age_at_death),
