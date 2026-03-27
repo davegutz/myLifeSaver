@@ -121,8 +121,6 @@ class TaylorLife:
         self.roi_lc = 0.
         self.roi_cc = 0.
         self.exp_al_lc = 0.0
-        self.cpi_cum = 0.
-        self.roi_cum = 0.
         self.num_il_2: list[float] = []
         self.num_il_1: list[float] = []
         self.num_al_2: list[float] = []
@@ -233,26 +231,13 @@ class TaylorLife:
         self.lc_1 = self.initial_lc_1
         self.non_taylor_2 = self.initial_non_taylor_2
         self.non_taylor_1 = self.initial_non_taylor_1
-        self.exp_al_cc_history = []
-        self.exp_norm_al_cc = []
-        self.exp_al_lc_history = []
-        self.exp_norm_al_lc = []
-        self.exp_cc_history = []
-        self.exp_norm_cc = []
-        self.exp_lc_history = []
-        self.exp_norm_lc = []
-        self.exp_non_taylor_history = []
-        self.exp_norm_non_taylor = []
         self.count_all()
         n = len(self.cpi.life_horizon_dates)
         for i in range(n):
-            self.cpi_cum = self.cpi.life_horizon_inflation_cum[i]
-            self.roi_cum = self.roi.life_horizon_roi_cum[i]
-
             self.count_al_cc(i)
             self.exp_al_cc_history.append(self.exp_al_cc)
             if (self.num_al_1[i] + self.num_al_2[i]) > 0.:
-                normalized_exp_al_cc = self.exp_al_cc / self.cpi_cum
+                normalized_exp_al_cc = self.exp_al_cc / self.cpi.life_horizon_inflation_cum[i]
             elif len(self.exp_norm_al_cc) > 0:
                 normalized_exp_al_cc = self.exp_norm_al_cc[-1]
             else:
@@ -260,13 +245,13 @@ class TaylorLife:
             self.exp_norm_al_cc.append(normalized_exp_al_cc)
 
             # There are no assisted living expenses for plan lc
-            self.exp_norm_al_lc.append(0.0 if self.cpi_cum != 0 else 0.0)
+            self.exp_norm_al_lc.append(0.0 if self.cpi.life_horizon_inflation_cum[i] != 0 else 0.0)
             self.exp_al_lc_history.append(self.exp_al_lc)
 
             self.count_cc(i)
             self.exp_cc_history.append(self.exp_cc)
             if self.num_il_1[i] + self.num_il_2[i] > 0:
-                normalized_exp_cc = self.exp_cc / self.cpi_cum
+                normalized_exp_cc = self.exp_cc / self.cpi.life_horizon_inflation_cum[i]
             elif len(self.exp_norm_cc) > 0:
                 normalized_exp_cc = self.exp_norm_cc[-1]
             else:
@@ -276,7 +261,7 @@ class TaylorLife:
             self.count_lc(i)
             self.exp_lc_history.append(self.exp_lc)
             if self.num_il_1[i] + self.num_il_2[i] > 0:
-                normalized_exp_lc = self.exp_lc / self.cpi_cum
+                normalized_exp_lc = self.exp_lc / self.cpi.life_horizon_inflation_cum[i]
             elif len(self.exp_norm_lc) > 0:
                 normalized_exp_lc = self.exp_norm_lc[-1]
             else:
@@ -286,7 +271,7 @@ class TaylorLife:
             self.count_non_taylor(i)
             self.exp_non_taylor_history.append(self.exp_non_taylor)
             if self.num_non_taylor_1[i] + self.num_non_taylor_2[i] > 0:
-                normalized_exp_non_taylor = self.exp_non_taylor / self.cpi_cum
+                normalized_exp_non_taylor = self.exp_non_taylor / self.cpi.life_horizon_inflation_cum[i]
             elif len(self.exp_norm_non_taylor) > 0:
                 normalized_exp_non_taylor = self.exp_norm_non_taylor[-1]
             else:
