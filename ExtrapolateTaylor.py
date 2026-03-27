@@ -122,11 +122,10 @@ class TaylorLife:
         self.return_cc = 0.
         self.cpi_cum = 0.
         self.roi_cum = 0.
-
-        self.num_al_cc = 0.
-        self.num_al = 0.
-        self.num_al_all: list[int] = []
-        self.num_al_cc_all: list[int] = []
+        self.num_il_2: list[float] = []
+        self.num_il_1: list[float] = []
+        self.num_al_2: list[float] = []
+        self.num_al_1: list[float] = []
         self.al_cc_2 = al_cc_2
         self.al_cc_1 = al_cc_1
         self.mo_al_cc_del_2 = 0.
@@ -135,12 +134,8 @@ class TaylorLife:
         self.exp_al_cc = 0.
         self.exp_al_cc_history: list[float] = []
         self.exp_norm_al_cc: list[float] = []
-
         self.exp_al_lc_history: list[float] = []
         self.exp_norm_al_lc: list[float] = []
-
-        self.num_cc = 0
-        self.num_cc_all: list[int] = []
         self.cc_2 = cc_2
         self.cc_1 = cc_1
         self.mo_cc_del_2 = 0.
@@ -149,9 +144,6 @@ class TaylorLife:
         self.exp_cc = 0.
         self.exp_cc_history: list[float] = []
         self.exp_norm_cc: list[float] = []
-
-        self.num_lc = 0
-        self.num_lc_all: list[int] = []
         self.lc_2 = lc_2
         self.lc_1 = lc_1
         self.mo_lc_del_2 = 0.
@@ -160,9 +152,10 @@ class TaylorLife:
         self.exp_lc = 0.
         self.exp_lc_history: list[float] = []
         self.exp_norm_lc: list[float] = []
-
-        self.num_non_taylor = 0
-        self.num_non_taylor_all: list[int] = []
+        self.num_non_taylor_2: list[float] = []
+        self.num_non_taylor_1: list[float] = []
+        self.num_non_taylor_2: list[float] = []
+        self.num_non_taylor_1: list[float] = []
         self.non_taylor_2 = non_taylor_2
         self.non_taylor_1 = non_taylor_1
         self.mo_non_taylor_del_2 = 0.
@@ -171,7 +164,6 @@ class TaylorLife:
         self.exp_non_taylor = 0.
         self.exp_non_taylor_history: list[float] = []
         self.exp_norm_non_taylor: list[float] = []
-
         self.exp_norm_taylor: list[float] = []
 
     @classmethod
@@ -232,44 +224,14 @@ class TaylorLife:
         self.pile_cc = self.pile_at_start
         self.pile_norm_lc = self.pile_lc
         self.pile_norm_cc = self.pile_cc
-        self.return_lc = 0.0
-        self.return_cc = 0.0
-        self.cpi_cum = 0.0
-        self.roi_cum = 0.0
-        self.num_al = 0.0
-        self.num_al_cc = 0.0
-        self.num_al_all = []
-        self.num_al_cc_all = []
         self.al_cc_2 = self.initial_al_cc_2
         self.al_cc_1 = self.initial_al_cc_1
-        self.mo_al_cc_del_2 = 0.0
-        self.mo_al_cc_del_1 = 0.0
-        self.mo_al_cc = 0.0
-        self.exp_al_cc = 0.0
-        self.num_cc = 0.0
-        self.num_cc_all = []
         self.cc_2 = self.initial_cc_2
         self.cc_1 = self.initial_cc_1
-        self.mo_cc_del_2 = 0.0
-        self.mo_cc_del_1 = 0.0
-        self.mo_cc = 0.0
-        self.exp_cc = 0.0
-        self.num_lc = 0.0
-        self.num_lc_all = []
         self.lc_2 = self.initial_lc_2
         self.lc_1 = self.initial_lc_1
-        self.mo_lc_del_2 = 0.0
-        self.mo_lc_del_1 = 0.0
-        self.mo_lc = 0.0
-        self.exp_lc = 0.0
-        self.num_non_taylor = 0.0
-        self.num_non_taylor_all = []
         self.non_taylor_2 = self.initial_non_taylor_2
         self.non_taylor_1 = self.initial_non_taylor_1
-        self.mo_non_taylor_del_2 = 0.0
-        self.mo_non_taylor_del_1 = 0.0
-        self.mo_non_taylor = 0.0
-        self.exp_non_taylor = 0.0
         self.exp_al_cc_history = []
         self.exp_norm_al_cc = []
         self.exp_al_lc_history = []
@@ -288,7 +250,7 @@ class TaylorLife:
 
             self.count_al_cc(i)
             self.exp_al_cc_history.append(self.exp_al_cc)
-            if self.num_al_cc > 0:
+            if (self.num_al_1[i] + self.num_al_2[i]) > 0.:
                 normalized_exp_al_cc = self.exp_al_cc / self.cpi_cum
             elif len(self.exp_norm_al_cc) > 0:
                 normalized_exp_al_cc = self.exp_norm_al_cc[-1]
@@ -303,8 +265,8 @@ class TaylorLife:
 
             self.count_cc(i)
             self.exp_cc_history.append(self.exp_cc)
-            if self.num_cc > 0:
-                normalized_exp_cc = self.exp_cc / self.cpi_cum
+            if i == 0:
+                normalized_exp_cc = self.exp_cc / self.cpi_cum * (self.num_il_1[i] + self.num_il_2[i])
             elif len(self.exp_norm_cc) > 0:
                 normalized_exp_cc = self.exp_norm_cc[-1]
             else:
@@ -313,7 +275,7 @@ class TaylorLife:
 
             self.count_lc(i)
             self.exp_lc_history.append(self.exp_lc)
-            if self.num_lc > 0:
+            if self.num_il_1[i] + self.num_il_2[i] > 0:
                 normalized_exp_lc = self.exp_lc / self.cpi_cum
             elif len(self.exp_norm_lc) > 0:
                 normalized_exp_lc = self.exp_norm_lc[-1]
@@ -323,10 +285,12 @@ class TaylorLife:
 
             self.count_non_taylor(i)
             self.exp_non_taylor_history.append(self.exp_non_taylor)
-            if self.num_non_taylor > 0:
+            if self.num_non_taylor_1[i] + self.num_non_taylor_2[i] > 0:
                 normalized_exp_non_taylor = self.exp_non_taylor / self.cpi_cum
-            else:
+            elif len(self.exp_norm_non_taylor) > 0:
                 normalized_exp_non_taylor = self.exp_norm_non_taylor[-1]
+            else:
+                normalized_exp_non_taylor = 0.
             self.exp_norm_non_taylor.append(normalized_exp_non_taylor)
 
             self.return_lc = self.pile_lc * self.roi.life_horizon_roi[i]
@@ -343,11 +307,6 @@ class TaylorLife:
         return result
 
     def count_all(self) -> None:
-        self.num_al_all = []
-        self.num_al_cc_all = []
-        self.num_cc_all = []
-        self.num_lc_all = []
-        self.num_non_taylor_all = []
 
         for date in self.roi.life_horizon_dates:
             man_age = age(date, self.man_dob)
@@ -355,97 +314,57 @@ class TaylorLife:
 
             man_in_al = self.man_age_to_al <= man_age < self.man_age_at_death
             woman_in_al = self.woman_age_to_al <= woman_age < self.woman_age_at_death
-            num_al = int(man_in_al) + int(woman_in_al)
 
             man_pre_al = man_age < self.man_age_to_al
             woman_pre_al = woman_age < self.woman_age_to_al
-            num_pre_al = int(man_pre_al) + int(woman_pre_al)
 
-            self.num_al_all.append(num_al)
-            self.num_al_cc_all.append(num_al)
-            self.num_cc_all.append(num_pre_al)
-            self.num_lc_all.append(num_pre_al)
-            self.num_non_taylor_all.append(num_pre_al)
+            num_il_2 = 2.0 * float(man_pre_al and woman_pre_al)
+            num_il_1 = float(man_pre_al != woman_pre_al)
+            num_al_2 = 2.0 * float(man_in_al and woman_in_al)
+            num_al_1 = float(man_in_al != woman_in_al)
+            num_non_taylor_2 = num_il_2
+            num_non_taylor_1 = num_il_1
+
+            self.num_il_2.append(num_il_2)
+            self.num_il_1.append(num_il_1)
+            self.num_al_2.append(num_al_2)
+            self.num_al_1.append(num_al_1)
+            self.num_non_taylor_2.append(num_non_taylor_2)
+            self.num_non_taylor_1.append(num_non_taylor_1)
+
 
     def count_al_cc(self, i: int = 0) -> None:
-        self.num_al = self.num_al_all[i]
-        self.num_al_cc = self.num_al_cc_all[i]
         self.mo_al_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.al_cc_2
         self.mo_al_cc_del_1 = self.cpi.life_horizon_inflation[i] * self.al_cc_1
         self.al_cc_2 += self.mo_al_cc_del_2
         self.al_cc_1 += self.mo_al_cc_del_1
-        if self.num_al_cc == 2:
-            self.mo_al_cc = self.mo_al_cc_del_2
-            if i == 0:
-                self.exp_al_cc = self.al_cc_2
-        elif self.num_al_cc == 1:
-            self.mo_al_cc = self.mo_al_cc_del_1
-            if i == 0:
-                self.exp_al_cc = self.al_cc_1
-        else:
-            self.mo_al_cc = 0
-            if i == 0:
-                self.exp_al_cc = 0.
+        self.mo_al_cc = self.mo_al_cc_del_2 * self.num_al_2[i] + self.mo_al_cc_del_1 * self.num_al_1[i]
         self.exp_al_cc += self.mo_al_cc
 
     def count_cc(self, i: int = 0) -> None:
-        self.num_cc = self.num_cc_all[i]
         self.mo_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.cc_2
         self.mo_cc_del_1 = self.cpi.life_horizon_inflation[i] * self.cc_1
         self.cc_2 += self.mo_cc_del_2
         self.cc_1 += self.mo_cc_del_1
-        if self.num_cc == 2:
-            self.mo_cc = self.mo_cc_del_2
-            if i == 0:
-                self.exp_cc = self.cc_2
-        elif self.num_cc == 1:
-            self.mo_cc = self.mo_cc_del_1
-            if i == 0:
-                self.exp_cc = self.cc_1
-        else:
-            self.mo_cc = 0
-            if i == 0:
-                self.exp_cc = 0.
+        self.mo_cc = self.mo_cc_del_2 * self.num_al_2[i] + self.mo_cc_del_1 * self.num_al_1[i]
         self.exp_cc += self.mo_cc
 
     def count_lc(self, i: int = 0) -> None:
-        self.num_lc = self.num_lc_all[i]
+        num_lc_2 = self.num_il_2[i]
+        num_lc_1 = self.num_il_1[i]
         self.mo_lc_del_2 = self.cpi.life_horizon_inflation[i] * self.lc_2
         self.mo_lc_del_1 = self.cpi.life_horizon_inflation[i] * self.lc_1
         self.lc_2 += self.mo_lc_del_2
         self.lc_1 += self.mo_lc_del_1
-        if self.num_lc == 2:
-            self.mo_lc = self.mo_lc_del_2
-            if i == 0:
-                self.exp_lc = self.lc_2
-        elif self.num_lc == 1:
-            self.mo_lc = self.mo_lc_del_1
-            if i == 0:
-                self.exp_lc = self.lc_1
-        else:
-            self.mo_lc = 0
-            if i == 0:
-                self.exp_lc = 0.
+        self.mo_lc = self.lc_2 * num_lc_2 + self.lc_1 * num_lc_1
         self.exp_lc += self.mo_lc
     
     def count_non_taylor(self, i: int = 0) -> None:
-        self.num_non_taylor = self.num_non_taylor_all[i]
         self.mo_non_taylor_del_2 = self.cpi.life_horizon_inflation[i] * self.non_taylor_2
         self.mo_non_taylor_del_1 = self.cpi.life_horizon_inflation[i] * self.non_taylor_1
         self.non_taylor_2 += self.mo_non_taylor_del_2
         self.non_taylor_1 += self.mo_non_taylor_del_1
-        if self.num_non_taylor == 2:
-            self.mo_non_taylor = self.mo_non_taylor_del_2
-            if i == 0:
-                self.exp_non_taylor = self.non_taylor_2
-        elif self.num_non_taylor == 1:
-            self.mo_non_taylor = self.mo_non_taylor_del_1
-            if i == 0:
-                self.exp_non_taylor = self.non_taylor_1
-        else:
-            self.mo_non_taylor = 0
-            if i == 0:
-                self.exp_non_taylor = 0.
+        self.mo_non_taylor = self.mo_non_taylor_del_2 * self.num_non_taylor_2[i] + self.non_taylor_1 * self.num_non_taylor_1[i]
         self.exp_non_taylor += self.mo_non_taylor
 
     def deceased(self, date: str | pd.Timestamp) -> bool:
