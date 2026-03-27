@@ -72,10 +72,10 @@ class ScenarioRunContext:
 
 @dataclass(frozen=True)
 class TaylorLifeResult:
-    principal_lc: int
-    principal_norm_lc: int
-    principal_cc: int
-    principal_norm_cc: int
+    worth_lc: int
+    worth_norm_lc: int
+    worth_cc: int
+    worth_norm_cc: int
 
 class TaylorLife:
     def __init__(
@@ -506,12 +506,12 @@ def evaluate_lhs_scenario(
     context: ScenarioRunContext | None = None,
 ) -> tuple[TaylorLife, TaylorLifeResult]:
     model = TaylorLife.from_lhs_scenario(scenario=scenario, context=context)
-    principal_lc, principal_norm_lc, principal_cc, principal_norm_cc = model.calc_result()
+    worth_lc, worth_norm_lc, worth_cc, worth_norm_cc = model.calc_result()
     return model, TaylorLifeResult(
-        principal_lc=principal_lc,
-        principal_norm_lc=principal_norm_lc,
-        principal_cc=principal_cc,
-        principal_norm_cc=principal_norm_cc,
+        worth_lc=worth_lc,
+        worth_norm_lc=worth_norm_lc,
+        worth_cc=worth_cc,
+        worth_norm_cc=worth_norm_cc,
     )
 
 
@@ -718,8 +718,8 @@ def main() -> None:
     if cpi.inflation_frame is None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
-    principal_lc = result.principal_lc
-    principal_cc = result.principal_cc
+    worth_lc = result.worth_lc
+    worth_cc = result.worth_cc
 
     annualized_mean = (1 + roi.monthly_mean_return) ** 12 - 1
     annualized_mean_cpi = annualized_inflation
@@ -758,7 +758,7 @@ def main() -> None:
         ("total non-taylor expenses", total_non_taylor_cc, total_non_taylor_lc),
         ("grand total expenses", grand_total_cc, grand_total_lc),
         ("total returns", total_returns_cc, total_returns_lc),
-        ("final worth", principal_cc, principal_lc),
+        ("final worth", worth_cc, worth_lc),
     ]
     print(f"{'item':<28}{'cc':>15}{'lc':>15}")
     print(f"{'-' * 28}{'-' * 15}{'-' * 15}")

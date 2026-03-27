@@ -87,10 +87,10 @@ class ScenarioRunContext:
 
 @dataclass(frozen=True)
 class TaylorLifeResult:
-    principal_lc: int
-    principal_norm_lc: int
-    principal_cc: int
-    principal_norm_cc: int
+    worth_lc: int
+    worth_norm_lc: int
+    worth_cc: int
+    worth_norm_cc: int
 
 
 @dataclass(frozen=True)
@@ -108,24 +108,24 @@ class LhsScenarioSummary:
     inflation_mean_shift: float
     inflation_vol_multiplier: float
     inflation_mean_reversion: float
-    exp_al: float
-    exp_norm_al: float
+    exp_al_cc: float
+    exp_norm_al_cc: float
     exp_cc: float
     exp_norm_cc: float
     exp_lc: float
     exp_norm_lc: float
     exp_non_taylor: float
     exp_norm_non_taylor: float
-    exp_total: float
-    exp_norm_total: float
+    exp_total_cc: float
+    exp_norm_total_cc: float
     earn_cc: float
     earn_norm_cc: float
     earn_lc: float
     earn_norm_lc: float
-    principal_lc: int
-    principal_norm_lc: int
-    principal_cc: int
-    principal_norm_cc: int
+    worth_lc: int
+    worth_norm_lc: int
+    worth_cc: int
+    worth_norm_cc: int
 
 
 CSV_COLUMNS = [
@@ -142,24 +142,24 @@ CSV_COLUMNS = [
     "inflation_mean_shift",
     "inflation_vol_multiplier",
     "inflation_mean_reversion",
-    "exp_al",
-    "exp_norm_al",
+    "exp_al_cc",
+    "exp_norm_al_cc",
     "exp_cc",
     "exp_norm_cc",
     "exp_lc",
     "exp_norm_lc",
     "exp_non_taylor",
     "exp_norm_non_taylor",
-    "exp_total",
-    "exp_norm_total",
+    "exp_total_cc",
+    "exp_norm_total_cc",
     "earn_cc",
     "earn_norm_cc",
     "earn_lc",
     "earn_norm_lc",
-    "principal_lc",
-    "principal_norm_lc",
-    "principal_cc",
-    "principal_norm_cc",
+    "worth_lc",
+    "worth_norm_lc",
+    "worth_cc",
+    "worth_norm_cc",
 ]
 
 SCREEN_MIN_COL_WIDTH = 14
@@ -626,12 +626,12 @@ def evaluate_lhs_scenario(
     context: ScenarioRunContext | None = None,
 ) -> tuple[TaylorLife, TaylorLifeResult]:
     model = TaylorLife.from_lhs_scenario(scenario=scenario, context=context)
-    principal_lc, principal_norm_lc, principal_cc, principal_norm_cc = model.calc_result()
+    worth_lc, worth_norm_lc, worth_cc, worth_norm_cc = model.calc_result()
     return model, TaylorLifeResult(
-        principal_lc=principal_lc,
-        principal_norm_lc=principal_norm_lc,
-        principal_cc=principal_cc,
-        principal_norm_cc=principal_norm_cc,
+        worth_lc=worth_lc,
+        worth_norm_lc=worth_norm_lc,
+        worth_cc=worth_cc,
+        worth_norm_cc=worth_norm_cc,
     )
 
 
@@ -691,24 +691,24 @@ def summarize_lhs_run(run_id: int, scenario: LhsScenario, model: TaylorLife, res
         inflation_mean_shift=scenario.inflation_mean_shift,
         inflation_vol_multiplier=scenario.inflation_vol_multiplier,
         inflation_mean_reversion=scenario.inflation_mean_reversion,
-        exp_al=last_value(model.exp_al_cc_history),
-        exp_norm_al=last_value(model.exp_norm_al_cc),
+        exp_al_cc=last_value(model.exp_al_cc_history),
+        exp_norm_al_cc=last_value(model.exp_norm_al_cc),
         exp_cc=last_value(model.exp_cc_history),
         exp_norm_cc=last_value(model.exp_norm_cc),
         exp_lc=last_value(model.exp_lc_history),
         exp_norm_lc=last_value(model.exp_norm_lc),
         exp_non_taylor=last_value(model.exp_non_taylor_history),
         exp_norm_non_taylor=last_value(model.exp_norm_non_taylor),
-        exp_total=last_value(model.exp_total_cc_history),
-        exp_norm_total=last_value(model.exp_norm_total_cc),
+        exp_total_cc=last_value(model.exp_total_cc_history),
+        exp_norm_total_cc=last_value(model.exp_norm_total_cc),
         earn_cc=last_value(model.earn_cc_history),
         earn_norm_cc=last_value(model.earn_norm_cc_history),
         earn_lc=last_value(model.earn_lc_history),
         earn_norm_lc=last_value(model.earn_norm_lc_history),
-        principal_lc=result.principal_lc,
-        principal_norm_lc=result.principal_norm_lc,
-        principal_cc=result.principal_cc,
-        principal_norm_cc=result.principal_norm_cc,
+        worth_lc=result.worth_lc,
+        worth_norm_lc=result.worth_norm_lc,
+        worth_cc=result.worth_cc,
+        worth_norm_cc=result.worth_norm_cc,
     )
 
 
@@ -731,11 +731,11 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
 def plot_lhs_summary(results: pd.DataFrame, show: bool = True) -> None:
     linger_total = results["man_linger"] + results["woman_linger"]
     figure, axis = plt.subplots(figsize=(12, 7))
-    axis.scatter(linger_total, results["principal_norm_lc"], alpha=0.7, label="principal_norm_lc")
-    axis.scatter(linger_total, results["principal_norm_cc"], alpha=0.7, label="principal_norm_cc")
+    axis.scatter(linger_total, results["worth_norm_lc"], alpha=0.7, label="worth_norm_lc")
+    axis.scatter(linger_total, results["worth_norm_cc"], alpha=0.7, label="worth_norm_cc")
     axis.set_xlabel("man_linger + woman_linger")
-    axis.set_ylabel("Principal (normalized)")
-    axis.set_title("Normalized Principal vs Combined Linger")
+    axis.set_ylabel("Worth (normalized)")
+    axis.set_title("Normalized Worth vs Combined Linger")
     axis.grid(True, alpha=0.3)
     axis.legend(loc="best")
     plt.tight_layout()
@@ -957,8 +957,8 @@ def main() -> None:
         print(
             f"LHS runs completed: {len(results)}\n"
             f"Output CSV: {output_path}\n"
-            f"Principal LC range: {results['principal_lc'].min():,.0f} to {results['principal_lc'].max():,.0f}\n"
-            f"Principal CC range: {results['principal_cc'].min():,.0f} to {results['principal_cc'].max():,.0f}"
+            f"Worth LC range: {results['worth_lc'].min():,.0f} to {results['worth_lc'].max():,.0f}\n"
+            f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
         plot_lhs_summary(results)
         return
@@ -974,8 +974,8 @@ def main() -> None:
     if cpi.inflation_frame is None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
-    principal_lc = result.principal_lc
-    principal_cc = result.principal_cc
+    worth_lc = result.worth_lc
+    worth_cc = result.worth_cc
 
     annualized_mean = (1 + roi.monthly_mean_return) ** 12 - 1
     annualized_mean_cpi = annualized_inflation
@@ -1002,6 +1002,8 @@ def main() -> None:
     grand_total_lc = this_life.exp_total_lc_history[-1] if this_life.exp_total_lc_history else 0.0
     total_returns_cc = this_life.earn_cc_history[-1] if this_life.earn_cc_history else 0.0
     total_returns_lc = this_life.earn_lc_history[-1] if this_life.earn_lc_history else 0.0
+    worth_cc = result.worth_cc
+    worth_lc = result.worth_lc
     header_rows = [
         ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
         ("man age at death", this_life.man_age_at_death, this_life.man_age_at_death),
@@ -1014,7 +1016,7 @@ def main() -> None:
         ("total non-taylor expenses", total_non_taylor_cc, total_non_taylor_lc),
         ("grand total expenses", grand_total_cc, grand_total_lc),
         ("total returns", total_returns_cc, total_returns_lc),
-        ("final worth", principal_cc, principal_lc),
+        ("final worth", worth_cc, worth_lc),
     ]
     print(f"{'item':<28}{'cc':>15}{'lc':>15}")
     print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
