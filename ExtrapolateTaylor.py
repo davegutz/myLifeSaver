@@ -23,17 +23,17 @@ CC_1 = 3150.
 CC_2 = 3750./2.
 LC_1 = 8100.
 LC_2 = 9600./2.
-# CONSTANT_MONTHLY_ROI: float | None = 8./100./12.  # Fraction per month
-# CONSTANT_MONTHLY_CPI: float | None = 4./100./12.  # Fraction per month
-CONSTANT_MONTHLY_ROI: float | None = None  # Fraction per month
-CONSTANT_MONTHLY_CPI: float | None = None  # Fraction per month
+CONSTANT_MONTHLY_ROI: float | None = 10./100./12.  # Fraction per month
+CONSTANT_MONTHLY_CPI: float | None = 5./100./12.  # Fraction per month
+# CONSTANT_MONTHLY_ROI: float | None = None  # Fraction per month
+# CONSTANT_MONTHLY_CPI: float | None = None  # Fraction per month
 AL_AND_LC_INFLATION_FACTOR = 2.0  # LTC escalates at 2x inflation
 
 # To be varied
-MAN_AGE_TO_AL = 80.
-WOMAN_AGE_TO_AL = 80.
-MAN_LINGER = 1.
-WOMAN_LINGER = 1.
+MAN_AGE_TO_AL = 70.
+WOMAN_AGE_TO_AL = 70.
+MAN_LINGER = 10.
+WOMAN_LINGER = 10.
 DEFAULT_SEED = 0
 ROI_MEAN_SHIFT = 0.0
 ROI_VOL_MULTIPLIER = 1.0
@@ -767,6 +767,29 @@ def main() -> None:
     print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
     for item, cc_value, lc_value in table_rows:
         print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
+    
+    # Write monthly results to CSV
+    df = pd.DataFrame({
+        'date': pd.to_datetime(this_life.dates),
+        'earn_lc': this_life.earn_lc_history,
+        'earn_cc': this_life.earn_cc_history,
+        'earn_norm_lc': this_life.earn_norm_lc_history,
+        'earn_norm_cc': this_life.earn_norm_cc_history,
+        'exp_total_lc': this_life.exp_total_lc_history,
+        'exp_total_cc': this_life.exp_total_cc_history,
+        'exp_norm_total_lc': this_life.exp_norm_total_lc,
+        'exp_norm_total_cc': this_life.exp_norm_total_cc,
+        'worth_lc': this_life.worth_lc_history,
+        'worth_cc': this_life.worth_cc_history,
+        'worth_norm_lc': this_life.worth_norm_lc_history,
+        'worth_norm_cc': this_life.worth_norm_cc_history,
+        'exp_al_cc': this_life.exp_al_cc_history,
+        'exp_cc': this_life.exp_cc_history,
+        'exp_lc': this_life.exp_lc_history,
+        'exp_non_taylor': this_life.exp_non_taylor_history,
+    })
+    df.to_csv('taylor_life_monthly.csv', index=False)
+    
     if roi.return_frame is None:
         raise ValueError("ROI history was not loaded during projection.")
     plot_projection_views(roi.return_frame, roi, show=False)
