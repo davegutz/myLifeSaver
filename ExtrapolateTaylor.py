@@ -23,6 +23,9 @@ AL_CC_1 = 9200.
 AL_CC_2 = AL_CC_1 * 2.
 CC_1 = 3150.
 CC_2 = 3750.
+LC_1 = 8100.
+LC_2 = 9600.
+
 
 class TaylorLife:
     def __init__(
@@ -40,6 +43,8 @@ class TaylorLife:
         al_cc_1: float = AL_CC_1,
         cc_2: float = CC_2,
         cc_1: float = CC_1,
+        lc_2: float = LC_2,
+        lc_1: float = LC_1,
         non_taylor_2: float = NON_TAYLOR_2,
         non_taylor_1: float = NON_TAYLOR_1,
     ) -> None:
@@ -82,6 +87,16 @@ class TaylorLife:
         self.exp_cc_history: list[float] = []
         self.exp_norm_cc: list[float] = []
 
+        self.num_lc = 0
+        self.lc_2 = lc_2
+        self.lc_1 = lc_1
+        self.mo_lc_del_2 = 0.
+        self.mo_lc_del_1 = 0.
+        self.mo_lc = 0.
+        self.exp_lc = 0.
+        self.exp_lc_history: list[float] = []
+        self.exp_norm_lc: list[float] = []
+
         self.num_non_taylor = 0
         self.non_taylor_2 = non_taylor_2
         self.non_taylor_1 = non_taylor_1
@@ -95,6 +110,9 @@ class TaylorLife:
         self.exp_norm_taylor: list[float] = []
 
     def calc_result(self):
+        self.num_lc = 0.0
+        self.mo_lc = 0.0
+        self.exp_lc = 0.0
         self.num_non_taylor = 0.0
         self.mo_non_taylor = 0.0
         self.exp_non_taylor = 0.0
@@ -102,6 +120,8 @@ class TaylorLife:
         self.exp_norm_al_cc = []
         self.exp_cc_history = []
         self.exp_norm_cc = []
+        self.exp_lc_history = []
+        self.exp_norm_lc = []
         self.exp_non_taylor_history = []
         self.exp_norm_non_taylor = []
         n = len(self.cpi.life_horizon_dates)
@@ -128,6 +148,16 @@ class TaylorLife:
             else:
                 normalized_exp_cc = 0.
             self.exp_norm_cc.append(normalized_exp_cc)
+
+            self.count_lc(i)
+            self.exp_lc_history.append(self.exp_lc)
+            if self.num_lc > 0:
+                normalized_exp_lc = self.exp_lc / self.cpi_cum
+            elif len(self.exp_norm_lc) > 0:
+                normalized_exp_lc = self.exp_norm_lc[-1]
+            else:
+                normalized_exp_lc = 0.
+            self.exp_norm_lc.append(normalized_exp_lc)
 
             self.count_non_taylor(i)
             self.exp_non_taylor_history.append(self.exp_non_taylor)
@@ -192,11 +222,28 @@ class TaylorLife:
                 self.exp_cc = 0.
         self.exp_cc += self.mo_cc
 
-    def count_lc(self, date: str | pd.Timestamp) -> int:
-        date_ts = pd.Timestamp(date)
-        man_alive = age(date_ts, self.man_dob) < self.man_age_at_death
-        woman_alive = age(date_ts, self.woman_dob) < self.woman_age_at_death
-        return int(man_alive) + int(woman_alive)
+    def count_lc(self, i: int = 0) -> None:
+        date = self.roi.life_horizon_dates[i]
+        man_in_lc = age(date, self.man_dob) < self.man_age_to_al
+        woman_in_lc = age(date, self.man_dob) < self.woman_age_to_al
+        self.num_lc = int(man_in_lc) + int(woman_in_lc)
+        self.mo_lc_del_2 = self.cpi.life_horizon_inflation[i] * self.lc_2
+        self.mo_lc_del_1 = self.cpi.life_horizon_inflation[i] * self.lc_1
+        self.lc_2 += self.mo_lc_del_2
+        self.lc_1 += self.mo_lc_del_1
+        if self.num_lc == 2:
+            self.mo_lc = self.mo_lc_del_2
+            if i == 0:
+                self.exp_lc = self.lc_2
+        elif self.num_lc == 1:
+            self.mo_lc = self.mo_lc_del_1
+            if i == 0:
+                self.exp_lc = self.lc_1
+        else:
+            self.mo_lc = 0
+            if i == 0:
+                self.exp_lc = 0.
+        self.exp_lc += self.mo_lc
     
     def count_non_taylor(self, i: int = 0) -> None:
         date = self.roi.life_horizon_dates[i]
@@ -292,6 +339,19 @@ def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) ->
         linewidth=2.0,
         linestyle="--",
         label="exp_norm_cc",
+    )
+    axis.plot(
+        pd.DatetimeIndex(this_life.dates),
+        this_life.exp_lc_history,
+        linewidth=2.0,
+        label="exp_lc",
+    )
+    axis.plot(
+        pd.DatetimeIndex(this_life.dates),
+        this_life.exp_norm_lc,
+        linewidth=2.0,
+        linestyle="--",
+        label="exp_norm_lc",
     )
     axis.set_xlabel("Date")
     axis.set_ylabel("exp_non_taylor")
