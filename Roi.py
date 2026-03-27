@@ -10,6 +10,7 @@ from utils import build_life_horizon_dates, reindex_life_horizon_values, require
 
 TICKER = "SPY"
 ROLLING_AVERAGE_WINDOW = 12
+DEFAULT_MEAN_REVERSION = 0.15
 
 
 @dataclass
@@ -34,6 +35,9 @@ class Roi:
     return_frame: pd.DataFrame | None = None
     monthly_mean_return: float = 0.0
     monthly_volatility: float = 0.0
+    mean_reversion_strength: float = DEFAULT_MEAN_REVERSION
+    mean_shift: float = 0.0
+    vol_multiplier: float = 1.0
     historical_returns: np.ndarray | None = None
     life_horizon_roi: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     life_horizon_dates: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))
@@ -116,6 +120,9 @@ class Roi:
             return_frame=self.return_frame,
             monthly_mean_return=self.monthly_mean_return,
             monthly_volatility=self.monthly_volatility,
+            mean_reversion_strength=self.mean_reversion_strength,
+            mean_shift=self.mean_shift,
+            vol_multiplier=self.vol_multiplier,
             historical_returns=self.historical_returns,
         )
         simulated_close = self.monthly_close.copy()
@@ -134,8 +141,10 @@ class Roi:
         if self.historical_returns is None:
             raise ValueError("historical_returns must be available before sampling ROI.")
         sampled_return = float(rng.choice(self.historical_returns))
-        mean_reversion = 0.15 * (self.monthly_mean_return - sampled_return)
-        shock = float(rng.normal(0, self.monthly_volatility * 0.15))
+        target_mean = self.monthly_mean_return + self.mean_shift
+        adjusted_volatility = self.monthly_volatility * self.vol_multiplier
+        mean_reversion = self.mean_reversion_strength * (target_mean - sampled_return)
+        shock = float(rng.normal(0, adjusted_volatility * 0.15))
         return sampled_return + mean_reversion + shock
 
     def load_price_history(self, ticker: str = TICKER) -> pd.Series:

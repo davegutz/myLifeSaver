@@ -14,6 +14,7 @@ CPI_SERIES_ID = "CPIAUCSL"
 GP_LENGTH_SCALE = 18.0
 GP_SIGNAL_VARIANCE = 0.000025
 GP_NOISE_VARIANCE = 0.000004
+DEFAULT_MEAN_REVERSION = 0.15
 
 
 @dataclass
@@ -78,6 +79,9 @@ class Inflation:
     inflation_frame: pd.DataFrame | None = None
     monthly_mean_inflation: float = 0.0
     monthly_inflation_volatility: float = 0.0
+    mean_reversion_strength: float = DEFAULT_MEAN_REVERSION
+    mean_shift: float = 0.0
+    vol_multiplier: float = 1.0
     historical_inflation: np.ndarray | None = None
     life_horizon_inflation: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     life_horizon_dates: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))
@@ -292,8 +296,10 @@ class Inflation:
         if self.historical_inflation is None:
             raise ValueError("historical_inflation must be available before sampling inflation.")
         sampled_inflation = float(rng.choice(self.historical_inflation))
-        mean_reversion = 0.15 * (self.monthly_mean_inflation - sampled_inflation)
-        shock = float(rng.normal(0, self.monthly_inflation_volatility * 0.15))
+        target_mean = self.monthly_mean_inflation + self.mean_shift
+        adjusted_volatility = self.monthly_inflation_volatility * self.vol_multiplier
+        mean_reversion = self.mean_reversion_strength * (target_mean - sampled_inflation)
+        shock = float(rng.normal(0, adjusted_volatility * 0.15))
         return sampled_inflation + mean_reversion + shock
 
     def generate_inflation_projection(
@@ -334,6 +340,9 @@ class Inflation:
             inflation_frame=self.inflation_frame,
             monthly_mean_inflation=self.monthly_mean_inflation,
             monthly_inflation_volatility=self.monthly_inflation_volatility,
+            mean_reversion_strength=self.mean_reversion_strength,
+            mean_shift=self.mean_shift,
+            vol_multiplier=self.vol_multiplier,
             historical_inflation=self.historical_inflation,
         )
         x_test = np.arange(len(self.inflation_frame), len(self.inflation_frame) + months_to_project, dtype=float)
