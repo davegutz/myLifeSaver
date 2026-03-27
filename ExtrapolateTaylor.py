@@ -438,12 +438,13 @@ def main() -> None:
         f"Monthly volatility: {roi.monthly_volatility:.2%}\n"
         f"Seed: {args.seed}\n"
         f"CPI current date: {current_date.date()}\n"
-        f"Implied annualized CPI inflation: {annualized_mean_cpi:.2%}"
+        f"Implied annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
+        f"Cumulative inflation growth of $1 since {START_CLOCK}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
     )
     # print(roi)
     # print(cpi)
-    print(f"LC Plan A {principal_lc=} {principal_norm_lc=} {float(principal_lc)/float(principal_norm_lc)}"
-          f"\nCC Plan B {principal_cc=} {principal_norm_cc=} {float(principal_cc)/float(principal_norm_cc)}")
+    print(f"LC Plan A {principal_lc=} {principal_norm_lc=} {(principal_lc)/principal_norm_lc:5.2f}"
+          f"\nCC Plan B {principal_cc=} {principal_norm_cc=} {float(principal_cc)/float(principal_norm_cc):5.2f}")
     if roi.return_frame is None:
         raise ValueError("ROI history was not loaded during projection.")
     plot_projection_views(roi.return_frame, roi, show=False)
