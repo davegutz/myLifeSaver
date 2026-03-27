@@ -125,6 +125,10 @@ class TaylorLife:
         self.num_il_1: list[float] = []
         self.num_al_2: list[float] = []
         self.num_al_1: list[float] = []
+        self.num_il: list[float] = []
+        self.num_al: list[float] = []
+        self.num_non_taylor : list[float] = []
+
         self.al_cc_2 = al_cc_2
         self.al_cc_1 = al_cc_1
         self.mo_al_cc_del_2 = 0.
@@ -337,6 +341,9 @@ class TaylorLife:
             self.num_al_1.append(num_al_1)
             self.num_non_taylor_2.append(num_non_taylor_2)
             self.num_non_taylor_1.append(num_non_taylor_1)
+            self.num_il = self.num_il_1 + self.num_il_2
+            self.num_al = self.num_al_1 + self.num_al_2
+            self.num_non_taylor = self.num_non_taylor_1 + self.num_non_taylor_2
 
     @staticmethod
     def normalize_history(
@@ -414,64 +421,85 @@ def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) ->
     if not this_life.exp_non_taylor_history:
         this_life.calc_result()
 
-    figure, axis = plt.subplots(figsize=(14, 7))
-    axis.plot(
+    dates = pd.DatetimeIndex(this_life.dates)
+    num_il = np.asarray(this_life.num_il_1, dtype=float) + np.asarray(this_life.num_il_2, dtype=float)
+    num_al = np.asarray(this_life.num_al_1, dtype=float) + np.asarray(this_life.num_al_2, dtype=float)
+    num_non_taylor = (
+        np.asarray(this_life.num_non_taylor_1, dtype=float) + np.asarray(this_life.num_non_taylor_2, dtype=float)
+    )
+
+    figure, axes = plt.subplots(
+        2,
+        1,
+        figsize=(14, 10),
+        sharex=True,
+        gridspec_kw={"height_ratios": [3, 1]},
+    )
+    axis_top, axis_bottom = axes
+    axis_top.plot(
         pd.DatetimeIndex(this_life.dates),
         this_life.exp_non_taylor_history,
         linewidth=2.0,
         label="exp_non_taylor",
     )
-    axis.plot(
-        pd.DatetimeIndex(this_life.dates),
+    axis_top.plot(
+        dates,
         this_life.exp_norm_non_taylor,
         linewidth=2.0,
         linestyle="--",
         label="exp_norm_non_taylor",
     )
-    axis.plot(
-        pd.DatetimeIndex(this_life.dates),
+    axis_top.plot(
+        dates,
         this_life.exp_al_cc_history,
         linewidth=2.0,
         label="exp_al_cc",
     )
-    axis.plot(
-        pd.DatetimeIndex(this_life.dates),
+    axis_top.plot(
+        dates,
         this_life.exp_norm_al_cc,
         linewidth=2.0,
         linestyle="--",
         label="exp_norm_al_cc",
     )
-    axis.plot(
-        pd.DatetimeIndex(this_life.dates),
+    axis_top.plot(
+        dates,
         this_life.exp_cc_history,
         linewidth=2.0,
         label="exp_cc",
     )
-    axis.plot(
-        pd.DatetimeIndex(this_life.dates),
+    axis_top.plot(
+        dates,
         this_life.exp_norm_cc,
         linewidth=2.0,
         linestyle="--",
         label="exp_norm_cc",
     )
-    axis.plot(
-        pd.DatetimeIndex(this_life.dates),
+    axis_top.plot(
+        dates,
         this_life.exp_lc_history,
         linewidth=2.0,
         label="exp_lc",
     )
-    axis.plot(
-        pd.DatetimeIndex(this_life.dates),
+    axis_top.plot(
+        dates,
         this_life.exp_norm_lc,
         linewidth=2.0,
         linestyle="--",
         label="exp_norm_lc",
     )
-    axis.set_xlabel("Date")
-    axis.set_ylabel("exp_non_taylor")
-    axis.set_title("Taylor Life exp_non_taylor Over Time")
-    axis.grid(True, alpha=0.3)
-    axis.legend(loc="upper left")
+    axis_top.set_ylabel("Expense")
+    axis_top.set_title("Taylor Life Expenses Over Time")
+    axis_top.grid(True, alpha=0.3)
+    axis_top.legend(loc="upper left")
+
+    axis_bottom.plot(dates, num_il, linewidth=2.0, label="num_il")
+    axis_bottom.plot(dates, num_al, linewidth=2.0, label="num_al")
+    axis_bottom.plot(dates, num_non_taylor, linewidth=2.0, label="num_non_taylor")
+    axis_bottom.set_xlabel("Date")
+    axis_bottom.set_ylabel("Count")
+    axis_bottom.grid(True, alpha=0.3)
+    axis_bottom.legend(loc="upper left")
     plt.tight_layout()
     if show:
         plt.show()
