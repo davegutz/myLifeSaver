@@ -36,9 +36,11 @@ ROI_MEAN_REVERSION = 0.15
 INFLATION_MEAN_SHIFT = 0.0
 INFLATION_VOL_MULTIPLIER = 1.0
 INFLATION_MEAN_REVERSION = 0.15
-CONSTANT_MONTHLY_ROI: float | None = 20./100./12.  # Fraction per month
-CONSTANT_MONTHLY_CPI: float | None = 5./100./12.  # Fraction per month
-AL_AND_LC_INFLATION_FACTOR = 2.0
+# CONSTANT_MONTHLY_ROI: float | None = 8./100./12.  # Fraction per month
+# CONSTANT_MONTHLY_CPI: float | None = 4./100./12.  # Fraction per month
+CONSTANT_MONTHLY_ROI: float | None = None  # Fraction per month
+CONSTANT_MONTHLY_CPI: float | None = None  # Fraction per month
+AL_AND_LC_INFLATION_FACTOR = 2.0  # LTC escalates at 2x inflation
 
 
 @dataclass(frozen=True)
