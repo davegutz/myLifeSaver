@@ -36,8 +36,9 @@ ROI_MEAN_REVERSION = 0.15
 INFLATION_MEAN_SHIFT = 0.0
 INFLATION_VOL_MULTIPLIER = 1.0
 INFLATION_MEAN_REVERSION = 0.15
-CONSTANT_MONTHLY_ROI: float | None = 0./100./12.  # Fraction per month
+CONSTANT_MONTHLY_ROI: float | None = 20./100./12.  # Fraction per month
 CONSTANT_MONTHLY_CPI: float | None = 5./100./12.  # Fraction per month
+AL_AND_LC_INFLATION_FACTOR = 2.0
 
 
 @dataclass(frozen=True)
@@ -297,6 +298,7 @@ class TaylorLife:
             self.initial_al_cc_1,
             self.num_al_2,
             self.num_al_1,
+            inflation_factor=AL_AND_LC_INFLATION_FACTOR,
         )
         self.exp_cc_history = self.build_expense_history(
             self.initial_cc_2,
@@ -309,6 +311,7 @@ class TaylorLife:
             self.initial_lc_1,
             self.num_il_2,
             self.num_il_1,
+            inflation_factor=AL_AND_LC_INFLATION_FACTOR,
         )
         self.exp_non_taylor_history = self.build_expense_history(
             self.initial_non_taylor_2,
@@ -434,8 +437,11 @@ class TaylorLife:
         initial_cost_1: float,
         num_2: list[float],
         num_1: list[float],
+        inflation_factor: float = 1.0,
     ) -> list[float]:
-        inflation_growth = np.cumprod(1.0 + np.asarray(self.cpi.life_horizon_inflation, dtype=float))
+        inflation_growth = np.cumprod(
+            1.0 + np.asarray(self.cpi.life_horizon_inflation, dtype=float) * inflation_factor
+        )
         cost_2_path = initial_cost_2 * inflation_growth
         cost_1_path = initial_cost_1 * inflation_growth
         monthly_expense = cost_2_path * np.asarray(num_2, dtype=float) + cost_1_path * np.asarray(num_1, dtype=float)
