@@ -1,5 +1,6 @@
 import argparse
 from dataclasses import asdict, dataclass
+import math
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -159,6 +160,41 @@ CSV_COLUMNS = [
     "principal_cc",
     "principal_norm_cc",
 ]
+
+SCREEN_MIN_COL_WIDTH = 14
+
+
+def format_screen_number(value: int | float, width: int) -> str:
+    if isinstance(value, (np.integer, int)):
+        text = f"{int(value):.3g}"
+    else:
+        numeric = float(value)
+        if math.isnan(numeric):
+            return " " * width
+        text = f"{numeric:.3g}"
+    if "e" in text or "E" in text:
+        mantissa, exponent = text.lower().split("e", maxsplit=1)
+        exponent_text = f"e{int(exponent):+03d}"
+    else:
+        mantissa = text
+        exponent_text = ""
+    if "." not in mantissa:
+        mantissa = f"{mantissa}."
+    left, right = mantissa.split(".", maxsplit=1)
+    decimal_target = max(2, width - max(len(exponent_text), 4) - 1)
+    left_padding = max(decimal_target - len(left), 0)
+    aligned = f"{' ' * left_padding}{left}.{right}{exponent_text}"
+    return aligned.rjust(width)
+
+
+def format_screen_cell(value: object, width: int) -> str:
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return format_screen_number(value=value, width=width)
+    return str(value).rjust(width)
+
+
+def print_screen_row(row: dict[str, object], columns: list[str], widths: dict[str, int]) -> None:
+    print(" ".join(format_screen_cell(row[column], widths[column]) for column in columns))
 
 class TaylorLife:
     def __init__(
@@ -678,12 +714,13 @@ def summarize_lhs_run(run_id: int, scenario: LhsScenario, model: TaylorLife, res
 def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Path, seed: int) -> pd.DataFrame:
     scenarios = build_lhs_scenarios(num_points=num_points, seed=seed)
     rows = []
-    print(",".join(CSV_COLUMNS))
+    column_widths = {column: max(len(column), SCREEN_MIN_COL_WIDTH) for column in CSV_COLUMNS}
+    print(" ".join(column.rjust(column_widths[column]) for column in CSV_COLUMNS))
     for run_id, scenario in enumerate(scenarios, start=1):
         model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
         row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, result=result))
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
-        print(",".join(str(ordered_row[column]) for column in CSV_COLUMNS))
+        print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
     frame = pd.DataFrame(rows, columns=CSV_COLUMNS)
     frame.to_csv(output_path, index=False)
