@@ -2,7 +2,7 @@ import argparse
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import pandas as pd
-# import numpy as np
+import numpy as np
 from Inflation import Inflation, plot_inflation_views
 from Roi import TICKER, Roi, plot_projection_views
 from utils import age
@@ -231,58 +231,75 @@ class TaylorLife:
         self.lc_1 = self.initial_lc_1
         self.non_taylor_2 = self.initial_non_taylor_2
         self.non_taylor_1 = self.initial_non_taylor_1
+        self.exp_al_cc = 0.0
+        self.exp_cc = 0.0
+        self.exp_lc = 0.0
+        self.exp_non_taylor = 0.0
+        self.exp_al_lc = 0.0
+        self.exp_al_cc_history = []
+        self.exp_norm_al_cc = []
+        self.exp_al_lc_history = []
+        self.exp_norm_al_lc = []
+        self.exp_cc_history = []
+        self.exp_norm_cc = []
+        self.exp_lc_history = []
+        self.exp_norm_lc = []
+        self.exp_non_taylor_history = []
+        self.exp_norm_non_taylor = []
         self.count_all()
+        self.exp_al_cc_history = self.build_expense_history(
+            self.initial_al_cc_2,
+            self.initial_al_cc_1,
+            self.num_al_2,
+            self.num_al_1,
+        )
+        self.exp_cc_history = self.build_expense_history(
+            self.initial_cc_2,
+            self.initial_cc_1,
+            self.num_il_2,
+            self.num_il_1,
+        )
+        self.exp_lc_history = self.build_expense_history(
+            self.initial_lc_2,
+            self.initial_lc_1,
+            self.num_il_2,
+            self.num_il_1,
+        )
+        self.exp_non_taylor_history = self.build_expense_history(
+            self.initial_non_taylor_2,
+            self.initial_non_taylor_1,
+            self.num_non_taylor_2,
+            self.num_non_taylor_1,
+        )
+        inflation_cum = self.cpi.life_horizon_inflation_cum
+        al_active = np.array(self.num_al_1, dtype=float) + np.array(self.num_al_2, dtype=float) > 0.0
+        il_active = np.array(self.num_il_1, dtype=float) + np.array(self.num_il_2, dtype=float) > 0.0
+        non_taylor_active = (
+            np.array(self.num_non_taylor_1, dtype=float) + np.array(self.num_non_taylor_2, dtype=float) > 0.0
+        )
+        self.exp_al_lc_history = np.zeros(len(inflation_cum), dtype=float).tolist()
+        self.exp_norm_al_lc = np.zeros(len(inflation_cum), dtype=float).tolist()
         n = len(self.cpi.life_horizon_dates)
         for i in range(n):
-            self.count_al_cc(i)
-            self.exp_al_cc_history.append(self.exp_al_cc)
-            if (self.num_al_1[i] + self.num_al_2[i]) > 0.:
-                normalized_exp_al_cc = self.exp_al_cc / self.cpi.life_horizon_inflation_cum[i]
-            elif len(self.exp_norm_al_cc) > 0:
-                normalized_exp_al_cc = self.exp_norm_al_cc[-1]
-            else:
-                normalized_exp_al_cc = 0.
-            self.exp_norm_al_cc.append(normalized_exp_al_cc)
-
-            # There are no assisted living expenses for plan lc
-            self.exp_norm_al_lc.append(0.0 if self.cpi.life_horizon_inflation_cum[i] != 0 else 0.0)
-            self.exp_al_lc_history.append(self.exp_al_lc)
-
-            self.count_cc(i)
-            self.exp_cc_history.append(self.exp_cc)
-            if self.num_il_1[i] + self.num_il_2[i] > 0:
-                normalized_exp_cc = self.exp_cc / self.cpi.life_horizon_inflation_cum[i]
-            elif len(self.exp_norm_cc) > 0:
-                normalized_exp_cc = self.exp_norm_cc[-1]
-            else:
-                normalized_exp_cc = 0.
-            self.exp_norm_cc.append(normalized_exp_cc)
-
-            self.count_lc(i)
-            self.exp_lc_history.append(self.exp_lc)
-            if self.num_il_1[i] + self.num_il_2[i] > 0:
-                normalized_exp_lc = self.exp_lc / self.cpi.life_horizon_inflation_cum[i]
-            elif len(self.exp_norm_lc) > 0:
-                normalized_exp_lc = self.exp_norm_lc[-1]
-            else:
-                normalized_exp_lc = 0.
-            self.exp_norm_lc.append(normalized_exp_lc)
-
-            self.count_non_taylor(i)
-            self.exp_non_taylor_history.append(self.exp_non_taylor)
-            if self.num_non_taylor_1[i] + self.num_non_taylor_2[i] > 0:
-                normalized_exp_non_taylor = self.exp_non_taylor / self.cpi.life_horizon_inflation_cum[i]
-            elif len(self.exp_norm_non_taylor) > 0:
-                normalized_exp_non_taylor = self.exp_norm_non_taylor[-1]
-            else:
-                normalized_exp_non_taylor = 0.
-            self.exp_norm_non_taylor.append(normalized_exp_non_taylor)
+            self.exp_al_cc = self.exp_al_cc_history[i]
+            self.exp_cc = self.exp_cc_history[i]
+            self.exp_lc = self.exp_lc_history[i]
+            self.exp_non_taylor = self.exp_non_taylor_history[i]
 
             self.roi_lc = self.pile_lc * self.roi.life_horizon_roi[i]
             self.pile_lc += self.roi_lc - self.exp_lc - self.exp_non_taylor - self.exp_al_lc
 
             self.roi_cc = self.pile_cc * self.roi.life_horizon_roi[i]
             self.pile_cc += self.roi_cc - self.exp_cc - self.exp_non_taylor - self.exp_al_cc
+
+        self.exp_norm_al_cc = self.normalize_history(self.exp_al_cc_history, al_active, inflation_cum)
+        self.exp_norm_cc = self.normalize_history(self.exp_cc_history, il_active, inflation_cum)
+        self.exp_norm_lc = self.normalize_history(self.exp_lc_history, il_active, inflation_cum)
+        self.exp_norm_non_taylor = self.normalize_history(
+            self.exp_non_taylor_history,
+            non_taylor_active,
+            inflation_cum,
+        )
 
         self.pile_norm_lc = self.pile_lc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
         self.pile_norm_cc = self.pile_cc * self.de_cumalate(self.cpi.life_horizon_dates[-1])
@@ -292,6 +309,12 @@ class TaylorLife:
         return result
 
     def count_all(self) -> None:
+        self.num_il_2 = []
+        self.num_il_1 = []
+        self.num_al_2 = []
+        self.num_al_1 = []
+        self.num_non_taylor_2 = []
+        self.num_non_taylor_1 = []
 
         for date in self.roi.life_horizon_dates:
             man_age = age(date, self.man_dob)
@@ -315,37 +338,35 @@ class TaylorLife:
             self.num_non_taylor_2.append(num_non_taylor_2)
             self.num_non_taylor_1.append(num_non_taylor_1)
 
-    def count_al_cc(self, i: int = 0) -> None:
-        self.mo_al_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.al_cc_2
-        self.mo_al_cc_del_1 = self.cpi.life_horizon_inflation[i] * self.al_cc_1
-        self.al_cc_2 += self.mo_al_cc_del_2
-        self.al_cc_1 += self.mo_al_cc_del_1
-        self.mo_al_cc = self.mo_al_cc_del_2 * self.num_al_2[i] + self.mo_al_cc_del_1 * self.num_al_1[i]
-        self.exp_al_cc += self.mo_al_cc
+    @staticmethod
+    def normalize_history(
+        expense_history: list[float],
+        active_mask: np.ndarray,
+        inflation_cum: np.ndarray,
+    ) -> list[float]:
+        if len(expense_history) == 0:
+            return []
+        raw = np.divide(
+            np.asarray(expense_history, dtype=float),
+            np.asarray(inflation_cum, dtype=float),
+            out=np.zeros(len(expense_history), dtype=float),
+            where=np.asarray(inflation_cum, dtype=float) != 0.0,
+        )
+        candidate = np.where(active_mask, raw, np.nan)
+        return pd.Series(candidate).ffill().fillna(0.0).to_list()
 
-    def count_cc(self, i: int = 0) -> None:
-        self.mo_cc_del_2 = self.cpi.life_horizon_inflation[i] * self.cc_2
-        self.mo_cc_del_1 = self.cpi.life_horizon_inflation[i] * self.cc_1
-        self.cc_2 += self.mo_cc_del_2
-        self.cc_1 += self.mo_cc_del_1
-        self.mo_cc = self.mo_cc_del_2 * self.num_al_2[i] + self.mo_cc_del_1 * self.num_al_1[i]
-        self.exp_cc += self.mo_cc
-
-    def count_lc(self, i: int = 0) -> None:
-        self.mo_lc_del_2 = self.cpi.life_horizon_inflation[i] * self.lc_2
-        self.mo_lc_del_1 = self.cpi.life_horizon_inflation[i] * self.lc_1
-        self.lc_2 += self.mo_lc_del_2
-        self.lc_1 += self.mo_lc_del_1
-        self.mo_lc = self.lc_2 * self.num_il_2[i] + self.lc_1 * self.num_il_1[i]
-        self.exp_lc += self.mo_lc
-    
-    def count_non_taylor(self, i: int = 0) -> None:
-        self.mo_non_taylor_del_2 = self.cpi.life_horizon_inflation[i] * self.non_taylor_2
-        self.mo_non_taylor_del_1 = self.cpi.life_horizon_inflation[i] * self.non_taylor_1
-        self.non_taylor_2 += self.mo_non_taylor_del_2
-        self.non_taylor_1 += self.mo_non_taylor_del_1
-        self.mo_non_taylor = self.mo_non_taylor_del_2 * self.num_non_taylor_2[i] + self.non_taylor_1 * self.num_non_taylor_1[i]
-        self.exp_non_taylor += self.mo_non_taylor
+    def build_expense_history(
+        self,
+        initial_cost_2: float,
+        initial_cost_1: float,
+        num_2: list[float],
+        num_1: list[float],
+    ) -> list[float]:
+        inflation_growth = np.cumprod(1.0 + np.asarray(self.cpi.life_horizon_inflation, dtype=float))
+        cost_2_path = initial_cost_2 * inflation_growth
+        cost_1_path = initial_cost_1 * inflation_growth
+        monthly_expense = cost_2_path * np.asarray(num_2, dtype=float) + cost_1_path * np.asarray(num_1, dtype=float)
+        return np.cumsum(monthly_expense).tolist()
 
     def deceased(self, date: str | pd.Timestamp) -> bool:
         date_ts = pd.Timestamp(date)
