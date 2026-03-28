@@ -1,5 +1,4 @@
-from types import SimpleNamespace
-from typing import Protocol
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -14,7 +13,11 @@ from default_case import (
     CONSTANT_MONTHLY_CPI,
     CONSTANT_MONTHLY_ROI,
     DEFAULT_CURRENT_DATE,
+    DEFAULT_SEED,
     HISTORY_YEARS,
+    INFLATION_MEAN_REVERSION,
+    INFLATION_MEAN_SHIFT,
+    INFLATION_VOL_MULTIPLIER,
     LC_1,
     LC_2,
     MAN_AGE_TO_AL,
@@ -23,6 +26,9 @@ from default_case import (
     NON_TAYLOR_1,
     NON_TAYLOR_2,
     PILE_AT_START,
+    ROI_MEAN_REVERSION,
+    ROI_MEAN_SHIFT,
+    ROI_VOL_MULTIPLIER,
     START_CLOCK,
     WOMAN_AGE_TO_AL,
     WOMAN_DOB,
@@ -33,29 +39,31 @@ from Roi import MonthlyRoiPoint, Roi, TICKER
 from utils import age
 
 
-class LhsScenarioLike(Protocol):
-    man_age_to_al: float
-    woman_age_to_al: float
-    man_linger: float
-    woman_linger: float
-    roi_seed: int
-    inflation_seed: int
-    roi_mean_shift: float
-    roi_vol_multiplier: float
-    roi_mean_reversion: float
-    inflation_mean_shift: float
-    inflation_vol_multiplier: float
-    inflation_mean_reversion: float
+@dataclass(frozen=True)
+class LhsScenario:
+    man_age_to_al: float = MAN_AGE_TO_AL
+    woman_age_to_al: float = WOMAN_AGE_TO_AL
+    man_linger: float = MAN_LINGER
+    woman_linger: float = WOMAN_LINGER
+    roi_seed: int = DEFAULT_SEED
+    inflation_seed: int = DEFAULT_SEED
+    roi_mean_shift: float = ROI_MEAN_SHIFT
+    roi_vol_multiplier: float = ROI_VOL_MULTIPLIER
+    roi_mean_reversion: float = ROI_MEAN_REVERSION
+    inflation_mean_shift: float = INFLATION_MEAN_SHIFT
+    inflation_vol_multiplier: float = INFLATION_VOL_MULTIPLIER
+    inflation_mean_reversion: float = INFLATION_MEAN_REVERSION
 
 
-class ScenarioRunContextLike(Protocol):
-    ticker: str
-    current_date: pd.Timestamp | str
-    history_years: int
-    al_cum_running_avg_yrs: int | float
-    start_clock: str
-    man_dob: str
-    woman_dob: str
+@dataclass(frozen=True)
+class ScenarioRunContext:
+    ticker: str = TICKER
+    current_date: pd.Timestamp | str = DEFAULT_CURRENT_DATE
+    history_years: int = HISTORY_YEARS
+    al_cum_running_avg_yrs: int | float = AL_ESC_RUNNING_AVG_YRS
+    start_clock: str = START_CLOCK
+    man_dob: str = MAN_DOB
+    woman_dob: str = WOMAN_DOB
 
 
 class TaylorLife:
@@ -173,18 +181,10 @@ class TaylorLife:
     @classmethod
     def from_lhs_scenario(
         cls,
-        scenario: LhsScenarioLike,
-        context: ScenarioRunContextLike | None = None,
+        scenario: LhsScenario,
+        context: ScenarioRunContext | None = None,
     ) -> "TaylorLife":
-        run_context = context if context is not None else SimpleNamespace(
-            ticker=TICKER,
-            current_date=DEFAULT_CURRENT_DATE,
-            history_years=HISTORY_YEARS,
-            al_cum_running_avg_yrs=AL_ESC_RUNNING_AVG_YRS,
-            start_clock=START_CLOCK,
-            man_dob=MAN_DOB,
-            woman_dob=WOMAN_DOB,
-        )
+        run_context = context if context is not None else ScenarioRunContext()
         current_date = pd.Timestamp(run_context.current_date).normalize()
         man_age_at_death = scenario.man_age_to_al + scenario.man_linger
         woman_age_at_death = scenario.woman_age_to_al + scenario.woman_linger
@@ -491,4 +491,13 @@ class TaylorLife:
                 full_inflation_since_start *= 1 + item.inflation
 
         return 1 / full_inflation_since_start
+
+
+@dataclass(frozen=True)
+class TaylorLifeResult:
+    worth_lc: int
+    worth_norm_lc: int
+    worth_cc: int
+    worth_norm_cc: int
+
 

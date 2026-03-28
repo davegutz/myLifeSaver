@@ -1,90 +1,20 @@
 import argparse
-from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from Inflation import plot_inflation_views
 from Roi import TICKER, plot_projection_views
-from Taylor import TaylorLife
+from Taylor import LhsScenario, ScenarioRunContext, TaylorLife, evaluate_lhs_scenario
 from default_case import (
-    AL_AND_LC_INFLATION_FACTOR,
-    AL_CC_1,
-    AL_CC_2,
     AL_ESC_RUNNING_AVG_YRS,
-    CC_1,
-    CC_2,
-    CONSTANT_MONTHLY_CPI,
-    CONSTANT_MONTHLY_ROI,
     DEFAULT_CURRENT_DATE,
     DEFAULT_SEED,
     HISTORY_YEARS,
-    INFLATION_MEAN_REVERSION,
-    INFLATION_MEAN_SHIFT,
-    INFLATION_VOL_MULTIPLIER,
-    LC_1,
-    LC_2,
-    MAN_AGE_TO_AL,
     MAN_DOB,
-    MAN_LINGER,
-    NON_TAYLOR_1,
-    NON_TAYLOR_2,
-    PILE_AT_START,
-    ROI_MEAN_REVERSION,
-    ROI_MEAN_SHIFT,
-    ROI_VOL_MULTIPLIER,
     START_CLOCK,
-    WOMAN_AGE_TO_AL,
     WOMAN_DOB,
-    WOMAN_LINGER,
 )
 
-@dataclass(frozen=True)
-class LhsScenario:
-    man_age_to_al: float = MAN_AGE_TO_AL
-    woman_age_to_al: float = WOMAN_AGE_TO_AL
-    man_linger: float = MAN_LINGER
-    woman_linger: float = WOMAN_LINGER
-    roi_seed: int = DEFAULT_SEED
-    inflation_seed: int = DEFAULT_SEED
-    roi_mean_shift: float = ROI_MEAN_SHIFT
-    roi_vol_multiplier: float = ROI_VOL_MULTIPLIER
-    roi_mean_reversion: float = ROI_MEAN_REVERSION
-    inflation_mean_shift: float = INFLATION_MEAN_SHIFT
-    inflation_vol_multiplier: float = INFLATION_VOL_MULTIPLIER
-    inflation_mean_reversion: float = INFLATION_MEAN_REVERSION
-
-
-@dataclass(frozen=True)
-class ScenarioRunContext:
-    ticker: str = TICKER
-    current_date: pd.Timestamp | str = DEFAULT_CURRENT_DATE
-    history_years: int = HISTORY_YEARS
-    al_cum_running_avg_yrs: int | float = AL_ESC_RUNNING_AVG_YRS
-    start_clock: str = START_CLOCK
-    man_dob: str = MAN_DOB
-    woman_dob: str = WOMAN_DOB
-
-
-@dataclass(frozen=True)
-class TaylorLifeResult:
-    worth_lc: int
-    worth_norm_lc: int
-    worth_cc: int
-    worth_norm_cc: int
-
-
-def evaluate_lhs_scenario(
-    scenario: LhsScenario,
-    context: ScenarioRunContext | None = None,
-) -> tuple[TaylorLife, TaylorLifeResult]:
-    model = TaylorLife.from_lhs_scenario(scenario=scenario, context=context)
-    worth_lc, worth_norm_lc, worth_cc, worth_norm_cc = model.calc_result()
-    return model, TaylorLifeResult(
-        worth_lc=worth_lc,
-        worth_norm_lc=worth_norm_lc,
-        worth_cc=worth_cc,
-        worth_norm_cc=worth_norm_cc,
-    )
 
 
 def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) -> None:

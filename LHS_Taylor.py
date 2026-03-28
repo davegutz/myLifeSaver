@@ -5,29 +5,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from typing import cast
 from default_case import (
-    AL_AND_LC_INFLATION_FACTOR,
-    AL_CC_1,
-    AL_CC_2,
     AL_ESC_RUNNING_AVG_YRS,
-    CC_1,
-    CC_2,
-    CONSTANT_MONTHLY_CPI,
-    CONSTANT_MONTHLY_ROI,
     DEFAULT_CURRENT_DATE,
     DEFAULT_SEED,
     HISTORY_YEARS,
     INFLATION_MEAN_REVERSION,
     INFLATION_MEAN_SHIFT,
     INFLATION_VOL_MULTIPLIER,
-    LC_1,
-    LC_2,
     MAN_AGE_TO_AL,
     MAN_DOB,
     MAN_LINGER,
-    NON_TAYLOR_1,
-    NON_TAYLOR_2,
-    PILE_AT_START,
     ROI_MEAN_REVERSION,
     ROI_MEAN_SHIFT,
     ROI_VOL_MULTIPLIER,
@@ -38,7 +27,7 @@ from default_case import (
 )
 from Inflation import plot_inflation_views
 from Roi import TICKER, plot_projection_views
-from Taylor import TaylorLife
+from Taylor import LhsScenario, ScenarioRunContext, TaylorLife, TaylorLifeResult, evaluate_lhs_scenario
 
 # ============================================================================
 # IMPORTANT: ROI AND INFLATION RATES
@@ -70,39 +59,6 @@ INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
 DEFAULT_LHS_POINTS = 100
 
 
-@dataclass(frozen=True)
-class LhsScenario:
-    man_age_to_al: float = MAN_AGE_TO_AL
-    woman_age_to_al: float = WOMAN_AGE_TO_AL
-    man_linger: float = MAN_LINGER
-    woman_linger: float = WOMAN_LINGER
-    roi_seed: int = DEFAULT_SEED
-    inflation_seed: int = DEFAULT_SEED
-    roi_mean_shift: float = ROI_MEAN_SHIFT
-    roi_vol_multiplier: float = ROI_VOL_MULTIPLIER
-    roi_mean_reversion: float = ROI_MEAN_REVERSION
-    inflation_mean_shift: float = INFLATION_MEAN_SHIFT
-    inflation_vol_multiplier: float = INFLATION_VOL_MULTIPLIER
-    inflation_mean_reversion: float = INFLATION_MEAN_REVERSION
-
-
-@dataclass(frozen=True)
-class ScenarioRunContext:
-    ticker: str = TICKER
-    current_date: pd.Timestamp | str = DEFAULT_CURRENT_DATE
-    history_years: int = HISTORY_YEARS
-    al_cum_running_avg_yrs: int | float = AL_ESC_RUNNING_AVG_YRS
-    start_clock: str = START_CLOCK
-    man_dob: str = MAN_DOB
-    woman_dob: str = WOMAN_DOB
-
-
-@dataclass(frozen=True)
-class TaylorLifeResult:
-    worth_lc: int
-    worth_norm_lc: int
-    worth_cc: int
-    worth_norm_cc: int
 
 
 @dataclass(frozen=True)
@@ -210,19 +166,6 @@ def print_screen_row(row: dict[str, object], columns: list[str], widths: dict[st
     print(" ".join(format_screen_cell(row[column], widths[column]) for column in columns))
 
 
-def evaluate_lhs_scenario(
-    scenario: LhsScenario,
-    context: ScenarioRunContext | None = None,
-) -> tuple[TaylorLife, TaylorLifeResult]:
-    model = TaylorLife.from_lhs_scenario(scenario=scenario, context=context)
-    worth_lc, worth_norm_lc, worth_cc, worth_norm_cc = model.calc_result()
-    return model, TaylorLifeResult(
-        worth_lc=worth_lc,
-        worth_norm_lc=worth_norm_lc,
-        worth_cc=worth_cc,
-        worth_norm_cc=worth_norm_cc,
-    )
-
 
 def sample_lhs_points(num_points: int, dimensions: int, seed: int) -> np.ndarray:
     if num_points <= 0:
@@ -242,23 +185,27 @@ def scale_lhs_column(values: np.ndarray, bounds: tuple[float, float]) -> np.ndar
 
 def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
     sampled = sample_lhs_points(num_points, dimensions=12, seed=seed)
-    return [
-        LhsScenario(
-            man_age_to_al=float(scale_lhs_column(sampled[:, 0], MAN_AGE_TO_AL_RANGE)[idx]),
-            woman_age_to_al=float(scale_lhs_column(sampled[:, 1], WOMAN_AGE_TO_AL_RANGE)[idx]),
-            man_linger=float(scale_lhs_column(sampled[:, 2], MAN_LINGER_RANGE)[idx]),
-            woman_linger=float(scale_lhs_column(sampled[:, 3], WOMAN_LINGER_RANGE)[idx]),
-            roi_seed=int(round(scale_lhs_column(sampled[:, 4], SEED_RANGE)[idx])),
-            inflation_seed=int(round(scale_lhs_column(sampled[:, 5], SEED_RANGE)[idx])),
-            roi_mean_shift=float(scale_lhs_column(sampled[:, 6], ROI_MEAN_SHIFT_RANGE)[idx]),
-            roi_vol_multiplier=float(scale_lhs_column(sampled[:, 7], ROI_VOL_MULTIPLIER_RANGE)[idx]),
-            roi_mean_reversion=float(scale_lhs_column(sampled[:, 8], ROI_MEAN_REVERSION_RANGE)[idx]),
-            inflation_mean_shift=float(scale_lhs_column(sampled[:, 9], INFLATION_MEAN_SHIFT_RANGE)[idx]),
-            inflation_vol_multiplier=float(scale_lhs_column(sampled[:, 10], INFLATION_VOL_MULTIPLIER_RANGE)[idx]),
-            inflation_mean_reversion=float(scale_lhs_column(sampled[:, 11], INFLATION_MEAN_REVERSION_RANGE)[idx]),
+    scenarios: list[LhsScenario] = []
+    for idx in range(num_points):
+        scenario = cast(
+            LhsScenario,
+            LhsScenario(
+                man_age_to_al=float(scale_lhs_column(sampled[:, 0], MAN_AGE_TO_AL_RANGE)[idx]),
+                woman_age_to_al=float(scale_lhs_column(sampled[:, 1], WOMAN_AGE_TO_AL_RANGE)[idx]),
+                man_linger=float(scale_lhs_column(sampled[:, 2], MAN_LINGER_RANGE)[idx]),
+                woman_linger=float(scale_lhs_column(sampled[:, 3], WOMAN_LINGER_RANGE)[idx]),
+                roi_seed=int(round(scale_lhs_column(sampled[:, 4], SEED_RANGE)[idx])),
+                inflation_seed=int(round(scale_lhs_column(sampled[:, 5], SEED_RANGE)[idx])),
+                roi_mean_shift=float(scale_lhs_column(sampled[:, 6], ROI_MEAN_SHIFT_RANGE)[idx]),
+                roi_vol_multiplier=float(scale_lhs_column(sampled[:, 7], ROI_VOL_MULTIPLIER_RANGE)[idx]),
+                roi_mean_reversion=float(scale_lhs_column(sampled[:, 8], ROI_MEAN_REVERSION_RANGE)[idx]),
+                inflation_mean_shift=float(scale_lhs_column(sampled[:, 9], INFLATION_MEAN_SHIFT_RANGE)[idx]),
+                inflation_vol_multiplier=float(scale_lhs_column(sampled[:, 10], INFLATION_VOL_MULTIPLIER_RANGE)[idx]),
+                inflation_mean_reversion=float(scale_lhs_column(sampled[:, 11], INFLATION_MEAN_REVERSION_RANGE)[idx]),
+            ),
         )
-        for idx in range(num_points)
-    ]
+        scenarios.append(scenario)
+    return scenarios
 
 
 def build_edge_case_scenarios() -> list[tuple[str, LhsScenario]]:
@@ -614,16 +561,11 @@ def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLif
 
 
 def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Path, seed: int) -> pd.DataFrame:
-    global CONSTANT_MONTHLY_ROI, CONSTANT_MONTHLY_CPI
     scenarios = build_lhs_scenarios(num_points=num_points, seed=seed)
     edge_cases = build_edge_case_scenarios()
     rows = []
     column_widths = {column: max(len(column), SCREEN_MIN_COL_WIDTH) for column in CSV_COLUMNS}
     print(" ".join(column.rjust(column_widths[column]) for column in CSV_COLUMNS))
-    
-    # Save original constant values
-    original_roi = CONSTANT_MONTHLY_ROI
-    original_cpi = CONSTANT_MONTHLY_CPI
     
     # Process random LHS scenarios
     for run_id, scenario in enumerate(scenarios, start=1):
@@ -640,11 +582,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
-    
-    # Restore original constant values
-    CONSTANT_MONTHLY_ROI = original_roi
-    CONSTANT_MONTHLY_CPI = original_cpi
-    
+
     frame = pd.DataFrame(rows, columns=CSV_COLUMNS)
     frame.to_csv(output_path, index=False)
     return frame
