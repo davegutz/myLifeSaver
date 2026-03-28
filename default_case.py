@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def _age(date: str, birth_date: str) -> float:
+def age_at_date_for_dob(date: str, birth_date: str) -> float:
 	return float((pd.Timestamp(date) - pd.Timestamp(birth_date)).days / 365.2425)
 
 
@@ -28,10 +28,10 @@ CONSTANT_MONTHLY_CPI: float | None = 5.0 / 100.0 / 12.0  # Fraction per month
 AL_AND_LC_INFLATION_FACTOR = 2.0  # LTC escalates at 2x inflation
 
 # To be varied
-MAN_INDEPENDENCE_YRS = 79.0 - _age(START_CLOCK, MAN_DOB)
-WOMAN_INDEPENDENCE_YRS = 80.29 - _age(START_CLOCK, WOMAN_DOB)
-MAN_LINGER = 5.0
-WOMAN_LINGER = 5.0
+MAN_INDEPENDENT_YRS = 10.
+WOMAN_INDEPENDENT_YRS = MAN_INDEPENDENT_YRS
+MAN_ASSISTED_YRS = 5.0
+WOMAN_ASSISTED_YRS = 5.0
 DEFAULT_SEED = 0
 ROI_MEAN_SHIFT = 0.0
 ROI_VOL_MULTIPLIER = 1.0
@@ -39,4 +39,73 @@ ROI_MEAN_REVERSION = 0.15
 INFLATION_MEAN_SHIFT = 0.0
 INFLATION_VOL_MULTIPLIER = 1.0
 INFLATION_MEAN_REVERSION = 0.15
+
+
+DEFAULT_CASES: dict[str, dict[str, dict[str, object]]] = {
+	"RUN_ONE_PRESENT": {
+		"scenario": {
+			"man_independent_yrs": MAN_INDEPENDENT_YRS,
+			"woman_independent_yrs": WOMAN_INDEPENDENT_YRS,
+			"man_assisted_yrs": MAN_ASSISTED_YRS,
+			"woman_assisted_yrs": WOMAN_ASSISTED_YRS,
+			"roi_mean_shift": ROI_MEAN_SHIFT,
+			"roi_vol_multiplier": ROI_VOL_MULTIPLIER,
+			"roi_mean_reversion": ROI_MEAN_REVERSION,
+			"inflation_mean_shift": INFLATION_MEAN_SHIFT,
+			"inflation_vol_multiplier": INFLATION_VOL_MULTIPLIER,
+			"inflation_mean_reversion": INFLATION_MEAN_REVERSION,
+		},
+		"context": {
+			"history_years": HISTORY_YEARS,
+			"al_cum_running_avg_yrs": AL_ESC_RUNNING_AVG_YRS,
+			"start_clock": START_CLOCK,
+			"man_dob": MAN_DOB,
+			"woman_dob": WOMAN_DOB,
+		},
+	},
+	"DEFAULT": {
+		"scenario": {
+			"man_independent_yrs": MAN_INDEPENDENT_YRS,
+			"woman_independent_yrs": WOMAN_INDEPENDENT_YRS,
+			"man_assisted_yrs": MAN_ASSISTED_YRS,
+			"woman_assisted_yrs": WOMAN_ASSISTED_YRS,
+			"roi_mean_shift": ROI_MEAN_SHIFT,
+			"roi_vol_multiplier": ROI_VOL_MULTIPLIER,
+			"roi_mean_reversion": ROI_MEAN_REVERSION,
+			"inflation_mean_shift": INFLATION_MEAN_SHIFT,
+			"inflation_vol_multiplier": INFLATION_VOL_MULTIPLIER,
+			"inflation_mean_reversion": INFLATION_MEAN_REVERSION,
+		},
+		"context": {
+			"history_years": HISTORY_YEARS,
+			"al_cum_running_avg_yrs": AL_ESC_RUNNING_AVG_YRS,
+			"start_clock": START_CLOCK,
+			"man_dob": MAN_DOB,
+			"woman_dob": WOMAN_DOB,
+		},
+	},
+}
+
+
+def default_case_names() -> list[str]:
+	return sorted(DEFAULT_CASES)
+
+
+def load_default_case(case_name: str) -> tuple[dict[str, object], dict[str, object]]:
+	try:
+		case = DEFAULT_CASES[case_name]
+	except KeyError as exc:
+		available = ", ".join(default_case_names())
+		raise ValueError(f"Unknown default case '{case_name}'. Available cases: {available}") from exc
+	scenario = dict(case["scenario"])
+	if "man_independence_yrs" in scenario and "man_independent_yrs" not in scenario:
+		scenario["man_independent_yrs"] = scenario.pop("man_independence_yrs")
+	if "woman_independence_yrs" in scenario and "woman_independent_yrs" not in scenario:
+		scenario["woman_independent_yrs"] = scenario.pop("woman_independence_yrs")
+	if "man_linger" in scenario and "man_assisted_yrs" not in scenario:
+		scenario["man_assisted_yrs"] = scenario.pop("man_linger")
+	if "woman_linger" in scenario and "woman_assisted_yrs" not in scenario:
+		scenario["woman_assisted_yrs"] = scenario.pop("woman_linger")
+	return scenario, dict(case["context"])
+
 

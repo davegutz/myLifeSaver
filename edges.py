@@ -1,17 +1,17 @@
-from default_case import DEFAULT_SEED, MAN_DOB, START_CLOCK, WOMAN_DOB
+from default_case import DEFAULT_SEED, MAN_DOB, START_CLOCK, WOMAN_DOB, load_default_case
 from Taylor import LhsScenario
 from utils import age
 
 
-MAN_BASELINE_INDEPENDENCE_YRS = 69.0 - age(START_CLOCK, MAN_DOB)
-WOMAN_BASELINE_INDEPENDENCE_YRS = 70.29 - age(START_CLOCK, WOMAN_DOB)
+MAN_BASELINE_INDEPENDENT_YRS = 69.0 - age(START_CLOCK, MAN_DOB)
+WOMAN_BASELINE_INDEPENDENT_YRS = 70.29 - age(START_CLOCK, WOMAN_DOB)
 
 
 def _build_edge_case(
-    man_independence_yrs: float,
-    woman_independence_yrs: float,
-    man_linger: float,
-    woman_linger: float,
+    man_independent_yrs: float,
+    woman_independent_yrs: float,
+    man_assisted_yrs: float,
+    woman_assisted_yrs: float,
     roi_mean_shift: float = 0.01,
     roi_vol_multiplier: float = 0.5,
     roi_mean_reversion: float = 0.5,
@@ -20,10 +20,10 @@ def _build_edge_case(
     inflation_mean_reversion: float = 0.5,
 ) -> LhsScenario:
     return LhsScenario(
-        man_independence_yrs=man_independence_yrs,
-        woman_independence_yrs=woman_independence_yrs,
-        man_linger=man_linger,
-        woman_linger=woman_linger,
+        man_independent_yrs=man_independent_yrs,
+        woman_independent_yrs=woman_independent_yrs,
+        man_assisted_yrs=man_assisted_yrs,
+        woman_assisted_yrs=woman_assisted_yrs,
         roi_seed=DEFAULT_SEED,
         inflation_seed=DEFAULT_SEED,
         roi_mean_shift=roi_mean_shift,
@@ -45,15 +45,15 @@ def build_edge_case_scenarios() -> list[tuple[str, LhsScenario]]:
     """
     scenarios: list[tuple[str, LhsScenario]] = []
     for offset_years in (0.0, 5.0, 10.0, 15.0):
-        for linger_years in (0.0, 5.0, 10.0, 15.0):
+        for assisted_years in (0.0, 5.0, 10.0, 15.0):
             scenarios.append(
                 (
-                    f"EC_{int(offset_years)}_{int(linger_years)}",
+                    f"EC_{int(offset_years)}_{int(assisted_years)}",
                     _build_edge_case(
-                        man_independence_yrs=MAN_BASELINE_INDEPENDENCE_YRS + offset_years,
-                        woman_independence_yrs=WOMAN_BASELINE_INDEPENDENCE_YRS + offset_years,
-                        man_linger=linger_years,
-                        woman_linger=linger_years,
+                        man_independent_yrs=MAN_BASELINE_INDEPENDENT_YRS + offset_years,
+                        woman_independent_yrs=WOMAN_BASELINE_INDEPENDENT_YRS + offset_years,
+                        man_assisted_yrs=assisted_years,
+                        woman_assisted_yrs=assisted_years,
                     ),
                 )
             )
@@ -62,10 +62,10 @@ def build_edge_case_scenarios() -> list[tuple[str, LhsScenario]]:
         (
             "EC_85_1",
             _build_edge_case(
-                man_independence_yrs=85.0 - age(START_CLOCK, MAN_DOB),
-                woman_independence_yrs=85.0 - age(START_CLOCK, WOMAN_DOB),
-                man_linger=1.0,
-                woman_linger=1.0,
+                man_independent_yrs=85.0 - age(START_CLOCK, MAN_DOB),
+                woman_independent_yrs=85.0 - age(START_CLOCK, WOMAN_DOB),
+                man_assisted_yrs=1.0,
+                woman_assisted_yrs=1.0,
                 roi_mean_shift=0.005,
                 roi_vol_multiplier=1.2,
                 roi_mean_reversion=0.15,
@@ -75,6 +75,9 @@ def build_edge_case_scenarios() -> list[tuple[str, LhsScenario]]:
             ),
         )
     )
+
+    run_one_present_scenario_kwargs, _ = load_default_case("RUN_ONE_PRESENT")
+    scenarios.append(("RUN_ONE_PRESENT", LhsScenario(**run_one_present_scenario_kwargs)))
 
     return scenarios
 

@@ -37,10 +37,10 @@ from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 # ============================================================================
 
 # Fixed and default varied parameters are imported from default_case.py.
-MAN_INDEPENDENCE_YRS_RANGE = (69.0 - age(START_CLOCK, MAN_DOB), 90.0 - age(START_CLOCK, MAN_DOB))
-WOMAN_INDEPENDENCE_YRS_RANGE = (70.0 - age(START_CLOCK, WOMAN_DOB), 90.0 - age(START_CLOCK, WOMAN_DOB))
-MAN_LINGER_RANGE = (0., 10.0)
-WOMAN_LINGER_RANGE = (0., 10.0)
+MAN_INDEPENDENT_YRS_RANGE = (69.0 - age(START_CLOCK, MAN_DOB), 90.0 - age(START_CLOCK, MAN_DOB))
+WOMAN_INDEPENDENT_YRS_RANGE = (70.0 - age(START_CLOCK, WOMAN_DOB), 90.0 - age(START_CLOCK, WOMAN_DOB))
+MAN_ASSISTED_YRS_RANGE = (0., 10.0)
+WOMAN_ASSISTED_YRS_RANGE = (0., 10.0)
 SEED_RANGE = (0, 1000000)
 ROI_MEAN_SHIFT_RANGE = (-0.01, 0.01)
 ROI_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
@@ -52,10 +52,10 @@ DEFAULT_LHS_POINTS = 100
 
 CSV_COLUMNS = [
     "run_id",
-    "man_independence_yrs",
-    "woman_independence_yrs",
-    "man_linger",
-    "woman_linger",
+    "man_independent_yrs",
+    "woman_independent_yrs",
+    "man_assisted_yrs",
+    "woman_assisted_yrs",
     "roi_seed",
     "inflation_seed",
     "roi_mean_shift",
@@ -144,10 +144,10 @@ def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
         scenario = cast(
             LhsScenario,
             LhsScenario(
-                man_independence_yrs=float(scale_lhs_column(sampled[:, 0], MAN_INDEPENDENCE_YRS_RANGE)[idx]),
-                woman_independence_yrs=float(scale_lhs_column(sampled[:, 1], WOMAN_INDEPENDENCE_YRS_RANGE)[idx]),
-                man_linger=float(scale_lhs_column(sampled[:, 2], MAN_LINGER_RANGE)[idx]),
-                woman_linger=float(scale_lhs_column(sampled[:, 3], WOMAN_LINGER_RANGE)[idx]),
+                man_independent_yrs=float(scale_lhs_column(sampled[:, 0], MAN_INDEPENDENT_YRS_RANGE)[idx]),
+                woman_independent_yrs=float(scale_lhs_column(sampled[:, 1], WOMAN_INDEPENDENT_YRS_RANGE)[idx]),
+                man_assisted_yrs=float(scale_lhs_column(sampled[:, 2], MAN_ASSISTED_YRS_RANGE)[idx]),
+                woman_assisted_yrs=float(scale_lhs_column(sampled[:, 3], WOMAN_ASSISTED_YRS_RANGE)[idx]),
                 roi_seed=int(round(scale_lhs_column(sampled[:, 4], SEED_RANGE)[idx])),
                 inflation_seed=int(round(scale_lhs_column(sampled[:, 5], SEED_RANGE)[idx])),
                 roi_mean_shift=float(scale_lhs_column(sampled[:, 6], ROI_MEAN_SHIFT_RANGE)[idx]),
@@ -170,10 +170,10 @@ def last_value(values: list[float]) -> float:
 def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLife, result: TaylorLifeResult) -> LhsScenarioSummary:
     return LhsScenarioSummary(
         run_id=run_id,
-        man_independence_yrs=scenario.man_independence_yrs,
-        woman_independence_yrs=scenario.woman_independence_yrs,
-        man_linger=scenario.man_linger,
-        woman_linger=scenario.woman_linger,
+        man_independent_yrs=scenario.man_independent_yrs,
+        woman_independent_yrs=scenario.woman_independent_yrs,
+        man_assisted_yrs=scenario.man_assisted_yrs,
+        woman_assisted_yrs=scenario.woman_assisted_yrs,
         roi_seed=scenario.roi_seed,
         inflation_seed=scenario.inflation_seed,
         roi_mean_shift=scenario.roi_mean_shift,
@@ -232,13 +232,13 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
 
 
 def plot_lhs_summary(results: pd.DataFrame, show: bool = True) -> None:
-    linger_total = results["man_linger"] + results["woman_linger"]
+    assisted_total = results["man_assisted_yrs"] + results["woman_assisted_yrs"]
     figure, axis = plt.subplots(figsize=(12, 7))
-    axis.scatter(linger_total, results["worth_norm_lc"], alpha=0.7, label="worth_norm_lc")
-    axis.scatter(linger_total, results["worth_norm_cc"], alpha=0.7, label="worth_norm_cc")
-    axis.set_xlabel("man_linger + woman_linger")
+    axis.scatter(assisted_total, results["worth_norm_lc"], alpha=0.7, label="worth_norm_lc")
+    axis.scatter(assisted_total, results["worth_norm_cc"], alpha=0.7, label="worth_norm_cc")
+    axis.set_xlabel("man_assisted_yrs + woman_assisted_yrs")
     axis.set_ylabel("Worth (normalized)")
-    axis.set_title("Normalized Worth vs Combined Linger")
+    axis.set_title("Normalized Worth vs Combined Assisted Years")
     axis.grid(True, alpha=0.3)
     axis.legend(loc="best")
     plt.tight_layout()
@@ -342,10 +342,12 @@ def main() -> None:
     worth_cc = result.worth_cc
     worth_lc = result.worth_lc
     header_rows = [
-        ("man independence yrs", this_life.man_independence_yrs, this_life.man_independence_yrs),
+        ("man independent yrs", this_life.man_independent_yrs, this_life.man_independent_yrs),
+        ("man assisted yrs", this_life.man_assisted_yrs, this_life.man_assisted_yrs),
         ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
         ("man age at death", this_life.man_age_at_death, this_life.man_age_at_death),
-        ("woman independence yrs", this_life.woman_independence_yrs, this_life.woman_independence_yrs),
+        ("woman independent yrs", this_life.woman_independent_yrs, this_life.woman_independent_yrs),
+        ("woman assisted yrs", this_life.woman_assisted_yrs, this_life.woman_assisted_yrs),
         ("woman age to al", this_life.woman_age_to_al, this_life.woman_age_to_al),
         ("woman age at death", this_life.woman_age_at_death, this_life.woman_age_at_death),
     ]

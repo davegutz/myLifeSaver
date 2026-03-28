@@ -20,9 +20,9 @@ from default_case import (
     INFLATION_VOL_MULTIPLIER,
     LC_1,
     LC_2,
+    MAN_ASSISTED_YRS,
     MAN_DOB,
-    MAN_INDEPENDENCE_YRS,
-    MAN_LINGER,
+    MAN_INDEPENDENT_YRS,
     NON_TAYLOR_1,
     NON_TAYLOR_2,
     PILE_AT_START,
@@ -30,9 +30,9 @@ from default_case import (
     ROI_MEAN_SHIFT,
     ROI_VOL_MULTIPLIER,
     START_CLOCK,
+    WOMAN_ASSISTED_YRS,
     WOMAN_DOB,
-    WOMAN_INDEPENDENCE_YRS,
-    WOMAN_LINGER,
+    WOMAN_INDEPENDENT_YRS,
 )
 from Inflation import Inflation, MonthlyInflationPoint
 from Roi import MonthlyRoiPoint, Roi, TICKER
@@ -41,10 +41,10 @@ from utils import age, date_after_years
 
 @dataclass(frozen=True)
 class LhsScenario:
-    man_independence_yrs: float = MAN_INDEPENDENCE_YRS
-    woman_independence_yrs: float = WOMAN_INDEPENDENCE_YRS
-    man_linger: float = MAN_LINGER
-    woman_linger: float = WOMAN_LINGER
+    man_independent_yrs: float = MAN_INDEPENDENT_YRS
+    woman_independent_yrs: float = WOMAN_INDEPENDENT_YRS
+    man_assisted_yrs: float = MAN_ASSISTED_YRS
+    woman_assisted_yrs: float = WOMAN_ASSISTED_YRS
     roi_seed: int = DEFAULT_SEED
     inflation_seed: int = DEFAULT_SEED
     roi_mean_shift: float = ROI_MEAN_SHIFT
@@ -58,10 +58,10 @@ class LhsScenario:
 @dataclass(frozen=True)
 class LhsScenarioSummary:
     run_id: int | str
-    man_independence_yrs: float
-    woman_independence_yrs: float
-    man_linger: float
-    woman_linger: float
+    man_independent_yrs: float
+    woman_independent_yrs: float
+    man_assisted_yrs: float
+    woman_assisted_yrs: float
     roi_seed: int
     inflation_seed: int
     roi_mean_shift: float
@@ -108,10 +108,10 @@ class TaylorLife:
         cpi: Inflation,
         man_dob: str = MAN_DOB,
         woman_dob: str = WOMAN_DOB,
-        man_independence_yrs: float = MAN_INDEPENDENCE_YRS,
-        man_linger: float = MAN_LINGER,
-        woman_independence_yrs: float = WOMAN_INDEPENDENCE_YRS,
-        woman_linger: float = WOMAN_LINGER,
+        man_independent_yrs: float = MAN_INDEPENDENT_YRS,
+        man_assisted_yrs: float = MAN_ASSISTED_YRS,
+        woman_independent_yrs: float = WOMAN_INDEPENDENT_YRS,
+        woman_assisted_yrs: float = WOMAN_ASSISTED_YRS,
         worth_at_start: float = PILE_AT_START,
         al_cc_2: float = AL_CC_2,
         al_cc_1: float = AL_CC_1,
@@ -128,17 +128,17 @@ class TaylorLife:
         self.dates = roi.life_horizon_dates
         self.man_dob = man_dob
         self.woman_dob = woman_dob
-        self.man_independence_yrs = man_independence_yrs
-        self.man_linger = man_linger
-        self.man_move_to_al_date = date_after_years(self.start_clock, self.man_independence_yrs)
+        self.man_independent_yrs = man_independent_yrs
+        self.man_assisted_yrs = man_assisted_yrs
+        self.man_move_to_al_date = date_after_years(self.start_clock, self.man_independent_yrs)
         self.man_age_to_al = age(self.man_move_to_al_date, self.man_dob)
-        self.man_death_date = date_after_years(self.man_move_to_al_date, self.man_linger)
+        self.man_death_date = date_after_years(self.man_move_to_al_date, self.man_assisted_yrs)
         self.man_age_at_death = age(self.man_death_date, self.man_dob)
-        self.woman_independence_yrs = woman_independence_yrs
-        self.woman_linger = woman_linger
-        self.woman_move_to_al_date = date_after_years(self.start_clock, self.woman_independence_yrs)
+        self.woman_independent_yrs = woman_independent_yrs
+        self.woman_assisted_yrs = woman_assisted_yrs
+        self.woman_move_to_al_date = date_after_years(self.start_clock, self.woman_independent_yrs)
         self.woman_age_to_al = age(self.woman_move_to_al_date, self.woman_dob)
-        self.woman_death_date = date_after_years(self.woman_move_to_al_date, self.woman_linger)
+        self.woman_death_date = date_after_years(self.woman_move_to_al_date, self.woman_assisted_yrs)
         self.woman_age_at_death = age(self.woman_death_date, self.woman_dob)
         self.worth_at_start = worth_at_start
         self.initial_al_cc_2 = al_cc_2
@@ -227,10 +227,10 @@ class TaylorLife:
     ) -> "TaylorLife":
         run_context = context if context is not None else ScenarioRunContext()
         current_date = pd.Timestamp(run_context.current_date).normalize()
-        man_move_to_al_date = date_after_years(run_context.start_clock, scenario.man_independence_yrs)
-        woman_move_to_al_date = date_after_years(run_context.start_clock, scenario.woman_independence_yrs)
-        man_death_date = date_after_years(man_move_to_al_date, scenario.man_linger)
-        woman_death_date = date_after_years(woman_move_to_al_date, scenario.woman_linger)
+        man_move_to_al_date = date_after_years(run_context.start_clock, scenario.man_independent_yrs)
+        woman_move_to_al_date = date_after_years(run_context.start_clock, scenario.woman_independent_yrs)
+        man_death_date = date_after_years(man_move_to_al_date, scenario.man_assisted_yrs)
+        woman_death_date = date_after_years(woman_move_to_al_date, scenario.woman_assisted_yrs)
         man_age_at_death = age(man_death_date, run_context.man_dob)
         woman_age_at_death = age(woman_death_date, run_context.woman_dob)
 
@@ -272,10 +272,10 @@ class TaylorLife:
             cpi=cpi,
             man_dob=run_context.man_dob,
             woman_dob=run_context.woman_dob,
-            man_independence_yrs=scenario.man_independence_yrs,
-            man_linger=scenario.man_linger,
-            woman_independence_yrs=scenario.woman_independence_yrs,
-            woman_linger=scenario.woman_linger,
+            man_independent_yrs=scenario.man_independent_yrs,
+            man_assisted_yrs=scenario.man_assisted_yrs,
+            woman_independent_yrs=scenario.woman_independent_yrs,
+            woman_assisted_yrs=scenario.woman_assisted_yrs,
         )
 
     @staticmethod

@@ -12,8 +12,13 @@ from default_case import (
     MAN_DOB,
     START_CLOCK,
     WOMAN_DOB,
+    load_default_case,
 )
 from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
+
+
+RUN_ONE_CASE_NAME: str | None = None  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
+# RUN_ONE_CASE_NAME: str | None = 'RUN_ONE_PRESENT'  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,22 +35,33 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def build_run_one_inputs(args: argparse.Namespace) -> tuple[str | None, LhsScenario, ScenarioRunContext]:
+    active_case_name = RUN_ONE_CASE_NAME
+    scenario_kwargs: dict[str, object] = {}
+    context_kwargs: dict[str, object] = {
+        "history_years": HISTORY_YEARS,
+        "al_cum_running_avg_yrs": AL_ESC_RUNNING_AVG_YRS,
+        "start_clock": START_CLOCK,
+        "man_dob": MAN_DOB,
+        "woman_dob": WOMAN_DOB,
+    }
+    if active_case_name is not None:
+        case_scenario_kwargs, case_context_kwargs = load_default_case(active_case_name)
+        scenario_kwargs.update(case_scenario_kwargs)
+        context_kwargs.update(case_context_kwargs)
+    scenario_kwargs["roi_seed"] = args.seed
+    scenario_kwargs["inflation_seed"] = args.seed
+    context_kwargs["ticker"] = args.ticker
+    context_kwargs["current_date"] = pd.Timestamp(args.current_date).normalize()
+    return active_case_name, LhsScenario(**scenario_kwargs), ScenarioRunContext(**context_kwargs)
+
+
 def main() -> None:
     args = parse_args()
-    current_date = pd.Timestamp(args.current_date).normalize()
-    scenario = LhsScenario(
-        roi_seed=args.seed,
-        inflation_seed=args.seed,
-    )
-    context = ScenarioRunContext(
-        ticker=args.ticker,
-        current_date=current_date,
-        history_years=HISTORY_YEARS,
-        al_cum_running_avg_yrs=AL_ESC_RUNNING_AVG_YRS,
-        start_clock=START_CLOCK,
-        man_dob=MAN_DOB,
-        woman_dob=WOMAN_DOB,
-    )
+    active_case_name, scenario, context = build_run_one_inputs(args)
+    current_date = pd.Timestamp(context.current_date).normalize()
+    if active_case_name is not None:
+        print(f"Using default case '{active_case_name}' from default_case.py")
     this_life, result = evaluate_lhs_scenario(scenario=scenario, context=context)
     roi = this_life.roi
     cpi = this_life.cpi
@@ -82,10 +98,12 @@ def main() -> None:
     total_returns_cc = this_life.earn_cc_history[-1] if this_life.earn_cc_history else 0.0
     total_returns_lc = this_life.earn_lc_history[-1] if this_life.earn_lc_history else 0.0
     header_rows = [
-        ("man independence yrs", this_life.man_independence_yrs, this_life.man_independence_yrs),
+        ("man independent yrs", this_life.man_independent_yrs, this_life.man_independent_yrs),
+        ("man assisted yrs", this_life.man_assisted_yrs, this_life.man_assisted_yrs),
         ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
         ("man age at death", this_life.man_age_at_death, this_life.man_age_at_death),
-        ("woman independence yrs", this_life.woman_independence_yrs, this_life.woman_independence_yrs),
+        ("woman independent yrs", this_life.woman_independent_yrs, this_life.woman_independent_yrs),
+        ("woman assisted yrs", this_life.woman_assisted_yrs, this_life.woman_assisted_yrs),
         ("woman age to al", this_life.woman_age_to_al, this_life.woman_age_to_al),
         ("woman age at death", this_life.woman_age_at_death, this_life.woman_age_at_death),
     ]
