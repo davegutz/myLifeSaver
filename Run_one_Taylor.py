@@ -1,10 +1,9 @@
 import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
 from Inflation import plot_inflation_views
 from Roi import TICKER, plot_projection_views
-from Taylor import LhsScenario, ScenarioRunContext, TaylorLife, evaluate_lhs_scenario
+from Taylor import LhsScenario, ScenarioRunContext
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
     DEFAULT_CURRENT_DATE,
@@ -14,173 +13,7 @@ from default_case import (
     START_CLOCK,
     WOMAN_DOB,
 )
-
-
-
-def plot_taylor_life_exp_non_taylor(this_life: TaylorLife, show: bool = True) -> None:
-    if not this_life.exp_non_taylor_history:
-        this_life.calc_result()
-
-    dates = pd.DatetimeIndex(this_life.dates)
-    num_il = np.asarray(this_life.num_il_1, dtype=float) + np.asarray(this_life.num_il_2, dtype=float)
-    num_al = np.asarray(this_life.num_al_1, dtype=float) + np.asarray(this_life.num_al_2, dtype=float)
-    num_non_taylor = (
-        np.asarray(this_life.num_non_taylor_1, dtype=float) + np.asarray(this_life.num_non_taylor_2, dtype=float)
-    )
-
-    figure, axes = plt.subplots(
-        2,
-        1,
-        figsize=(14, 10),
-        sharex=True,
-        gridspec_kw={"height_ratios": [3, 1]},
-    )
-    axis_top, axis_bottom = axes
-    axis_top.plot(
-        pd.DatetimeIndex(this_life.dates),
-        this_life.exp_non_taylor_history,
-        linewidth=2.0,
-        label="exp_non_taylor",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_norm_non_taylor,
-        linewidth=2.0,
-        linestyle="--",
-        label="exp_norm_non_taylor",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_al_cc_history,
-        linewidth=2.0,
-        label="exp_al_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_norm_al_cc,
-        linewidth=2.0,
-        linestyle="--",
-        label="exp_norm_al_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_cc_history,
-        linewidth=2.0,
-        label="exp_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_norm_cc,
-        linewidth=2.0,
-        linestyle="--",
-        label="exp_norm_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_lc_history,
-        linewidth=2.0,
-        label="exp_lc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_norm_lc,
-        linewidth=2.0,
-        linestyle="--",
-        label="exp_norm_lc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_total_cc_history,
-        linewidth=4.0,
-        label="exp_total_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_norm_total_cc,
-        linewidth=4.0,
-        linestyle="--",
-        label="exp_norm_total_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_total_lc_history,
-        linewidth=4.0,
-        label="exp_total_lc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.exp_norm_total_lc,
-        linewidth=4.0,
-        linestyle="--",
-        label="exp_norm_total_lc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.worth_lc_history,
-        linewidth=2.0,
-        label="worth_lc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.worth_norm_lc_history,
-        linewidth=2.0,
-        linestyle="--",
-        label="worth_norm_lc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.worth_cc_history,
-        linewidth=2.0,
-        label="worth_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.worth_norm_cc_history,
-        linewidth=2.0,
-        linestyle="--",
-        label="worth_norm_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.earn_lc_history,
-        linewidth=2.0,
-        label="earn_lc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.earn_norm_lc_history,
-        linewidth=2.0,
-        linestyle="--",
-        label="earn_norm_lc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.earn_cc_history,
-        linewidth=2.0,
-        label="earn_cc",
-    )
-    axis_top.plot(
-        dates,
-        this_life.earn_norm_cc_history,
-        linewidth=2.0,
-        linestyle="--",
-        label="earn_norm_cc",
-    )
-    axis_top.set_ylabel("Expense")
-    axis_top.set_title("Taylor Life Expenses Over Time")
-    axis_top.grid(True, alpha=0.3)
-    axis_top.legend(loc="upper left")
-
-    axis_bottom.plot(dates, num_il, linewidth=2.0, label="num_il")
-    axis_bottom.plot(dates, num_al, linewidth=2.0, label="num_al")
-    axis_bottom.plot(dates, num_non_taylor, linewidth=2.0, label="num_non_taylor")
-    axis_bottom.set_xlabel("Date")
-    axis_bottom.set_ylabel("Count")
-    axis_bottom.grid(True, alpha=0.3)
-    axis_bottom.legend(loc="upper left")
-    plt.tight_layout()
-    if show:
-        plt.show()
+from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
 
 def parse_args() -> argparse.Namespace:
@@ -302,3 +135,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
