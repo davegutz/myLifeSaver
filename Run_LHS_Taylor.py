@@ -16,8 +16,9 @@ from default_case import (
     MAN_DOB,
     START_CLOCK,
     WOMAN_DOB,
+    apy_percent_to_monthly_fraction,
 )
-from edges import build_edge_case_scenarios
+from edges import build_edge_case_scenarios, format_apy_suffix
 from Inflation import plot_inflation_views
 from Roi import TICKER, plot_projection_views
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
@@ -50,8 +51,12 @@ ROI_MEAN_REVERSION_RANGE = (0.0, 0.5)
 INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
 INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
 INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
-DEFAULT_LHS_POINTS = 100
+DEFAULT_LHS_POINTS = 10
 PLOT_EDGE_CASES_IN_LHS_PLOT = False
+# EDGE_CASE_ROI_APY_PERCENTS = [0.0, 6.0, 10.0]  # Fixed ROI rates (APY %) for edge case matrix
+EDGE_CASE_ROI_APY_PERCENTS = [0., 10.0]  # Fixed ROI rates (APY %) for edge case matrix
+# EDGE_CASE_CPI_APY_PERCENTS = [0.0, 3.0, 5.0]  # Fixed CPI rates (APY %) for edge case matrix
+EDGE_CASE_CPI_APY_PERCENTS = [0., 5.0]  # Fixed CPI rates (APY %) for edge case matrix
 
 CSV_COLUMNS = [
     "run_id",
@@ -239,14 +244,13 @@ def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLif
 
 
 def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Path, seed: int) -> pd.DataFrame:
-    if CONSTANT_MONTHLY_ROI is not None or CONSTANT_MONTHLY_CPI is not None:
+    if context.constant_monthly_roi is not None or context.constant_monthly_cpi is not None:
         print(
             "Using fixed monthly ROI/CPI from default_case.py; "
-            "apy_roi and apy_cpi reflect end-of-run cumulative % change of $1 "
+            "apy_roi and apy_cpi reflect effective APY from final growth of $1 "
             "under those configured constants."
         )
     scenarios = build_lhs_scenarios(num_points=num_points, seed=seed)
-    edge_cases = build_edge_case_scenarios()
     rows = []
     column_widths = {column: max(len(column), SCREEN_MIN_COL_WIDTH) for column in CSV_COLUMNS}
     print(" ".join(column.rjust(column_widths[column]) for column in CSV_COLUMNS))
@@ -259,17 +263,71 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
     
-    # Process edge case scenarios
-    for case_name, scenario in edge_cases:
-        model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
-        row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, result=result))
-        ordered_row = {column: row[column] for column in CSV_COLUMNS}
-        print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
-        rows.append(ordered_row)
+    # Process edge cases for every ROI × CPI combination (both fixed)
+    for roi_apy in EDGE_CASE_ROI_APY_PERCENTS:
+        for cpi_apy in EDGE_CASE_CPI_APY_PERCENTS:
+            fixed_monthly_roi = apy_percent_to_monthly_fraction(roi_apy)
+            fixed_monthly_cpi = apy_percent_to_monthly_fraction(cpi_apy)
+            both_context = ScenarioRunContext(
+                ticker=context.ticker,
+                current_date=context.current_date,
+                history_years=context.history_years,
+                al_cum_running_avg_yrs=context.al_cum_running_avg_yrs,
+                start_clock=context.start_clock,
+                man_dob=context.man_dob,
+                woman_dob=context.woman_dob,
+                constant_monthly_roi=fixed_monthly_roi,
+                constant_monthly_cpi=fixed_monthly_cpi,
+            )
+            both_edge_cases = build_edge_case_scenarios(roi_apy_percent=roi_apy, cpi_apy_percent=cpi_apy)
+            for case_name, scenario in both_edge_cases:
+                model, result = evaluate_lhs_scenario(scenario=scenario, context=both_context)
+                row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, result=result))
+                ordered_row = {column: row[column] for column in CSV_COLUMNS}
+                print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
+                rows.append(ordered_row)
+
 
     frame = pd.DataFrame(rows, columns=CSV_COLUMNS)
     frame.to_csv(output_path, index=False)
     return frame
+
+
+def plot_edge_case_subplots(
+    results: pd.DataFrame,
+    roi_apy_percents: list[float],
+    cpi_apy_percents: list[float],
+    show: bool = True,
+) -> None:
+    edge_results = results[results["run_id"].apply(lambda v: isinstance(v, str))]
+    if edge_results.empty:
+        return
+
+    n_roi = len(roi_apy_percents)
+    n_cpi = len(cpi_apy_percents)
+    figure, axes = plt.subplots(n_roi, n_cpi, figsize=(6 * n_cpi, 5 * n_roi), squeeze=False)
+    figure.suptitle("Edge Cases: Normalized Worth vs Combined Assisted Years", fontsize=14)
+
+    for row_idx, roi_apy in enumerate(roi_apy_percents):
+        for col_idx, cpi_apy in enumerate(cpi_apy_percents):
+            ax = axes[row_idx][col_idx]
+            suffix = f"_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
+            combo_rows = edge_results[
+                edge_results["run_id"].apply(lambda v: isinstance(v, str) and v.endswith(suffix))
+            ]
+            if not combo_rows.empty:
+                assisted_total = combo_rows["man_assisted_yrs"] + combo_rows["woman_assisted_yrs"]
+                ax.scatter(assisted_total, combo_rows["worth_norm_lc"], alpha=0.7, label="worth_norm_lc")
+                ax.scatter(assisted_total, combo_rows["worth_norm_cc"], alpha=0.7, label="worth_norm_cc")
+            ax.set_xlabel("man_assisted_yrs + woman_assisted_yrs")
+            ax.set_ylabel("Worth (normalized)")
+            ax.set_title(f"ROI={roi_apy:.3g}%  CPI={cpi_apy:.3g}%")
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc="best")
+
+    plt.tight_layout()
+    if show:
+        plt.show()
 
 
 def plot_lhs_summary(results: pd.DataFrame, include_edge_cases: bool = True, show: bool = True) -> None:
@@ -330,6 +388,8 @@ def main() -> None:
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
         woman_dob=WOMAN_DOB,
+        constant_monthly_roi=CONSTANT_MONTHLY_ROI,
+        constant_monthly_cpi=CONSTANT_MONTHLY_CPI,
     )
     if args.lhs_points > 0:
         output_path = Path(args.lhs_output)
@@ -345,7 +405,9 @@ def main() -> None:
             f"Worth LC range: {results['worth_lc'].min():,.0f} to {results['worth_lc'].max():,.0f}\n"
             f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
-        plot_lhs_summary(results, include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT)
+        plot_lhs_summary(results, include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT, show=False)
+        plot_edge_case_subplots(results, EDGE_CASE_ROI_APY_PERCENTS, EDGE_CASE_CPI_APY_PERCENTS, show=False)
+        plt.show()
         return
 
     scenario = LhsScenario(

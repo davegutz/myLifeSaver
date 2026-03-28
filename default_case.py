@@ -67,6 +67,8 @@ DEFAULT_CASES: dict[str, dict[str, dict[str, object]]] = {
 			"start_clock": START_CLOCK,
 			"man_dob": MAN_DOB,
 			"woman_dob": WOMAN_DOB,
+			"constant_monthly_roi": CONSTANT_MONTHLY_ROI,
+			"constant_monthly_cpi": CONSTANT_MONTHLY_CPI,
 		},
 	},
 	"DEFAULT": {
@@ -88,6 +90,8 @@ DEFAULT_CASES: dict[str, dict[str, dict[str, object]]] = {
 			"start_clock": START_CLOCK,
 			"man_dob": MAN_DOB,
 			"woman_dob": WOMAN_DOB,
+			"constant_monthly_roi": CONSTANT_MONTHLY_ROI,
+			"constant_monthly_cpi": CONSTANT_MONTHLY_CPI,
 		},
 	},
 }

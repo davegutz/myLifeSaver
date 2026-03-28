@@ -101,6 +101,8 @@ class ScenarioRunContext:
     start_clock: str = START_CLOCK
     man_dob: str = MAN_DOB
     woman_dob: str = WOMAN_DOB
+    constant_monthly_roi: float | None = CONSTANT_MONTHLY_ROI
+    constant_monthly_cpi: float | None = CONSTANT_MONTHLY_CPI
 
 
 class TaylorLife:
@@ -251,7 +253,7 @@ class TaylorLife:
         )
         roi.train(ticker=run_context.ticker)
         roi.project(ticker=run_context.ticker, seed=scenario.roi_seed)
-        cls.apply_constant_roi(roi)
+        cls.apply_constant_roi(roi, run_context.constant_monthly_roi)
 
         cpi = Inflation(
             history_years=run_context.history_years,
@@ -267,7 +269,7 @@ class TaylorLife:
         )
         cpi.train(current_date=current_date)
         cpi.project(current_date=current_date, seed=scenario.inflation_seed)
-        cls.apply_constant_cpi(cpi)
+        cls.apply_constant_cpi(cpi, run_context.constant_monthly_cpi)
 
         return cls(
             roi=roi,
@@ -281,34 +283,34 @@ class TaylorLife:
         )
 
     @staticmethod
-    def apply_constant_roi(roi: Roi) -> None:
-        if CONSTANT_MONTHLY_ROI is None:
+    def apply_constant_roi(roi: Roi, constant_monthly_roi: float | None) -> None:
+        if constant_monthly_roi is None:
             return
-        roi.life_horizon_roi = np.full(len(roi.life_horizon_dates), CONSTANT_MONTHLY_ROI, dtype=float)
+        roi.life_horizon_roi = np.full(len(roi.life_horizon_dates), constant_monthly_roi, dtype=float)
         roi.life_horizon_roi_cum = np.cumprod(1.0 + roi.life_horizon_roi)
         roi.monthly_roi = [
             MonthlyRoiPoint(
                 month=pd.Timestamp(date),
-                roi=CONSTANT_MONTHLY_ROI,
-                rolling_average_12m=CONSTANT_MONTHLY_ROI,
+                roi=constant_monthly_roi,
+                rolling_average_12m=constant_monthly_roi,
             )
             for date in pd.DatetimeIndex(roi.life_horizon_dates)
         ]
 
     @staticmethod
-    def apply_constant_cpi(cpi: Inflation) -> None:
-        if CONSTANT_MONTHLY_CPI is None:
+    def apply_constant_cpi(cpi: Inflation, constant_monthly_cpi: float | None) -> None:
+        if constant_monthly_cpi is None:
             return
-        cpi.life_horizon_inflation = np.full(len(cpi.life_horizon_dates), CONSTANT_MONTHLY_CPI, dtype=float)
+        cpi.life_horizon_inflation = np.full(len(cpi.life_horizon_dates), constant_monthly_cpi, dtype=float)
         cpi.life_horizon_inflation_cum = np.cumprod(1.0 + cpi.life_horizon_inflation)
-        cpi.life_horizon_cpi_running_avg = np.full(len(cpi.life_horizon_dates), CONSTANT_MONTHLY_CPI, dtype=float)
+        cpi.life_horizon_cpi_running_avg = np.full(len(cpi.life_horizon_dates), constant_monthly_cpi, dtype=float)
         cpi.monthly_inflation = [
             MonthlyInflationPoint(
                 month=pd.Timestamp(date),
-                inflation=CONSTANT_MONTHLY_CPI,
-                rolling_average_12m=CONSTANT_MONTHLY_CPI,
-                lower_bound=CONSTANT_MONTHLY_CPI,
-                upper_bound=CONSTANT_MONTHLY_CPI,
+                inflation=constant_monthly_cpi,
+                rolling_average_12m=constant_monthly_cpi,
+                lower_bound=constant_monthly_cpi,
+                upper_bound=constant_monthly_cpi,
             )
             for date in pd.DatetimeIndex(cpi.life_horizon_dates)
         ]
