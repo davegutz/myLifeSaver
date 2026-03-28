@@ -56,6 +56,41 @@ class LhsScenario:
 
 
 @dataclass(frozen=True)
+class LhsScenarioSummary:
+    run_id: int | str
+    man_age_to_al: float
+    woman_age_to_al: float
+    man_linger: float
+    woman_linger: float
+    roi_seed: int
+    inflation_seed: int
+    roi_mean_shift: float
+    roi_vol_multiplier: float
+    roi_mean_reversion: float
+    inflation_mean_shift: float
+    inflation_vol_multiplier: float
+    inflation_mean_reversion: float
+    exp_al_cc: float
+    exp_norm_al_cc: float
+    exp_cc: float
+    exp_norm_cc: float
+    exp_lc: float
+    exp_norm_lc: float
+    exp_non_taylor: float
+    exp_norm_non_taylor: float
+    exp_total_cc: float
+    exp_norm_total_cc: float
+    earn_cc: float
+    earn_norm_cc: float
+    earn_lc: float
+    earn_norm_lc: float
+    worth_lc: int
+    worth_norm_lc: int
+    worth_cc: int
+    worth_norm_cc: int
+
+
+@dataclass(frozen=True)
 class ScenarioRunContext:
     ticker: str = TICKER
     current_date: pd.Timestamp | str = DEFAULT_CURRENT_DATE
