@@ -51,6 +51,7 @@ INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
 INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
 INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
 DEFAULT_LHS_POINTS = 100
+PLOT_EDGE_CASES_IN_LHS_PLOT = False
 
 CSV_COLUMNS = [
     "run_id",
@@ -271,11 +272,18 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
     return frame
 
 
-def plot_lhs_summary(results: pd.DataFrame, show: bool = True) -> None:
-    assisted_total = results["man_assisted_yrs"] + results["woman_assisted_yrs"]
+def plot_lhs_summary(results: pd.DataFrame, include_edge_cases: bool = True, show: bool = True) -> None:
+    plot_results = results
+    if not include_edge_cases:
+        # Edge-case rows use string run IDs; sampled LHS rows use integer run IDs.
+        plot_results = results[results["run_id"].apply(lambda value: not isinstance(value, str))]
+        if plot_results.empty:
+            print("No non-edge LHS rows available to plot.")
+            return
+    assisted_total = plot_results["man_assisted_yrs"] + plot_results["woman_assisted_yrs"]
     figure, axis = plt.subplots(figsize=(12, 7))
-    axis.scatter(assisted_total, results["worth_norm_lc"], alpha=0.7, label="worth_norm_lc")
-    axis.scatter(assisted_total, results["worth_norm_cc"], alpha=0.7, label="worth_norm_cc")
+    axis.scatter(assisted_total, plot_results["worth_norm_lc"], alpha=0.7, label="worth_norm_lc")
+    axis.scatter(assisted_total, plot_results["worth_norm_cc"], alpha=0.7, label="worth_norm_cc")
     axis.set_xlabel("man_assisted_yrs + woman_assisted_yrs")
     axis.set_ylabel("Worth (normalized)")
     axis.set_title("Normalized Worth vs Combined Assisted Years")
@@ -337,7 +345,7 @@ def main() -> None:
             f"Worth LC range: {results['worth_lc'].min():,.0f} to {results['worth_lc'].max():,.0f}\n"
             f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
-        plot_lhs_summary(results)
+        plot_lhs_summary(results, include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT)
         return
 
     scenario = LhsScenario(
