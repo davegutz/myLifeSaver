@@ -72,17 +72,20 @@ def main() -> None:
     worth_lc = result.worth_lc
     worth_cc = result.worth_cc
 
-    annualized_mean = (1 + roi.monthly_mean_return) ** 12 - 1
-    annualized_mean_cpi = annualized_inflation
+    effective_monthly_roi = float(roi.life_horizon_roi.mean()) if roi.life_horizon_roi.size > 0 else roi.monthly_mean_return
+    effective_monthly_cpi = (
+        float(cpi.life_horizon_inflation.mean()) if cpi.life_horizon_inflation.size > 0 else cpi.monthly_mean_inflation
+    )
+    annualized_mean = (1 + effective_monthly_roi) ** 12 - 1
+    annualized_mean_cpi = (1 + effective_monthly_cpi) ** 12 - 1
     print(
         f"Ticker: {args.ticker}\n"
-        f"Historical monthly mean return: {roi.monthly_mean_return:.2%}\n"
-        f"Implied annualized return: {annualized_mean:.2%}\n"
+        f"Effective APY return: {annualized_mean:.2%}\n"
         f"Monthly volatility: {roi.monthly_volatility:.2%}\n"
         f"ROI seed: {scenario.roi_seed}\n"
         f"Inflation seed: {scenario.inflation_seed}\n"
         f"CPI current date: {current_date.date()}\n"
-        f"Implied annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
+        f"Effective annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
         f"Cumulative inflation growth of $1 since {START_CLOCK}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
     )
     # print(roi)
@@ -98,6 +101,8 @@ def main() -> None:
     total_returns_cc = this_life.earn_cc_history[-1] if this_life.earn_cc_history else 0.0
     total_returns_lc = this_life.earn_lc_history[-1] if this_life.earn_lc_history else 0.0
     header_rows = [
+        ("apy roi %", annualized_mean * 100.0, annualized_mean * 100.0),
+        ("apy cpi %", annualized_mean_cpi * 100.0, annualized_mean_cpi * 100.0),
         ("man independent yrs", this_life.man_independent_yrs, this_life.man_independent_yrs),
         ("man assisted yrs", this_life.man_assisted_yrs, this_life.man_assisted_yrs),
         ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
@@ -126,6 +131,8 @@ def main() -> None:
     # Write monthly results to CSV
     df = pd.DataFrame({
         'date': pd.to_datetime(this_life.dates),
+        'apy_roi': [annualized_mean] * len(this_life.dates),
+        'apy_cpi': [annualized_mean_cpi] * len(this_life.dates),
         'earn_lc': this_life.earn_lc_history,
         'earn_cc': this_life.earn_cc_history,
         'earn_norm_lc': this_life.earn_norm_lc_history,

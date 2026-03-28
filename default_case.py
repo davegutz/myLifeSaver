@@ -5,6 +5,10 @@ def age_at_date_for_dob(date: str, birth_date: str) -> float:
 	return float((pd.Timestamp(date) - pd.Timestamp(birth_date)).days / 365.2425)
 
 
+def apy_percent_to_monthly_fraction(apy_percent: float) -> float:
+	return (1.0 + apy_percent / 100.0) ** (1.0 / 12.0) - 1.0
+
+
 # Fixed parameters
 HISTORY_YEARS = 25
 AL_ESC_RUNNING_AVG_YRS = 2
@@ -21,8 +25,10 @@ CC_1 = 3150.0
 CC_2 = 3750.0 / 2.0
 LC_1 = 8100.0
 LC_2 = 9600.0 / 2.0
-CONSTANT_MONTHLY_ROI: float | None = 10.0 / 100.0 / 12.0  # Fraction per month
-CONSTANT_MONTHLY_CPI: float | None = 5.0 / 100.0 / 12.0  # Fraction per month
+CONSTANT_ROI_APY_PERCENT = 10.0
+CONSTANT_CPI_APY_PERCENT = 5.0
+CONSTANT_MONTHLY_ROI: float | None = apy_percent_to_monthly_fraction(CONSTANT_ROI_APY_PERCENT)
+CONSTANT_MONTHLY_CPI: float | None = apy_percent_to_monthly_fraction(CONSTANT_CPI_APY_PERCENT)
 # CONSTANT_MONTHLY_ROI: float | None = None  # Fraction per month
 # CONSTANT_MONTHLY_CPI: float | None = None  # Fraction per month
 AL_AND_LC_INFLATION_FACTOR = 2.0  # LTC escalates at 2x inflation

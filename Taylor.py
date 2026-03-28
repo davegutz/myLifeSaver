@@ -64,6 +64,8 @@ class LhsScenarioSummary:
     woman_assisted_yrs: float
     roi_seed: int
     inflation_seed: int
+    apy_roi: float
+    apy_cpi: float
     roi_mean_shift: float
     roi_vol_multiplier: float
     roi_mean_reversion: float

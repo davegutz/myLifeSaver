@@ -58,6 +58,8 @@ CSV_COLUMNS = [
     "woman_assisted_yrs",
     "roi_seed",
     "inflation_seed",
+    "apy_roi",
+    "apy_cpi",
     "roi_mean_shift",
     "roi_vol_multiplier",
     "roi_mean_reversion",
@@ -167,7 +169,17 @@ def last_value(values: list[float]) -> float:
     return float(values[-1]) if values else 0.0
 
 
+def monthly_rate_to_apy(monthly_rate: float) -> float:
+    return (1.0 + monthly_rate) ** 12 - 1.0
+
+
+def effective_monthly_rate(path: np.ndarray, fallback: float) -> float:
+    return float(path.mean()) if path.size > 0 else fallback
+
+
 def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLife, result: TaylorLifeResult) -> LhsScenarioSummary:
+    effective_monthly_roi = effective_monthly_rate(model.roi.life_horizon_roi, model.roi.monthly_mean_return)
+    effective_monthly_cpi = effective_monthly_rate(model.cpi.life_horizon_inflation, model.cpi.monthly_mean_inflation)
     return LhsScenarioSummary(
         run_id=run_id,
         man_independent_yrs=scenario.man_independent_yrs,
@@ -176,6 +188,8 @@ def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLif
         woman_assisted_yrs=scenario.woman_assisted_yrs,
         roi_seed=scenario.roi_seed,
         inflation_seed=scenario.inflation_seed,
+        apy_roi=monthly_rate_to_apy(effective_monthly_roi),
+        apy_cpi=monthly_rate_to_apy(effective_monthly_cpi),
         roi_mean_shift=scenario.roi_mean_shift,
         roi_vol_multiplier=scenario.roi_vol_multiplier,
         roi_mean_reversion=scenario.roi_mean_reversion,
@@ -307,24 +321,24 @@ def main() -> None:
     this_life, result = evaluate_lhs_scenario(scenario=scenario, context=context)
     roi = this_life.roi
     cpi = this_life.cpi
-    annualized_inflation = cpi.annualized_inflation
     if cpi.inflation_frame is None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
     worth_lc = result.worth_lc
     worth_cc = result.worth_cc
 
-    annualized_mean = (1 + roi.monthly_mean_return) ** 12 - 1
-    annualized_mean_cpi = annualized_inflation
+    effective_monthly_roi = effective_monthly_rate(roi.life_horizon_roi, roi.monthly_mean_return)
+    effective_monthly_cpi = effective_monthly_rate(cpi.life_horizon_inflation, cpi.monthly_mean_inflation)
+    annualized_mean = monthly_rate_to_apy(effective_monthly_roi)
+    annualized_mean_cpi = monthly_rate_to_apy(effective_monthly_cpi)
     print(
         f"Ticker: {args.ticker}\n"
-        f"Historical monthly mean return: {roi.monthly_mean_return:.2%}\n"
-        f"Implied annualized return: {annualized_mean:.2%}\n"
+        f"Effective APY return: {annualized_mean:.2%}\n"
         f"Monthly volatility: {roi.monthly_volatility:.2%}\n"
         f"ROI seed: {scenario.roi_seed}\n"
         f"Inflation seed: {scenario.inflation_seed}\n"
         f"CPI current date: {current_date.date()}\n"
-        f"Implied annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
+        f"Effective annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
         f"Cumulative inflation growth of $1 since {START_CLOCK}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
     )
     # print(roi)
@@ -342,6 +356,8 @@ def main() -> None:
     worth_cc = result.worth_cc
     worth_lc = result.worth_lc
     header_rows = [
+        ("apy roi %", annualized_mean * 100.0, annualized_mean * 100.0),
+        ("apy cpi %", annualized_mean_cpi * 100.0, annualized_mean_cpi * 100.0),
         ("man independent yrs", this_life.man_independent_yrs, this_life.man_independent_yrs),
         ("man assisted yrs", this_life.man_assisted_yrs, this_life.man_assisted_yrs),
         ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
