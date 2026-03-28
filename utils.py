@@ -32,11 +32,13 @@ def build_life_horizon_dates(
     return pd.date_range(start=start_month, end=end_month, freq="ME")
 
 
+def date_after_years(reference_date: str | pd.Timestamp, years: float) -> pd.Timestamp:
+    reference_ts = pd.Timestamp(reference_date)
+    return reference_ts + pd.to_timedelta(round(years * 365.2425), unit="D")
+
+
 def date_at_age(birth_date: str | pd.Timestamp, age_years: float) -> pd.Timestamp:
-    birth_ts = pd.Timestamp(birth_date)
-    whole_years = int(age_years)
-    remaining_months = int(round((age_years - whole_years) * 12))
-    return birth_ts + pd.DateOffset(years=whole_years, months=remaining_months)
+    return date_after_years(birth_date, age_years)
 
 
 def plot_taylor_life_exp_non_taylor(this_life: "TaylorLife", show: bool = True) -> None:

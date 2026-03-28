@@ -1,5 +1,38 @@
+from default_case import DEFAULT_SEED, MAN_DOB, START_CLOCK, WOMAN_DOB
 from Taylor import LhsScenario
-from default_case import DEFAULT_SEED
+from utils import age
+
+
+MAN_BASELINE_INDEPENDENCE_YRS = 69.0 - age(START_CLOCK, MAN_DOB)
+WOMAN_BASELINE_INDEPENDENCE_YRS = 70.29 - age(START_CLOCK, WOMAN_DOB)
+
+
+def _build_edge_case(
+    man_independence_yrs: float,
+    woman_independence_yrs: float,
+    man_linger: float,
+    woman_linger: float,
+    roi_mean_shift: float = 0.01,
+    roi_vol_multiplier: float = 0.5,
+    roi_mean_reversion: float = 0.5,
+    inflation_mean_shift: float = -0.005,
+    inflation_vol_multiplier: float = 0.5,
+    inflation_mean_reversion: float = 0.5,
+) -> LhsScenario:
+    return LhsScenario(
+        man_independence_yrs=man_independence_yrs,
+        woman_independence_yrs=woman_independence_yrs,
+        man_linger=man_linger,
+        woman_linger=woman_linger,
+        roi_seed=DEFAULT_SEED,
+        inflation_seed=DEFAULT_SEED,
+        roi_mean_shift=roi_mean_shift,
+        roi_vol_multiplier=roi_vol_multiplier,
+        roi_mean_reversion=roi_mean_reversion,
+        inflation_mean_shift=inflation_mean_shift,
+        inflation_vol_multiplier=inflation_vol_multiplier,
+        inflation_mean_reversion=inflation_mean_reversion,
+    )
 
 
 def build_edge_case_scenarios() -> list[tuple[str, LhsScenario]]:
@@ -10,288 +43,29 @@ def build_edge_case_scenarios() -> list[tuple[str, LhsScenario]]:
     NOTE: The ROI and CPI behavior for each edge case depends on scenario fields
     and downstream model settings.
     """
-    return [
-        (
-            "EC_0_0",
-            LhsScenario(
-                man_age_to_al=69.0 + 0,
-                woman_age_to_al=70.29 + 0,
-                man_linger=0.0,
-                woman_linger=0.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_0_5",
-            LhsScenario(
-                man_age_to_al=69.0 + 0,
-                woman_age_to_al=70.29 + 0,
-                man_linger=5.0,
-                woman_linger=5.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_0_10",
-            LhsScenario(
-                man_age_to_al=69.0 + 0,
-                woman_age_to_al=70.29 + 0,
-                man_linger=10.0,
-                woman_linger=10.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_0_15",
-            LhsScenario(
-                man_age_to_al=69.0 + 0,
-                woman_age_to_al=70.29 + 0,
-                man_linger=15.0,
-                woman_linger=15.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_5_0",
-            LhsScenario(
-                man_age_to_al=69.0 + 5,
-                woman_age_to_al=70.29 + 5,
-                man_linger=0.0,
-                woman_linger=0.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_5_5",
-            LhsScenario(
-                man_age_to_al=69.0 + 5,
-                woman_age_to_al=70.29 + 5,
-                man_linger=5.0,
-                woman_linger=5.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_5_10",
-            LhsScenario(
-                man_age_to_al=69.0 + 5,
-                woman_age_to_al=70.29 + 5,
-                man_linger=10.0,
-                woman_linger=10.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_5_15",
-            LhsScenario(
-                man_age_to_al=69.0 + 5,
-                woman_age_to_al=70.29 + 5,
-                man_linger=15.0,
-                woman_linger=15.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_10_0",
-            LhsScenario(
-                man_age_to_al=69.0 + 10,
-                woman_age_to_al=70.29 + 10,
-                man_linger=0.0,
-                woman_linger=0.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_10_5",
-            LhsScenario(
-                man_age_to_al=69.0 + 10,
-                woman_age_to_al=70.29 + 10,
-                man_linger=5.0,
-                woman_linger=5.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_10_10",
-            LhsScenario(
-                man_age_to_al=69.0 + 10,
-                woman_age_to_al=70.29 + 10,
-                man_linger=10.0,
-                woman_linger=10.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_10_15",
-            LhsScenario(
-                man_age_to_al=69.0 + 10,
-                woman_age_to_al=70.29 + 10,
-                man_linger=15.0,
-                woman_linger=15.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_15_0",
-            LhsScenario(
-                man_age_to_al=69.0 + 15,
-                woman_age_to_al=70.29 + 15,
-                man_linger=0.0,
-                woman_linger=0.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_15_5",
-            LhsScenario(
-                man_age_to_al=69.0 + 15,
-                woman_age_to_al=70.29 + 15,
-                man_linger=5.0,
-                woman_linger=5.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_15_10",
-            LhsScenario(
-                man_age_to_al=69.0 + 15,
-                woman_age_to_al=70.29 + 15,
-                man_linger=10.0,
-                woman_linger=10.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
-        (
-            "EC_15_15",
-            LhsScenario(
-                man_age_to_al=69.0 + 15,
-                woman_age_to_al=70.29 + 15,
-                man_linger=15.0,
-                woman_linger=15.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
-                roi_mean_shift=0.01,
-                roi_vol_multiplier=0.5,
-                roi_mean_reversion=0.5,
-                inflation_mean_shift=-0.005,
-                inflation_vol_multiplier=0.5,
-                inflation_mean_reversion=0.5,
-            ),
-        ),
+    scenarios: list[tuple[str, LhsScenario]] = []
+    for offset_years in (0.0, 5.0, 10.0, 15.0):
+        for linger_years in (0.0, 5.0, 10.0, 15.0):
+            scenarios.append(
+                (
+                    f"EC_{int(offset_years)}_{int(linger_years)}",
+                    _build_edge_case(
+                        man_independence_yrs=MAN_BASELINE_INDEPENDENCE_YRS + offset_years,
+                        woman_independence_yrs=WOMAN_BASELINE_INDEPENDENCE_YRS + offset_years,
+                        man_linger=linger_years,
+                        woman_linger=linger_years,
+                    ),
+                )
+            )
+
+    scenarios.append(
         (
             "EC_85_1",
-            LhsScenario(
-                man_age_to_al=85.0,
-                woman_age_to_al=85.0,
+            _build_edge_case(
+                man_independence_yrs=85.0 - age(START_CLOCK, MAN_DOB),
+                woman_independence_yrs=85.0 - age(START_CLOCK, WOMAN_DOB),
                 man_linger=1.0,
                 woman_linger=1.0,
-                roi_seed=DEFAULT_SEED,
-                inflation_seed=DEFAULT_SEED,
                 roi_mean_shift=0.005,
                 roi_vol_multiplier=1.2,
                 roi_mean_reversion=0.15,
@@ -299,6 +73,8 @@ def build_edge_case_scenarios() -> list[tuple[str, LhsScenario]]:
                 inflation_vol_multiplier=1.1,
                 inflation_mean_reversion=0.15,
             ),
-        ),
-    ]
+        )
+    )
+
+    return scenarios
 

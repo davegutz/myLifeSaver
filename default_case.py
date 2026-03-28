@@ -1,3 +1,10 @@
+import pandas as pd
+
+
+def _age(date: str, birth_date: str) -> float:
+	return float((pd.Timestamp(date) - pd.Timestamp(birth_date)).days / 365.2425)
+
+
 # Fixed parameters
 HISTORY_YEARS = 25
 AL_ESC_RUNNING_AVG_YRS = 2
@@ -21,8 +28,8 @@ CONSTANT_MONTHLY_CPI: float | None = 5.0 / 100.0 / 12.0  # Fraction per month
 AL_AND_LC_INFLATION_FACTOR = 2.0  # LTC escalates at 2x inflation
 
 # To be varied
-MAN_AGE_TO_AL = 79.0
-WOMAN_AGE_TO_AL = 80.29
+MAN_INDEPENDENCE_YRS = 79.0 - _age(START_CLOCK, MAN_DOB)
+WOMAN_INDEPENDENCE_YRS = 80.29 - _age(START_CLOCK, WOMAN_DOB)
 MAN_LINGER = 5.0
 WOMAN_LINGER = 5.0
 DEFAULT_SEED = 0

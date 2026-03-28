@@ -20,8 +20,8 @@ from default_case import (
     INFLATION_VOL_MULTIPLIER,
     LC_1,
     LC_2,
-    MAN_AGE_TO_AL,
     MAN_DOB,
+    MAN_INDEPENDENCE_YRS,
     MAN_LINGER,
     NON_TAYLOR_1,
     NON_TAYLOR_2,
@@ -30,19 +30,19 @@ from default_case import (
     ROI_MEAN_SHIFT,
     ROI_VOL_MULTIPLIER,
     START_CLOCK,
-    WOMAN_AGE_TO_AL,
     WOMAN_DOB,
+    WOMAN_INDEPENDENCE_YRS,
     WOMAN_LINGER,
 )
 from Inflation import Inflation, MonthlyInflationPoint
 from Roi import MonthlyRoiPoint, Roi, TICKER
-from utils import age
+from utils import age, date_after_years
 
 
 @dataclass(frozen=True)
 class LhsScenario:
-    man_age_to_al: float = MAN_AGE_TO_AL
-    woman_age_to_al: float = WOMAN_AGE_TO_AL
+    man_independence_yrs: float = MAN_INDEPENDENCE_YRS
+    woman_independence_yrs: float = WOMAN_INDEPENDENCE_YRS
     man_linger: float = MAN_LINGER
     woman_linger: float = WOMAN_LINGER
     roi_seed: int = DEFAULT_SEED
@@ -58,8 +58,8 @@ class LhsScenario:
 @dataclass(frozen=True)
 class LhsScenarioSummary:
     run_id: int | str
-    man_age_to_al: float
-    woman_age_to_al: float
+    man_independence_yrs: float
+    woman_independence_yrs: float
     man_linger: float
     woman_linger: float
     roi_seed: int
@@ -108,9 +108,9 @@ class TaylorLife:
         cpi: Inflation,
         man_dob: str = MAN_DOB,
         woman_dob: str = WOMAN_DOB,
-        man_age_to_al: float = MAN_AGE_TO_AL,
+        man_independence_yrs: float = MAN_INDEPENDENCE_YRS,
         man_linger: float = MAN_LINGER,
-        woman_age_to_al: float = WOMAN_AGE_TO_AL,
+        woman_independence_yrs: float = WOMAN_INDEPENDENCE_YRS,
         woman_linger: float = WOMAN_LINGER,
         worth_at_start: float = PILE_AT_START,
         al_cc_2: float = AL_CC_2,
@@ -124,16 +124,22 @@ class TaylorLife:
     ) -> None:
         self.roi = roi
         self.cpi = cpi
-        self.start_clock = roi.start_clock if roi.start_clock is not None else cpi.start_clock
+        self.start_clock = pd.Timestamp(roi.start_clock if roi.start_clock is not None else cpi.start_clock)
         self.dates = roi.life_horizon_dates
         self.man_dob = man_dob
         self.woman_dob = woman_dob
-        self.man_age_to_al = man_age_to_al
+        self.man_independence_yrs = man_independence_yrs
         self.man_linger = man_linger
-        self.man_age_at_death = self.man_age_to_al + self.man_linger
-        self.woman_age_to_al = woman_age_to_al
+        self.man_move_to_al_date = date_after_years(self.start_clock, self.man_independence_yrs)
+        self.man_age_to_al = age(self.man_move_to_al_date, self.man_dob)
+        self.man_death_date = date_after_years(self.man_move_to_al_date, self.man_linger)
+        self.man_age_at_death = age(self.man_death_date, self.man_dob)
+        self.woman_independence_yrs = woman_independence_yrs
         self.woman_linger = woman_linger
-        self.woman_age_at_death = self.woman_age_to_al + self.woman_linger
+        self.woman_move_to_al_date = date_after_years(self.start_clock, self.woman_independence_yrs)
+        self.woman_age_to_al = age(self.woman_move_to_al_date, self.woman_dob)
+        self.woman_death_date = date_after_years(self.woman_move_to_al_date, self.woman_linger)
+        self.woman_age_at_death = age(self.woman_death_date, self.woman_dob)
         self.worth_at_start = worth_at_start
         self.initial_al_cc_2 = al_cc_2
         self.initial_al_cc_1 = al_cc_1
@@ -221,8 +227,12 @@ class TaylorLife:
     ) -> "TaylorLife":
         run_context = context if context is not None else ScenarioRunContext()
         current_date = pd.Timestamp(run_context.current_date).normalize()
-        man_age_at_death = scenario.man_age_to_al + scenario.man_linger
-        woman_age_at_death = scenario.woman_age_to_al + scenario.woman_linger
+        man_move_to_al_date = date_after_years(run_context.start_clock, scenario.man_independence_yrs)
+        woman_move_to_al_date = date_after_years(run_context.start_clock, scenario.woman_independence_yrs)
+        man_death_date = date_after_years(man_move_to_al_date, scenario.man_linger)
+        woman_death_date = date_after_years(woman_move_to_al_date, scenario.woman_linger)
+        man_age_at_death = age(man_death_date, run_context.man_dob)
+        woman_age_at_death = age(woman_death_date, run_context.woman_dob)
 
         roi = Roi(
             ticker=run_context.ticker,
@@ -262,9 +272,9 @@ class TaylorLife:
             cpi=cpi,
             man_dob=run_context.man_dob,
             woman_dob=run_context.woman_dob,
-            man_age_to_al=scenario.man_age_to_al,
+            man_independence_yrs=scenario.man_independence_yrs,
             man_linger=scenario.man_linger,
-            woman_age_to_al=scenario.woman_age_to_al,
+            woman_independence_yrs=scenario.woman_independence_yrs,
             woman_linger=scenario.woman_linger,
         )
 
@@ -420,12 +430,11 @@ class TaylorLife:
         self.num_non_taylor_1 = []
 
         for date in self.roi.life_horizon_dates:
-            man_age = age(date, self.man_dob)
-            woman_age = age(date, self.woman_dob)
-            man_in_al = self.man_age_to_al <= man_age < self.man_age_at_death
-            woman_in_al = self.woman_age_to_al <= woman_age < self.woman_age_at_death
-            man_pre_al = man_age < self.man_age_to_al
-            woman_pre_al = woman_age < self.woman_age_to_al
+            date_ts = pd.Timestamp(date)
+            man_in_al = self.man_move_to_al_date <= date_ts < self.man_death_date
+            woman_in_al = self.woman_move_to_al_date <= date_ts < self.woman_death_date
+            man_pre_al = date_ts < self.man_move_to_al_date
+            woman_pre_al = date_ts < self.woman_move_to_al_date
 
             num_il_2 = 2.0 * float(man_pre_al and woman_pre_al)
             num_il_1 = float(man_pre_al != woman_pre_al)
@@ -502,8 +511,8 @@ class TaylorLife:
 
     def deceased(self, date: str | pd.Timestamp) -> bool:
         date_ts = pd.Timestamp(date)
-        man_deceased = age(date_ts, self.man_dob) >= self.man_age_at_death
-        woman_deceased = age(date_ts, self.woman_dob) >= self.woman_age_at_death
+        man_deceased = date_ts >= self.man_death_date
+        woman_deceased = date_ts >= self.woman_death_date
         return man_deceased and woman_deceased
 
     def deflate(

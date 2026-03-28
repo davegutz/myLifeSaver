@@ -2,8 +2,8 @@ import argparse
 from dataclasses import asdict
 import math
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from typing import cast
 from default_case import (
@@ -11,25 +11,15 @@ from default_case import (
     DEFAULT_CURRENT_DATE,
     DEFAULT_SEED,
     HISTORY_YEARS,
-    INFLATION_MEAN_REVERSION,
-    INFLATION_MEAN_SHIFT,
-    INFLATION_VOL_MULTIPLIER,
-    MAN_AGE_TO_AL,
     MAN_DOB,
-    MAN_LINGER,
-    ROI_MEAN_REVERSION,
-    ROI_MEAN_SHIFT,
-    ROI_VOL_MULTIPLIER,
     START_CLOCK,
-    WOMAN_AGE_TO_AL,
     WOMAN_DOB,
-    WOMAN_LINGER,
 )
 from edges import build_edge_case_scenarios
 from Inflation import plot_inflation_views
 from Roi import TICKER, plot_projection_views
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
-from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
+from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
 # ============================================================================
 # IMPORTANT: ROI AND INFLATION RATES
@@ -47,8 +37,8 @@ from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 # ============================================================================
 
 # Fixed and default varied parameters are imported from default_case.py.
-MAN_AGE_TO_AL_RANGE = (69.0, 90.0)
-WOMAN_AGE_TO_AL_RANGE = (70.0, 90.0)
+MAN_INDEPENDENCE_YRS_RANGE = (69.0 - age(START_CLOCK, MAN_DOB), 90.0 - age(START_CLOCK, MAN_DOB))
+WOMAN_INDEPENDENCE_YRS_RANGE = (70.0 - age(START_CLOCK, WOMAN_DOB), 90.0 - age(START_CLOCK, WOMAN_DOB))
 MAN_LINGER_RANGE = (0., 10.0)
 WOMAN_LINGER_RANGE = (0., 10.0)
 SEED_RANGE = (0, 1000000)
@@ -62,8 +52,8 @@ DEFAULT_LHS_POINTS = 100
 
 CSV_COLUMNS = [
     "run_id",
-    "man_age_to_al",
-    "woman_age_to_al",
+    "man_independence_yrs",
+    "woman_independence_yrs",
     "man_linger",
     "woman_linger",
     "roi_seed",
@@ -154,8 +144,8 @@ def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
         scenario = cast(
             LhsScenario,
             LhsScenario(
-                man_age_to_al=float(scale_lhs_column(sampled[:, 0], MAN_AGE_TO_AL_RANGE)[idx]),
-                woman_age_to_al=float(scale_lhs_column(sampled[:, 1], WOMAN_AGE_TO_AL_RANGE)[idx]),
+                man_independence_yrs=float(scale_lhs_column(sampled[:, 0], MAN_INDEPENDENCE_YRS_RANGE)[idx]),
+                woman_independence_yrs=float(scale_lhs_column(sampled[:, 1], WOMAN_INDEPENDENCE_YRS_RANGE)[idx]),
                 man_linger=float(scale_lhs_column(sampled[:, 2], MAN_LINGER_RANGE)[idx]),
                 woman_linger=float(scale_lhs_column(sampled[:, 3], WOMAN_LINGER_RANGE)[idx]),
                 roi_seed=int(round(scale_lhs_column(sampled[:, 4], SEED_RANGE)[idx])),
@@ -180,8 +170,8 @@ def last_value(values: list[float]) -> float:
 def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLife, result: TaylorLifeResult) -> LhsScenarioSummary:
     return LhsScenarioSummary(
         run_id=run_id,
-        man_age_to_al=scenario.man_age_to_al,
-        woman_age_to_al=scenario.woman_age_to_al,
+        man_independence_yrs=scenario.man_independence_yrs,
+        woman_independence_yrs=scenario.woman_independence_yrs,
         man_linger=scenario.man_linger,
         woman_linger=scenario.woman_linger,
         roi_seed=scenario.roi_seed,
@@ -352,8 +342,10 @@ def main() -> None:
     worth_cc = result.worth_cc
     worth_lc = result.worth_lc
     header_rows = [
+        ("man independence yrs", this_life.man_independence_yrs, this_life.man_independence_yrs),
         ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
         ("man age at death", this_life.man_age_at_death, this_life.man_age_at_death),
+        ("woman independence yrs", this_life.woman_independence_yrs, this_life.woman_independence_yrs),
         ("woman age to al", this_life.woman_age_to_al, this_life.woman_age_to_al),
         ("woman age at death", this_life.woman_age_at_death, this_life.woman_age_at_death),
     ]

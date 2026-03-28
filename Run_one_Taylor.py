@@ -82,8 +82,10 @@ def main() -> None:
     total_returns_cc = this_life.earn_cc_history[-1] if this_life.earn_cc_history else 0.0
     total_returns_lc = this_life.earn_lc_history[-1] if this_life.earn_lc_history else 0.0
     header_rows = [
+        ("man independence yrs", this_life.man_independence_yrs, this_life.man_independence_yrs),
         ("man age to al", this_life.man_age_to_al, this_life.man_age_to_al),
         ("man age at death", this_life.man_age_at_death, this_life.man_age_at_death),
+        ("woman independence yrs", this_life.woman_independence_yrs, this_life.woman_independence_yrs),
         ("woman age to al", this_life.woman_age_to_al, this_life.woman_age_to_al),
         ("woman age at death", this_life.woman_age_at_death, this_life.woman_age_at_death),
     ]
