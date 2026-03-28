@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import cast
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
+    CONSTANT_MONTHLY_CPI,
+    CONSTANT_MONTHLY_ROI,
     DEFAULT_CURRENT_DATE,
     DEFAULT_SEED,
     HISTORY_YEARS,
@@ -173,13 +175,31 @@ def monthly_rate_to_apy(monthly_rate: float) -> float:
     return (1.0 + monthly_rate) ** 12 - 1.0
 
 
-def effective_monthly_rate(path: np.ndarray, fallback: float) -> float:
-    return float(path.mean()) if path.size > 0 else fallback
+def realized_monthly_rate(path: np.ndarray, fallback: float) -> float:
+    if path.size == 0:
+        return fallback
+    growth = np.cumprod(1.0 + np.asarray(path, dtype=float))
+    if growth.size == 0 or growth[-1] <= 0.0:
+        return fallback
+    months = float(path.size)
+    return float(growth[-1] ** (1.0 / months) - 1.0)
+
+
+def effective_apy_from_cumulative(cumulative_path: np.ndarray, monthly_fallback: float) -> float:
+    if cumulative_path.size > 0:
+        final_growth = float(cumulative_path[-1])
+        if final_growth > 0.0:
+            months = float(cumulative_path.size)
+            return (final_growth ** (12.0 / months) - 1.0) * 100.0
+    return monthly_rate_to_apy(monthly_fallback) * 100.0
 
 
 def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLife, result: TaylorLifeResult) -> LhsScenarioSummary:
-    effective_monthly_roi = effective_monthly_rate(model.roi.life_horizon_roi, model.roi.monthly_mean_return)
-    effective_monthly_cpi = effective_monthly_rate(model.cpi.life_horizon_inflation, model.cpi.monthly_mean_inflation)
+    roi_effective_apy = effective_apy_from_cumulative(model.roi.life_horizon_roi_cum, model.roi.monthly_mean_return)
+    cpi_effective_apy = effective_apy_from_cumulative(
+        model.cpi.life_horizon_inflation_cum,
+        model.cpi.monthly_mean_inflation,
+    )
     return LhsScenarioSummary(
         run_id=run_id,
         man_independent_yrs=scenario.man_independent_yrs,
@@ -188,8 +208,8 @@ def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLif
         woman_assisted_yrs=scenario.woman_assisted_yrs,
         roi_seed=scenario.roi_seed,
         inflation_seed=scenario.inflation_seed,
-        apy_roi=monthly_rate_to_apy(effective_monthly_roi),
-        apy_cpi=monthly_rate_to_apy(effective_monthly_cpi),
+        apy_roi=roi_effective_apy,
+        apy_cpi=cpi_effective_apy,
         roi_mean_shift=scenario.roi_mean_shift,
         roi_vol_multiplier=scenario.roi_vol_multiplier,
         roi_mean_reversion=scenario.roi_mean_reversion,
@@ -218,6 +238,12 @@ def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLif
 
 
 def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Path, seed: int) -> pd.DataFrame:
+    if CONSTANT_MONTHLY_ROI is not None or CONSTANT_MONTHLY_CPI is not None:
+        print(
+            "Using fixed monthly ROI/CPI from default_case.py; "
+            "apy_roi and apy_cpi reflect end-of-run cumulative % change of $1 "
+            "under those configured constants."
+        )
     scenarios = build_lhs_scenarios(num_points=num_points, seed=seed)
     edge_cases = build_edge_case_scenarios()
     rows = []
@@ -327,8 +353,8 @@ def main() -> None:
     worth_lc = result.worth_lc
     worth_cc = result.worth_cc
 
-    effective_monthly_roi = effective_monthly_rate(roi.life_horizon_roi, roi.monthly_mean_return)
-    effective_monthly_cpi = effective_monthly_rate(cpi.life_horizon_inflation, cpi.monthly_mean_inflation)
+    effective_monthly_roi = realized_monthly_rate(roi.life_horizon_roi, roi.monthly_mean_return)
+    effective_monthly_cpi = realized_monthly_rate(cpi.life_horizon_inflation, cpi.monthly_mean_inflation)
     annualized_mean = monthly_rate_to_apy(effective_monthly_roi)
     annualized_mean_cpi = monthly_rate_to_apy(effective_monthly_cpi)
     print(

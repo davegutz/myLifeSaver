@@ -56,6 +56,20 @@ def build_run_one_inputs(args: argparse.Namespace) -> tuple[str | None, LhsScena
     return active_case_name, LhsScenario(**scenario_kwargs), ScenarioRunContext(**context_kwargs)
 
 
+def monthly_rate_to_apy(monthly_rate: float) -> float:
+    return (1.0 + monthly_rate) ** 12 - 1.0
+
+
+def realized_monthly_rate(path, fallback: float) -> float:
+    if len(path) == 0:
+        return fallback
+    growth = (1.0 + path).prod()
+    if growth <= 0.0:
+        return fallback
+    months = float(len(path))
+    return float(growth ** (1.0 / months) - 1.0)
+
+
 def main() -> None:
     args = parse_args()
     active_case_name, scenario, context = build_run_one_inputs(args)
@@ -72,12 +86,10 @@ def main() -> None:
     worth_lc = result.worth_lc
     worth_cc = result.worth_cc
 
-    effective_monthly_roi = float(roi.life_horizon_roi.mean()) if roi.life_horizon_roi.size > 0 else roi.monthly_mean_return
-    effective_monthly_cpi = (
-        float(cpi.life_horizon_inflation.mean()) if cpi.life_horizon_inflation.size > 0 else cpi.monthly_mean_inflation
-    )
-    annualized_mean = (1 + effective_monthly_roi) ** 12 - 1
-    annualized_mean_cpi = (1 + effective_monthly_cpi) ** 12 - 1
+    effective_monthly_roi = realized_monthly_rate(roi.life_horizon_roi, roi.monthly_mean_return)
+    effective_monthly_cpi = realized_monthly_rate(cpi.life_horizon_inflation, cpi.monthly_mean_inflation)
+    annualized_mean = monthly_rate_to_apy(effective_monthly_roi)
+    annualized_mean_cpi = monthly_rate_to_apy(effective_monthly_cpi)
     print(
         f"Ticker: {args.ticker}\n"
         f"Effective APY return: {annualized_mean:.2%}\n"
@@ -131,8 +143,8 @@ def main() -> None:
     # Write monthly results to CSV
     df = pd.DataFrame({
         'date': pd.to_datetime(this_life.dates),
-        'apy_roi': [annualized_mean] * len(this_life.dates),
-        'apy_cpi': [annualized_mean_cpi] * len(this_life.dates),
+        'apy_roi': [annualized_mean * 100.0] * len(this_life.dates),
+        'apy_cpi': [annualized_mean_cpi * 100.0] * len(this_life.dates),
         'earn_lc': this_life.earn_lc_history,
         'earn_cc': this_life.earn_cc_history,
         'earn_norm_lc': this_life.earn_norm_lc_history,
