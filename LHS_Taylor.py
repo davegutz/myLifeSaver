@@ -5,6 +5,37 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from default_case import (
+    AL_AND_LC_INFLATION_FACTOR,
+    AL_CC_1,
+    AL_CC_2,
+    AL_ESC_RUNNING_AVG_YRS,
+    CC_1,
+    CC_2,
+    CONSTANT_MONTHLY_CPI,
+    CONSTANT_MONTHLY_ROI,
+    DEFAULT_CURRENT_DATE,
+    DEFAULT_SEED,
+    HISTORY_YEARS,
+    INFLATION_MEAN_REVERSION,
+    INFLATION_MEAN_SHIFT,
+    INFLATION_VOL_MULTIPLIER,
+    LC_1,
+    LC_2,
+    MAN_AGE_TO_AL,
+    MAN_DOB,
+    MAN_LINGER,
+    NON_TAYLOR_1,
+    NON_TAYLOR_2,
+    PILE_AT_START,
+    ROI_MEAN_REVERSION,
+    ROI_MEAN_SHIFT,
+    ROI_VOL_MULTIPLIER,
+    START_CLOCK,
+    WOMAN_AGE_TO_AL,
+    WOMAN_DOB,
+    WOMAN_LINGER,
+)
 from Inflation import Inflation, MonthlyInflationPoint, plot_inflation_views
 from Roi import MonthlyRoiPoint, TICKER, Roi, plot_projection_views
 from utils import age
@@ -24,40 +55,7 @@ from utils import age
 #   - CONSTANT_MONTHLY_CPI = 0.05 / 12   # 5% annual = 0.417% monthly
 # ============================================================================
 
-#  Fixed parameters
-HISTORY_YEARS = 25
-AL_ESC_RUNNING_AVG_YRS = 2
-START_CLOCK = "2026-07-01"
-DEFAULT_CURRENT_DATE = "2026-03-28"
-MAN_DOB = "1957-07-26"
-WOMAN_DOB = "1956-04-11"
-PILE_AT_START = 5700000.
-NON_TAYLOR_2 = 9612./2.
-NON_TAYLOR_1 = 5492.
-AL_CC_1 = 9200.
-AL_CC_2 = AL_CC_1 * 2.
-CC_1 = 3150.
-CC_2 = 3750./2.
-LC_1 = 8100.
-LC_2 = 9600./2.
-# CONSTANT_MONTHLY_ROI: float | None = 8./100./12.  # Fraction per month
-# CONSTANT_MONTHLY_CPI: float | None = 4./100./12.  # Fraction per month
-CONSTANT_MONTHLY_ROI = 10./100./12. # Fixed 10% annual (0.833% monthly)
-CONSTANT_MONTHLY_CPI = 5./100./12. # Fixed 5% annual (0.417% monthly)
-AL_AND_LC_INFLATION_FACTOR = 2.0  # LTC escalates at 2x inflation
-# To be varied
-MAN_AGE_TO_AL = 80.
-WOMAN_AGE_TO_AL = 80.
-MAN_LINGER = 1.
-WOMAN_LINGER = 1.
-DEFAULT_SEED = 0
-
-ROI_MEAN_SHIFT = 0.0
-ROI_VOL_MULTIPLIER = 1.0
-ROI_MEAN_REVERSION = 0.15
-INFLATION_MEAN_SHIFT = 0.0
-INFLATION_VOL_MULTIPLIER = 1.0
-INFLATION_MEAN_REVERSION = 0.15
+# Fixed and default varied parameters are imported from default_case.py.
 MAN_AGE_TO_AL_RANGE = (69.0, 90.0)
 WOMAN_AGE_TO_AL_RANGE = (70.0, 90.0)
 MAN_LINGER_RANGE = (0., 10.0)
