@@ -9,11 +9,26 @@ from Inflation import Inflation, MonthlyInflationPoint, plot_inflation_views
 from Roi import MonthlyRoiPoint, TICKER, Roi, plot_projection_views
 from utils import age
 
+# ============================================================================
+# IMPORTANT: ROI AND INFLATION RATES
+# ============================================================================
+# CONSTANT_MONTHLY_ROI and CONSTANT_MONTHLY_CPI below determine ROI/inflation
+# for ALL edge cases. Currently set to None, meaning stochastic/historical model.
+# 
+# Current Edge Case ROI/CPI Configuration:
+#   - ROI:       None (uses stochastic model from historical data)
+#   - Inflation: None (uses stochastic model from historical data)
+#
+# To use FIXED rates for edge cases, set:
+#   - CONSTANT_MONTHLY_ROI = 0.10 / 12  # 10% annual = 0.833% monthly
+#   - CONSTANT_MONTHLY_CPI = 0.05 / 12   # 5% annual = 0.417% monthly
+# ============================================================================
+
 #  Fixed parameters
 HISTORY_YEARS = 25
 AL_ESC_RUNNING_AVG_YRS = 2
 START_CLOCK = "2026-07-01"
-DEFAULT_CURRENT_DATE = "2026-03-27"
+DEFAULT_CURRENT_DATE = "2026-03-28"
 MAN_DOB = "1957-07-26"
 WOMAN_DOB = "1956-04-11"
 PILE_AT_START = 5700000.
@@ -27,10 +42,9 @@ LC_1 = 8100.
 LC_2 = 9600./2.
 # CONSTANT_MONTHLY_ROI: float | None = 8./100./12.  # Fraction per month
 # CONSTANT_MONTHLY_CPI: float | None = 4./100./12.  # Fraction per month
-CONSTANT_MONTHLY_ROI: float | None = None  # Fraction per month
-CONSTANT_MONTHLY_CPI: float | None = None  # Fraction per month
+CONSTANT_MONTHLY_ROI = 10./100./12. # Fixed 10% annual (0.833% monthly)
+CONSTANT_MONTHLY_CPI = 5./100./12. # Fixed 5% annual (0.417% monthly)
 AL_AND_LC_INFLATION_FACTOR = 2.0  # LTC escalates at 2x inflation
-
 # To be varied
 MAN_AGE_TO_AL = 80.
 WOMAN_AGE_TO_AL = 80.
@@ -95,7 +109,7 @@ class TaylorLifeResult:
 
 @dataclass(frozen=True)
 class LhsScenarioSummary:
-    run_id: int
+    run_id: int | str
     man_age_to_al: float
     woman_age_to_al: float
     man_linger: float
@@ -672,11 +686,323 @@ def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
     ]
 
 
+def build_edge_case_scenarios() -> list[tuple[str, LhsScenario]]:
+    """
+    Define explicit edge case scenarios for testing.
+    Returns a list of tuples (case_name, scenario).
+    
+    NOTE: The ROI and CPI behavior for each edge case depends on global CONSTANT_MONTHLY_ROI
+    and CONSTANT_MONTHLY_CPI settings:
+    - If CONSTANT_MONTHLY_ROI is None: Uses stochastic/historical ROI model
+    - If CONSTANT_MONTHLY_ROI is set: Uses that fixed monthly rate for all edge cases
+    - Same applies for CONSTANT_MONTHLY_CPI (currently None = historical inflation model)
+    
+    Current settings in this file:
+    - CONSTANT_MONTHLY_ROI = None (uses stochastic model with roi_mean_shift, roi_vol_multiplier, etc.)
+    - CONSTANT_MONTHLY_CPI = None (uses stochastic model with inflation_mean_shift, inflation_vol_multiplier, etc.)
+    
+    To use fixed rates like in ExtrapolateTaylor.py, set at top of file:
+    - CONSTANT_MONTHLY_ROI = 0.10 / 12  # 10% annual ROI
+    - CONSTANT_MONTHLY_CPI = 0.05 / 12   # 5% annual inflation
+    """
+    return [
+        (
+            "EC_0_0",
+            LhsScenario(
+                man_age_to_al=69.0+0,  # now
+                woman_age_to_al=70.29+0,  # now
+                man_linger=0.0,  # longest linger
+                woman_linger=0.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_0_5",
+            LhsScenario(
+                man_age_to_al=69.0+0,  # now
+                woman_age_to_al=70.29+0,  # now
+                man_linger=5.0,  # longest linger
+                woman_linger=5.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_0_10",
+            LhsScenario(
+                man_age_to_al=69.0+0,  # now
+                woman_age_to_al=70.29+0,  # now
+                man_linger=10.0,  # longest linger
+                woman_linger=10.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_0_15",
+            LhsScenario(
+                man_age_to_al=69.0+0,  # now
+                woman_age_to_al=70.29+0,  # now
+                man_linger=15.0,  # longest linger
+                woman_linger=15.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_5_0",
+            LhsScenario(
+                man_age_to_al=69.0+5,  # 5
+                woman_age_to_al=70.29+5,  # 5
+                man_linger=0.0,  # longest linger
+                woman_linger=0.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_5_5",
+            LhsScenario(
+                man_age_to_al=69.0+5,  # 5
+                woman_age_to_al=70.29+5,  # 5
+                man_linger=5.0,  # longest linger
+                woman_linger=5.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_5_10",
+            LhsScenario(
+                man_age_to_al=69.0+5,  # 5
+                woman_age_to_al=70.29+5,  # 5
+                man_linger=10.0,  # longest linger
+                woman_linger=10.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_5_15",
+            LhsScenario(
+                man_age_to_al=69.0+5,  # 5
+                woman_age_to_al=70.29+5,  # 5
+                man_linger=15.0,  # longest linger
+                woman_linger=15.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_10_0",
+            LhsScenario(
+                man_age_to_al=69.0+10,  # 10
+                woman_age_to_al=70.29+10,  # 10
+                man_linger=0.0,  # longest linger
+                woman_linger=0.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_10_5",
+            LhsScenario(
+                man_age_to_al=69.0+10,  # 10
+                woman_age_to_al=70.29+10,  # 10
+                man_linger=5.0,  # longest linger
+                woman_linger=5.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_10_10",
+            LhsScenario(
+                man_age_to_al=69.0+10,  # 10
+                woman_age_to_al=70.29+10,  # 10
+                man_linger=10.0,  # longest linger
+                woman_linger=10.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_10_15",
+            LhsScenario(
+                man_age_to_al=69.0+10,  # 10
+                woman_age_to_al=70.29+10,  # 10
+                man_linger=15.0,  # longest linger
+                woman_linger=15.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_15_0",
+            LhsScenario(
+                man_age_to_al=69.0+15,  # 15
+                woman_age_to_al=70.29+15,  # 15
+                man_linger=0.0,  # longest linger
+                woman_linger=0.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_15_5",
+            LhsScenario(
+                man_age_to_al=69.0+15,  # 15
+                woman_age_to_al=70.29+15,  # 15
+                man_linger=5.0,  # longest linger
+                woman_linger=5.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_15_10",
+            LhsScenario(
+                man_age_to_al=69.0+15,  # 15
+                woman_age_to_al=70.29+15,  # 15
+                man_linger=10.0,  # longest linger
+                woman_linger=10.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_15_15",
+            LhsScenario(
+                man_age_to_al=69.0+15,  # 15
+                woman_age_to_al=70.29+15,  # 15
+                man_linger=15.0,  # longest linger
+                woman_linger=15.0,  # longest linger
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.01,  # highest ROI boost
+                roi_vol_multiplier=0.5,  # lowest volatility
+                roi_mean_reversion=0.5,  # highest mean reversion
+                inflation_mean_shift=-0.005,  # lowest inflation boost
+                inflation_vol_multiplier=0.5,  # lowest volatility
+                inflation_mean_reversion=0.5,  # highest mean reversion
+            )
+        ),
+        (
+            "EC_85_1",
+            LhsScenario(
+                man_age_to_al=85.0,
+                woman_age_to_al=85.0,
+                man_linger=1.0,  # very short life after AL
+                woman_linger=1.0,
+                roi_seed=DEFAULT_SEED,
+                inflation_seed=DEFAULT_SEED,
+                roi_mean_shift=0.005,
+                roi_vol_multiplier=1.2,
+                roi_mean_reversion=0.15,
+                inflation_mean_shift=0.002,
+                inflation_vol_multiplier=1.1,
+                inflation_mean_reversion=0.15,
+            )
+        ),
+    ]
+
+
 def last_value(values: list[float]) -> float:
     return float(values[-1]) if values else 0.0
 
 
-def summarize_lhs_run(run_id: int, scenario: LhsScenario, model: TaylorLife, result: TaylorLifeResult) -> LhsScenarioSummary:
+def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLife, result: TaylorLifeResult) -> LhsScenarioSummary:
     return LhsScenarioSummary(
         run_id=run_id,
         man_age_to_al=scenario.man_age_to_al,
@@ -713,16 +1039,37 @@ def summarize_lhs_run(run_id: int, scenario: LhsScenario, model: TaylorLife, res
 
 
 def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Path, seed: int) -> pd.DataFrame:
+    global CONSTANT_MONTHLY_ROI, CONSTANT_MONTHLY_CPI
     scenarios = build_lhs_scenarios(num_points=num_points, seed=seed)
+    edge_cases = build_edge_case_scenarios()
     rows = []
     column_widths = {column: max(len(column), SCREEN_MIN_COL_WIDTH) for column in CSV_COLUMNS}
     print(" ".join(column.rjust(column_widths[column]) for column in CSV_COLUMNS))
+    
+    # Save original constant values
+    original_roi = CONSTANT_MONTHLY_ROI
+    original_cpi = CONSTANT_MONTHLY_CPI
+    
+    # Process random LHS scenarios
     for run_id, scenario in enumerate(scenarios, start=1):
         model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
         row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, result=result))
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
+    
+    # Process edge case scenarios
+    for case_name, scenario in edge_cases:
+        model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
+        row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, result=result))
+        ordered_row = {column: row[column] for column in CSV_COLUMNS}
+        print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
+        rows.append(ordered_row)
+    
+    # Restore original constant values
+    CONSTANT_MONTHLY_ROI = original_roi
+    CONSTANT_MONTHLY_CPI = original_cpi
+    
     frame = pd.DataFrame(rows, columns=CSV_COLUMNS)
     frame.to_csv(output_path, index=False)
     return frame
