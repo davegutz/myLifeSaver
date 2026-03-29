@@ -59,14 +59,14 @@ def build_edge_case_scenarios(
     """
     rate_suffix = f"_{format_apy_suffix(roi_apy_percent)}_{format_apy_suffix(cpi_apy_percent)}"
     scenarios: list[tuple[str, LhsScenario]] = []
-    for offset_years in (0.0, 5.0, 10.0, 15.0):
-        for assisted_years in (0.0, 5.0, 10.0, 15.0):
+    for independent_years in (0.0, 5.0, 10.0):
+        for assisted_years in (0.0, 5.0, 10.0):
             scenarios.append(
                 (
-                    f"EC_{int(offset_years)}_{int(assisted_years)}{rate_suffix}",
+                    f"EC_{int(independent_years)}_{int(assisted_years)}{rate_suffix}",
                     _build_edge_case(
-                        man_independent_yrs=MAN_BASELINE_INDEPENDENT_YRS + offset_years,
-                        woman_independent_yrs=WOMAN_BASELINE_INDEPENDENT_YRS + offset_years,
+                        man_independent_yrs=MAN_BASELINE_INDEPENDENT_YRS + independent_years,
+                        woman_independent_yrs=WOMAN_BASELINE_INDEPENDENT_YRS + independent_years,
                         man_assisted_yrs=assisted_years,
                         woman_assisted_yrs=assisted_years,
                     ),

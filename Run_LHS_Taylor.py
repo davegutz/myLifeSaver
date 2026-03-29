@@ -51,14 +51,12 @@ ROI_MEAN_REVERSION_RANGE = (0.0, 0.5)
 INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
 INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
 INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
-DEFAULT_LHS_POINTS = 2
+DEFAULT_LHS_POINTS = 200
 PLOT_EDGE_CASES_IN_LHS_PLOT = True
-# EDGE_CASE_ROI_APY_PERCENTS = [0.0, 6.0, 10.0]  # Fixed ROI rates (APY %) for edge case matrix
-# EDGE_CASE_ROI_APY_PERCENTS = [0., 10.0]  # Fixed ROI rates (APY %) for edge case matrix
-# EDGE_CASE_CPI_APY_PERCENTS = [0.0, 3.0, 5.0]  # Fixed CPI rates (APY %) for edge case matrix
-# EDGE_CASE_CPI_APY_PERCENTS = [0., 5.0]  # Fixed CPI rates (APY %) for edge case matrix
-EDGE_CASE_ROI_APY_PERCENTS = [10.0]  # Fixed ROI rates (APY %) for edge case matrix
-EDGE_CASE_CPI_APY_PERCENTS = [5.0]  # Fixed CPI rates (APY %) for edge case matrix
+EDGE_CASE_ROI_APY_PERCENTS = [6.0, 12.0]  # Fixed ROI rates (APY %) for edge case matrix
+EDGE_CASE_CPI_APY_PERCENTS = [2.0, 6.0]  # Fixed CPI rates (APY %) for edge case matrix
+# EDGE_CASE_ROI_APY_PERCENTS = [10.0]  # Fixed ROI rates (APY %) for edge case matrix
+# EDGE_CASE_CPI_APY_PERCENTS = [5.0]  # Fixed CPI rates (APY %) for edge case matrix
 
 CSV_COLUMNS = [
     "run_id",
