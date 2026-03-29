@@ -92,6 +92,16 @@ CSV_COLUMNS = [
     "worth_norm_lc",
     "worth_cc",
     "worth_norm_cc",
+    # Context constants from this run
+    "ticker",
+    "current_date",
+    "history_years",
+    "al_cum_running_avg_yrs",
+    "start_clock",
+    "man_dob",
+    "woman_dob",
+    "constant_monthly_roi",
+    "constant_monthly_cpi",
 ]
 
 SCREEN_MIN_COL_WIDTH = 14
@@ -200,7 +210,13 @@ def effective_apy_from_cumulative(cumulative_path: np.ndarray, monthly_fallback:
     return monthly_rate_to_apy(monthly_fallback) * 100.0
 
 
-def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLife, result: TaylorLifeResult) -> LhsScenarioSummary:
+def summarize_lhs_run(
+    run_id: int | str,
+    scenario: LhsScenario,
+    model: TaylorLife,
+    result: TaylorLifeResult,
+    context: ScenarioRunContext,
+) -> LhsScenarioSummary:
     roi_effective_apy = effective_apy_from_cumulative(model.roi.life_horizon_roi_cum, model.roi.monthly_mean_return)
     cpi_effective_apy = effective_apy_from_cumulative(
         model.cpi.life_horizon_inflation_cum,
@@ -240,6 +256,16 @@ def summarize_lhs_run(run_id: int | str, scenario: LhsScenario, model: TaylorLif
         worth_norm_lc=result.worth_norm_lc,
         worth_cc=result.worth_cc,
         worth_norm_cc=result.worth_norm_cc,
+        # Context constants
+        ticker=context.ticker,
+        current_date=str(context.current_date),
+        history_years=context.history_years,
+        al_cum_running_avg_yrs=context.al_cum_running_avg_yrs,
+        start_clock=context.start_clock,
+        man_dob=context.man_dob,
+        woman_dob=context.woman_dob,
+        constant_monthly_roi=context.constant_monthly_roi,
+        constant_monthly_cpi=context.constant_monthly_cpi,
     )
 
 
@@ -258,7 +284,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
     # Process random LHS scenarios
     for run_id, scenario in enumerate(scenarios, start=1):
         model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
-        row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, result=result))
+        row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, result=result, context=context))
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
@@ -282,7 +308,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
             both_edge_cases = build_edge_case_scenarios(roi_apy_percent=roi_apy, cpi_apy_percent=cpi_apy)
             for case_name, scenario in both_edge_cases:
                 model, result = evaluate_lhs_scenario(scenario=scenario, context=both_context)
-                row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, result=result))
+                row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, result=result, context=both_context))
                 ordered_row = {column: row[column] for column in CSV_COLUMNS}
                 print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
                 rows.append(ordered_row)

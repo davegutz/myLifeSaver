@@ -90,6 +90,16 @@ class LhsScenarioSummary:
     worth_norm_lc: int
     worth_cc: int
     worth_norm_cc: int
+    # Context constants
+    ticker: str
+    current_date: str
+    history_years: int
+    al_cum_running_avg_yrs: int | float
+    start_clock: str
+    man_dob: str
+    woman_dob: str
+    constant_monthly_roi: float | None
+    constant_monthly_cpi: float | None
 
 
 @dataclass(frozen=True)

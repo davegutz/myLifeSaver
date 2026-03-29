@@ -17,18 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from Inflation import plot_inflation_views
-from Roi import TICKER, plot_projection_views
+from Roi import plot_projection_views
 from Taylor import LhsScenario, ScenarioRunContext
-from default_case import (
-    AL_ESC_RUNNING_AVG_YRS,
-    CONSTANT_MONTHLY_CPI,
-    CONSTANT_MONTHLY_ROI,
-    DEFAULT_CURRENT_DATE,
-    HISTORY_YEARS,
-    MAN_DOB,
-    START_CLOCK,
-    WOMAN_DOB,
-)
 from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
 # Default path written by Run_LHS_Taylor.py
@@ -54,13 +44,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--ticker",
-        default=TICKER,
-        help=f"Ticker symbol for ROI history download. Default: {TICKER}",
+        default=None,
+        help="Ticker symbol for ROI history download. If omitted, uses value from CSV.",
     )
     parser.add_argument(
         "--current-date",
-        default=DEFAULT_CURRENT_DATE,
-        help=f"Historical data cutoff date YYYY-MM-DD. Default: {DEFAULT_CURRENT_DATE}",
+        default=None,
+        help="Historical data cutoff date YYYY-MM-DD. If omitted, uses value from CSV.",
     )
     return parser.parse_args()
 
@@ -90,8 +80,11 @@ def prompt_for_run_id(csv_path: str) -> int:
         print(f"  '{raw}' is not a valid run_id. Please choose from {available}.")
 
 
-def load_scenario_from_csv(csv_path: str, run_id: int) -> LhsScenario:
-    """Read a stochastic LHS row from the CSV and reconstruct its LhsScenario."""
+def load_scenario_from_csv(csv_path: str, run_id: int) -> tuple[LhsScenario, dict]:
+    """
+    Read a stochastic LHS row from the CSV and reconstruct its LhsScenario and context.
+    Returns (scenario, context_dict) where context_dict has all context fields.
+    """
     # Force run_id column to string so mixed int/str CSV column is handled uniformly.
     df = pd.read_csv(csv_path)
     df["run_id"] = df["run_id"].astype(str)
@@ -108,7 +101,7 @@ def load_scenario_from_csv(csv_path: str, run_id: int) -> LhsScenario:
         )
 
     r = row.iloc[0]
-    return LhsScenario(
+    scenario = LhsScenario(
         man_independent_yrs=float(r["man_independent_yrs"]),
         woman_independent_yrs=float(r["woman_independent_yrs"]),
         man_assisted_yrs=float(r["man_assisted_yrs"]),
@@ -122,6 +115,21 @@ def load_scenario_from_csv(csv_path: str, run_id: int) -> LhsScenario:
         inflation_vol_multiplier=float(r["inflation_vol_multiplier"]),
         inflation_mean_reversion=float(r["inflation_mean_reversion"]),
     )
+    
+    # Extract context fields from CSV
+    context_dict = {
+        "ticker": str(r["ticker"]),
+        "current_date": str(r["current_date"]),
+        "history_years": int(float(r["history_years"])),
+        "al_cum_running_avg_yrs": float(r["al_cum_running_avg_yrs"]),
+        "start_clock": str(r["start_clock"]),
+        "man_dob": str(r["man_dob"]),
+        "woman_dob": str(r["woman_dob"]),
+        "constant_monthly_roi": float(r["constant_monthly_roi"]) if pd.notna(r["constant_monthly_roi"]) else None,
+        "constant_monthly_cpi": float(r["constant_monthly_cpi"]) if pd.notna(r["constant_monthly_cpi"]) else None,
+    }
+    
+    return scenario, context_dict
 
 
 def monthly_rate_to_apy(monthly_rate: float) -> float:
@@ -144,20 +152,26 @@ def main() -> None:
     run_id: int = args.run_id if args.run_id is not None else prompt_for_run_id(args.lhs_csv)
 
     print(f"Loading run_id={run_id} from '{args.lhs_csv}' ...")
-    scenario = load_scenario_from_csv(args.lhs_csv, run_id)
-    print(f"Scenario parameters loaded — running replay.")
+    scenario, context_dict = load_scenario_from_csv(args.lhs_csv, run_id)
+    print(f"Scenario and context parameters loaded — running replay.")
 
-    current_date = pd.Timestamp(args.current_date).normalize()
+    # Override context fields with command-line args if provided
+    if args.ticker is not None:
+        context_dict["ticker"] = args.ticker
+    if args.current_date is not None:
+        context_dict["current_date"] = args.current_date
+
+    current_date = pd.Timestamp(context_dict["current_date"]).normalize()
     context = ScenarioRunContext(
-        ticker=args.ticker,
+        ticker=context_dict["ticker"],
         current_date=current_date,
-        history_years=HISTORY_YEARS,
-        al_cum_running_avg_yrs=AL_ESC_RUNNING_AVG_YRS,
-        start_clock=START_CLOCK,
-        man_dob=MAN_DOB,
-        woman_dob=WOMAN_DOB,
-        constant_monthly_roi=CONSTANT_MONTHLY_ROI,
-        constant_monthly_cpi=CONSTANT_MONTHLY_CPI,
+        history_years=context_dict["history_years"],
+        al_cum_running_avg_yrs=context_dict["al_cum_running_avg_yrs"],
+        start_clock=context_dict["start_clock"],
+        man_dob=context_dict["man_dob"],
+        woman_dob=context_dict["woman_dob"],
+        constant_monthly_roi=context_dict["constant_monthly_roi"],
+        constant_monthly_cpi=context_dict["constant_monthly_cpi"],
     )
 
     this_life, result = evaluate_lhs_scenario(scenario=scenario, context=context)
@@ -175,14 +189,14 @@ def main() -> None:
 
     print(
         f"\n=== Replay of LHS run_id={run_id} from '{args.lhs_csv}' ===\n"
-        f"Ticker:                     {args.ticker}\n"
+        f"Ticker:                     {context.ticker}\n"
         f"Effective APY return:       {annualized_mean:.2%}\n"
         f"Monthly volatility:         {roi.monthly_volatility:.2%}\n"
         f"ROI seed:                   {scenario.roi_seed}\n"
         f"Inflation seed:             {scenario.inflation_seed}\n"
         f"CPI current date:           {current_date.date()}\n"
         f"Effective annualized CPI:   {annualized_mean_cpi:.2%}\n"
-        f"Cum. inflation of $1 since {START_CLOCK}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
+        f"Cum. inflation of $1 since {context.start_clock}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
     )
 
     total_expenses_cc    = this_life.exp_cc_history[-1]         if this_life.exp_cc_history         else 0.0
