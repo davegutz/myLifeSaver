@@ -304,6 +304,10 @@ def main() -> None:
     print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
     for item, cc_value, lc_value in table_rows:
         print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
+    
+    added_lc_worth_norm = result.worth_norm_lc - result.worth_norm_cc
+    print(f"\nadded worth (norm lc - norm cc): {added_lc_worth_norm:>15,.0f}")
+    
     replay_case_path = upsert_replay_case_definition(run_id=run_id, scenario=scenario)
     print(f"Replay edge-case definition updated in '{replay_case_path.name}' as REPLAY_CASES['REPLAY_{run_id}'].")
 
@@ -331,6 +335,7 @@ def main() -> None:
         "worth_cc":          this_life.worth_cc_history,
         "worth_norm_lc":     this_life.worth_norm_lc_history,
         "worth_norm_cc":     this_life.worth_norm_cc_history,
+        "added_lc_worth_norm":  [added_lc_worth_norm] * len(this_life.dates),
         "exp_al_cc":         this_life.exp_al_cc_history,
         "exp_cc":            this_life.exp_cc_history,
         "exp_lc":            this_life.exp_lc_history,

@@ -168,6 +168,9 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
     for item, cc_value, lc_value in table_rows:
         print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
     
+    added_lc_worth_norm = result.worth_norm_lc - result.worth_norm_cc
+    print(f"\nadded worth (norm lc - norm cc): {added_lc_worth_norm:>15,.0f}")
+    
     # Write monthly results to CSV
     df = pd.DataFrame({
         'date': pd.to_datetime(this_life.dates),
@@ -181,11 +184,12 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'exp_total_cc': this_life.exp_total_cc_history,
         'exp_norm_total_lc': this_life.exp_norm_total_lc,
         'exp_norm_total_cc': this_life.exp_norm_total_cc,
-        'worth_lc': this_life.worth_lc_history,
-        'worth_cc': this_life.worth_cc_history,
-        'worth_norm_lc': this_life.worth_norm_lc_history,
-        'worth_norm_cc': this_life.worth_norm_cc_history,
-        'exp_al_cc': this_life.exp_al_cc_history,
+         'worth_lc': this_life.worth_lc_history,
+         'worth_cc': this_life.worth_cc_history,
+         'worth_norm_lc': this_life.worth_norm_lc_history,
+         'worth_norm_cc': this_life.worth_norm_cc_history,
+         'added_lc_worth_norm': [result.worth_norm_lc - result.worth_norm_cc] * len(this_life.dates),
+         'exp_al_cc': this_life.exp_al_cc_history,
         'exp_cc': this_life.exp_cc_history,
         'exp_lc': this_life.exp_lc_history,
         'exp_non_taylor': this_life.exp_non_taylor_history,
