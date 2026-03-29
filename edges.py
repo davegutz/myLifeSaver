@@ -1,6 +1,7 @@
 from default_case import DEFAULT_SEED, MAN_DOB, START_CLOCK, WOMAN_DOB, load_default_case
 from Taylor import LhsScenario
 from utils import age
+from replay_case import REPLAY_CASES
 
 
 MAN_BASELINE_INDEPENDENT_YRS = 2./12.
@@ -92,6 +93,39 @@ def build_edge_case_scenarios(
 
     run_one_present_scenario_kwargs, _ = load_default_case("RUN_ONE_PRESENT")
     scenarios.append((f"RUN_ONE_PRESENT{rate_suffix}", LhsScenario(**run_one_present_scenario_kwargs)))
+
+    return scenarios
+
+
+def build_replay_case_scenarios() -> list[tuple[str, LhsScenario]]:
+    """Build replay scenarios once (not per ROI/CPI edge-case combination)."""
+    scenarios: list[tuple[str, LhsScenario]] = []
+
+    for replay_name, kwargs in REPLAY_CASES.items():
+        full_name = replay_name
+        scenario = LhsScenario(
+            man_independent_yrs=float(kwargs["man_independent_yrs"]),
+            woman_independent_yrs=float(kwargs["woman_independent_yrs"]),
+            man_assisted_yrs=float(kwargs["man_assisted_yrs"]),
+            woman_assisted_yrs=float(kwargs["woman_assisted_yrs"]),
+            roi_seed=int(kwargs["roi_seed"]),
+            inflation_seed=int(kwargs["inflation_seed"]),
+            roi_mean_shift=float(kwargs["roi_mean_shift"]),
+            roi_vol_multiplier=float(kwargs["roi_vol_multiplier"]),
+            roi_mean_reversion=float(kwargs["roi_mean_reversion"]),
+            inflation_mean_shift=float(kwargs["inflation_mean_shift"]),
+            inflation_vol_multiplier=float(kwargs["inflation_vol_multiplier"]),
+            inflation_mean_reversion=float(kwargs["inflation_mean_reversion"]),
+        )
+        print(f"  Replay case '{full_name}':")
+        print(
+            f"    ind_yrs=(man={float(kwargs['man_independent_yrs']):.3f}, "
+            f"woman={float(kwargs['woman_independent_yrs']):.3f})  "
+            f"ast_yrs=(man={float(kwargs['man_assisted_yrs']):.3f}, "
+            f"woman={float(kwargs['woman_assisted_yrs']):.3f})  "
+            f"seeds=(roi={int(kwargs['roi_seed'])}, inf={int(kwargs['inflation_seed'])})"
+        )
+        scenarios.append((full_name, scenario))
 
     return scenarios
 

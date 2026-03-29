@@ -18,7 +18,7 @@ from default_case import (
     WOMAN_DOB,
     apy_percent_to_monthly_fraction,
 )
-from edges import build_edge_case_scenarios, format_apy_suffix
+from edges import build_edge_case_scenarios, build_replay_case_scenarios, format_apy_suffix
 from Inflation import plot_inflation_views
 from Roi import TICKER, plot_projection_views
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
@@ -312,6 +312,23 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
                 ordered_row = {column: row[column] for column in CSV_COLUMNS}
                 print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
                 rows.append(ordered_row)
+
+    # Process replay cases once, outside the ROI × CPI edge-case matrix loop.
+    replay_cases = build_replay_case_scenarios()
+    for case_name, scenario in replay_cases:
+        model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
+        row = asdict(
+            summarize_lhs_run(
+                run_id=case_name,
+                scenario=scenario,
+                model=model,
+                result=result,
+                context=context,
+            )
+        )
+        ordered_row = {column: row[column] for column in CSV_COLUMNS}
+        print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
+        rows.append(ordered_row)
 
 
     frame = pd.DataFrame(rows, columns=CSV_COLUMNS)

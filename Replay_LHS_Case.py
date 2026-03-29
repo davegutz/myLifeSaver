@@ -13,9 +13,12 @@ Usage:
 """
 
 import argparse
+import ast
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from pathlib import Path
+import re
 from Inflation import plot_inflation_views
 from Roi import plot_projection_views
 from Taylor import LhsScenario, ScenarioRunContext
@@ -23,6 +26,21 @@ from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
 # Default path written by Run_LHS_Taylor.py
 DEFAULT_LHS_CSV = "lhs_taylor_results.csv"
+REPLAY_CASE_FILE = Path(__file__).with_name("replay_case.py")
+REPLAY_FIELD_ORDER = [
+    "man_independent_yrs",
+    "woman_independent_yrs",
+    "man_assisted_yrs",
+    "woman_assisted_yrs",
+    "roi_seed",
+    "inflation_seed",
+    "roi_mean_shift",
+    "roi_vol_multiplier",
+    "roi_mean_reversion",
+    "inflation_mean_shift",
+    "inflation_vol_multiplier",
+    "inflation_mean_reversion",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -146,6 +164,51 @@ def realized_monthly_rate(path, fallback: float) -> float:
     return float(growth ** (1.0 / months) - 1.0)
 
 
+def _format_replay_case_block(case_name: str, scenario: LhsScenario) -> str:
+    lines = [f'    "{case_name}": {{']
+    for key in REPLAY_FIELD_ORDER:
+        value = getattr(scenario, key)
+        if isinstance(value, int):
+            value_text = str(value)
+        else:
+            value_text = repr(float(value))
+        lines.append(f'        "{key}": {value_text},')
+    lines.append("    },")
+    return "\n".join(lines)
+
+
+def upsert_replay_case_definition(run_id: int, scenario: LhsScenario) -> Path:
+    """Insert REPLAY_CASES['REPLAY_<run_id>'] at the bottom of replay_case.py."""
+    case_name = f"REPLAY_{run_id}"
+    file_path = REPLAY_CASE_FILE
+    if not file_path.exists():
+        raise FileNotFoundError(f"Expected replay case file not found: '{file_path}'")
+
+    content = file_path.read_text(encoding="utf-8")
+    block = _format_replay_case_block(case_name, scenario)
+
+    entry_pattern = re.compile(
+        rf'(^\s*"{re.escape(case_name)}"\s*:\s*\{{\n(?:.*\n)*?^\s*\}},\n?)',
+        flags=re.MULTILINE,
+    )
+    # Remove existing entry (if any), then always append the refreshed block at the end.
+    content_wo_entry = entry_pattern.sub("", content)
+    marker = "REPLAY_CASES: dict[str, dict[str, float | int]] = {"
+    marker_index = content_wo_entry.find(marker)
+    if marker_index == -1:
+        raise ValueError("Could not find REPLAY_CASES dictionary in replay_case.py")
+    close_index = content_wo_entry.find("\n}", marker_index)
+    if close_index == -1:
+        raise ValueError("Could not find REPLAY_CASES closing brace in replay_case.py")
+    insertion = ("\n" if content_wo_entry[close_index - 1] != "\n" else "") + block + "\n"
+    updated = content_wo_entry[:close_index] + insertion + content_wo_entry[close_index:]
+
+    # Validate generated Python before writing.
+    ast.parse(updated)
+    file_path.write_text(updated, encoding="utf-8")
+    return file_path
+
+
 def main() -> None:
     args = parse_args()
 
@@ -231,6 +294,7 @@ def main() -> None:
         ("grand total expenses",     grand_total_cc,       grand_total_lc),
         ("total returns",            total_returns_cc,     total_returns_lc),
         ("final worth",              worth_cc,             worth_lc),
+        ("final worth_norm",         result.worth_norm_cc, result.worth_norm_lc),
     ]
 
     print(f"\n{'item':<28}{'cc':>15}{'lc':>15}")
@@ -240,6 +304,8 @@ def main() -> None:
     print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
     for item, cc_value, lc_value in table_rows:
         print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
+    replay_case_path = upsert_replay_case_definition(run_id=run_id, scenario=scenario)
+    print(f"Replay edge-case definition updated in '{replay_case_path.name}' as REPLAY_CASES['REPLAY_{run_id}'].")
 
     # Write monthly CSV alongside the run
     out_csv = f"replay_lhs_case_monthly_{run_id}.csv"
