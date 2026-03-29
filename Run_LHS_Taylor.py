@@ -51,7 +51,7 @@ ROI_MEAN_REVERSION_RANGE = (0.0, 0.5)
 INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
 INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
 INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
-DEFAULT_LHS_POINTS = 200
+DEFAULT_LHS_POINTS = 2
 PLOT_EDGE_CASES_IN_LHS_PLOT = True
 EDGE_CASE_ROI_APY_PERCENTS = [6.0, 12.0]  # Fixed ROI rates (APY %) for edge case matrix
 EDGE_CASE_CPI_APY_PERCENTS = [0.0, 2.0, 6.0]  # Fixed CPI rates (APY %) for edge case matrix
@@ -570,7 +570,6 @@ def plot_added_lc_worth_norm_edge_case_subplots(
 ) -> None:
     """Plot added_lc_worth_norm edge cases as subplots by ROI/CPI combination."""
     from matplotlib.colors import LinearSegmentedColormap, Normalize
-    from matplotlib.lines import Line2D
 
     # Only use generated edge-case rows for Figures 5/6 (exclude replay string run_ids).
     edge_results = results[
@@ -701,27 +700,6 @@ def main() -> None:
             f"Worth LC range: {results['worth_lc'].min():,.0f} to {results['worth_lc'].max():,.0f}\n"
             f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
-        plot_lhs_summary(
-            results,
-            include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
-            roi_apy_percents=EDGE_CASE_ROI_APY_PERCENTS,
-            cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
-            show=False,
-        )
-        plot_edge_case_subplots(
-            results,
-            EDGE_CASE_ROI_APY_PERCENTS,
-            EDGE_CASE_CPI_APY_PERCENTS,
-            shared_y_scale=True,
-            show=False,
-        )
-        plot_edge_case_subplots(
-            results,
-            EDGE_CASE_ROI_APY_PERCENTS,
-            EDGE_CASE_CPI_APY_PERCENTS,
-            shared_y_scale=False,
-            show=False,
-        )
         plot_added_lc_worth_norm_summary(
             results,
             include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
@@ -729,6 +707,13 @@ def main() -> None:
             cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
             show=False,
         )
+        plot_lhs_summary(
+            results,
+            include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
+            roi_apy_percents=EDGE_CASE_ROI_APY_PERCENTS,
+            cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
+            show=False,
+        )
         plot_added_lc_worth_norm_edge_case_subplots(
             results,
             EDGE_CASE_ROI_APY_PERCENTS,
@@ -737,6 +722,20 @@ def main() -> None:
             show=False,
         )
         plot_added_lc_worth_norm_edge_case_subplots(
+            results,
+            EDGE_CASE_ROI_APY_PERCENTS,
+            EDGE_CASE_CPI_APY_PERCENTS,
+            shared_y_scale=False,
+            show=False,
+        )
+        plot_edge_case_subplots(
+            results,
+            EDGE_CASE_ROI_APY_PERCENTS,
+            EDGE_CASE_CPI_APY_PERCENTS,
+            shared_y_scale=True,
+            show=False,
+        )
+        plot_edge_case_subplots(
             results,
             EDGE_CASE_ROI_APY_PERCENTS,
             EDGE_CASE_CPI_APY_PERCENTS,
