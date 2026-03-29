@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import asdict
 import matplotlib.pyplot as plt
 import pandas as pd
 from Inflation import plot_inflation_views
@@ -6,12 +7,25 @@ from Roi import TICKER, plot_projection_views
 from Taylor import LhsScenario, ScenarioRunContext
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
+    CONSTANT_MONTHLY_CPI,
+    CONSTANT_MONTHLY_ROI,
     DEFAULT_CURRENT_DATE,
     DEFAULT_SEED,
     HISTORY_YEARS,
+    INFLATION_MEAN_REVERSION,
+    INFLATION_MEAN_SHIFT,
+    INFLATION_VOL_MULTIPLIER,
+    MAN_ASSISTED_YRS,
     MAN_DOB,
+    MAN_INDEPENDENT_YRS,
+    ROI_MEAN_REVERSION,
+    ROI_MEAN_SHIFT,
+    ROI_VOL_MULTIPLIER,
     START_CLOCK,
+    WOMAN_ASSISTED_YRS,
     WOMAN_DOB,
+    WOMAN_INDEPENDENT_YRS,
+    apy_percent_to_monthly_fraction,
     load_default_case,
 )
 from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
@@ -35,25 +49,37 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_run_one_inputs(args: argparse.Namespace) -> tuple[str | None, LhsScenario, ScenarioRunContext]:
-    active_case_name = RUN_ONE_CASE_NAME
-    scenario_kwargs: dict[str, object] = {}
-    context_kwargs: dict[str, object] = {
-        "history_years": HISTORY_YEARS,
-        "al_cum_running_avg_yrs": AL_ESC_RUNNING_AVG_YRS,
-        "start_clock": START_CLOCK,
-        "man_dob": MAN_DOB,
-        "woman_dob": WOMAN_DOB,
-    }
-    if active_case_name is not None:
-        case_scenario_kwargs, case_context_kwargs = load_default_case(active_case_name)
-        scenario_kwargs.update(case_scenario_kwargs)
-        context_kwargs.update(case_context_kwargs)
-    scenario_kwargs["roi_seed"] = args.seed
-    scenario_kwargs["inflation_seed"] = args.seed
-    context_kwargs["ticker"] = args.ticker
-    context_kwargs["current_date"] = pd.Timestamp(args.current_date).normalize()
-    return active_case_name, LhsScenario(**scenario_kwargs), ScenarioRunContext(**context_kwargs)
+def merge_run_config(*configs: dict[str, dict[str, object]] | None) -> dict[str, dict[str, object]]:
+    merged: dict[str, dict[str, object]] = {"scenario": {}, "context": {}}
+    for config in configs:
+        if config is None:
+            continue
+        for section in ("scenario", "context"):
+            merged[section].update(config.get(section, {}))
+    return merged
+
+
+def normalize_run_one_inputs(run_config: dict[str, dict[str, object]]) -> tuple[LhsScenario, ScenarioRunContext]:
+    scenario_kwargs = dict(run_config.get("scenario", {}))
+    context_kwargs = dict(run_config.get("context", {}))
+
+    def normalize_constant_rate(key: str) -> None:
+        raw = context_kwargs.get(key)
+        if raw is None:
+            return
+        value = float(raw)
+        if abs(value) > 1.0:
+            monthly = apy_percent_to_monthly_fraction(value)
+            print(f"Interpreting {key}={value} as APY percent; using monthly fraction {monthly:.8f}")
+            context_kwargs[key] = monthly
+        else:
+            context_kwargs[key] = value
+
+    normalize_constant_rate("constant_monthly_roi")
+    normalize_constant_rate("constant_monthly_cpi")
+    if "current_date" in context_kwargs and context_kwargs["current_date"] is not None:
+        context_kwargs["current_date"] = pd.Timestamp(context_kwargs["current_date"]).normalize()
+    return LhsScenario(**scenario_kwargs), ScenarioRunContext(**context_kwargs)
 
 
 def monthly_rate_to_apy(monthly_rate: float) -> float:
@@ -70,12 +96,14 @@ def realized_monthly_rate(path, fallback: float) -> float:
     return float(growth ** (1.0 / months) - 1.0)
 
 
-def main() -> None:
-    args = parse_args()
-    active_case_name, scenario, context = build_run_one_inputs(args)
+def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | None = None) -> None:
+    scenario, context = normalize_run_one_inputs(run_config)
     current_date = pd.Timestamp(context.current_date).normalize()
     if active_case_name is not None:
         print(f"Using default case '{active_case_name}' from default_case.py")
+    print("Resolved run_one inputs:")
+    print(f"  scenario: {asdict(scenario)}")
+    print(f"  context:  {asdict(context)}")
     this_life, result = evaluate_lhs_scenario(scenario=scenario, context=context)
     roi = this_life.roi
     cpi = this_life.cpi
@@ -91,7 +119,7 @@ def main() -> None:
     annualized_mean = monthly_rate_to_apy(effective_monthly_roi)
     annualized_mean_cpi = monthly_rate_to_apy(effective_monthly_cpi)
     print(
-        f"Ticker: {args.ticker}\n"
+        f"Ticker: {context.ticker}\n"
         f"Effective APY return: {annualized_mean:.2%}\n"
         f"Monthly volatility: {roi.monthly_volatility:.2%}\n"
         f"ROI seed: {scenario.roi_seed}\n"
@@ -170,6 +198,69 @@ def main() -> None:
     plot_inflation_views(inflation_frame, cpi, show=False)
     plot_taylor_life_exp_non_taylor(this_life, show=False)
     plt.show()
+
+
+def main() -> None:
+    args = parse_args()
+    active_case_name = RUN_ONE_CASE_NAME
+    base_run_config = {
+        "scenario": {
+            "man_independent_yrs": MAN_INDEPENDENT_YRS,
+            "woman_independent_yrs": WOMAN_INDEPENDENT_YRS,
+            "man_assisted_yrs": MAN_ASSISTED_YRS,
+            "woman_assisted_yrs": WOMAN_ASSISTED_YRS,
+            "roi_seed": args.seed,
+            "inflation_seed": args.seed,
+            "roi_mean_shift": ROI_MEAN_SHIFT,
+            "roi_vol_multiplier": ROI_VOL_MULTIPLIER,
+            "roi_mean_reversion": ROI_MEAN_REVERSION,
+            "inflation_mean_shift": INFLATION_MEAN_SHIFT,
+            "inflation_vol_multiplier": INFLATION_VOL_MULTIPLIER,
+            "inflation_mean_reversion": INFLATION_MEAN_REVERSION,
+        },
+        "context": {
+            "ticker": args.ticker,
+            "current_date": args.current_date,
+            "history_years": HISTORY_YEARS,
+            "al_cum_running_avg_yrs": AL_ESC_RUNNING_AVG_YRS,
+            "start_clock": START_CLOCK,
+            "man_dob": MAN_DOB,
+            "woman_dob": WOMAN_DOB,
+            "constant_monthly_roi": CONSTANT_MONTHLY_ROI,
+            "constant_monthly_cpi": CONSTANT_MONTHLY_CPI,
+        },
+    }
+    case_run_config = None
+    if active_case_name is not None:
+        case_scenario_kwargs, case_context_kwargs = load_default_case(active_case_name)
+        case_run_config = {
+            "scenario": case_scenario_kwargs,
+            "context": case_context_kwargs,
+        }
+
+    # Hand-edit these local overrides as your normal workflow.
+    # Precedence is: base defaults -> named default case -> local overrides.
+    local_run_overrides = {
+        "scenario": {
+            "man_independent_yrs": 10.0,
+            "woman_independent_yrs": 10.0,
+            "man_assisted_yrs": 5.,
+            "woman_assisted_yrs": 5.,
+            # "roi_seed": 0,
+            # "inflation_seed": 0,
+            # "roi_mean_shift": 10.0,
+            # "inflation_mean_shift": 5.0,
+        },
+        "context": {
+            # "ticker": "SPY",
+            # "current_date": "2026-03-27",
+            "constant_monthly_roi": 10.,
+            "constant_monthly_cpi": 5.,
+        },
+    }
+
+    run_config = merge_run_config(base_run_config, case_run_config, local_run_overrides)
+    run_one(run_config=run_config, active_case_name=active_case_name)
 
 
 if __name__ == "__main__":

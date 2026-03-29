@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from default_case import (
-    AL_AND_LC_INFLATION_FACTOR,
+    AL_INFLATION_FACTOR,
     AL_CC_1,
     AL_CC_2,
     AL_ESC_RUNNING_AVG_YRS,
@@ -20,6 +20,7 @@ from default_case import (
     INFLATION_VOL_MULTIPLIER,
     LC_1,
     LC_2,
+    LC_INFLATION_FACTOR,
     MAN_ASSISTED_YRS,
     MAN_DOB,
     MAN_INDEPENDENT_YRS,
@@ -348,7 +349,7 @@ class TaylorLife:
             self.initial_al_cc_1,
             self.num_al_2,
             self.num_al_1,
-            inflation_factor=AL_AND_LC_INFLATION_FACTOR,
+            inflation_factor=AL_INFLATION_FACTOR,
         )
         self.exp_cc_history = self.build_expense_history(
             self.initial_cc_2,
@@ -361,7 +362,7 @@ class TaylorLife:
             self.initial_lc_1,
             self.num_il_2,
             self.num_il_1,
-            inflation_factor=AL_AND_LC_INFLATION_FACTOR,
+            inflation_factor=LC_INFLATION_FACTOR,
         )
         self.exp_non_taylor_history = self.build_expense_history(
             self.initial_non_taylor_2,

@@ -27,11 +27,12 @@ LC_1 = 8100.0
 LC_2 = 9600.0 / 2.0
 CONSTANT_ROI_APY_PERCENT = 10.0
 CONSTANT_CPI_APY_PERCENT = 5.0
-# CONSTANT_MONTHLY_ROI: float | None = apy_percent_to_monthly_fraction(CONSTANT_ROI_APY_PERCENT)
-# CONSTANT_MONTHLY_CPI: float | None = apy_percent_to_monthly_fraction(CONSTANT_CPI_APY_PERCENT)
-CONSTANT_MONTHLY_ROI: float | None = None  # Fraction per month
-CONSTANT_MONTHLY_CPI: float | None = None  # Fraction per month
-AL_AND_LC_INFLATION_FACTOR = 2.0  # LTC escalates at 2x inflation
+CONSTANT_MONTHLY_ROI: float | None = apy_percent_to_monthly_fraction(CONSTANT_ROI_APY_PERCENT)
+CONSTANT_MONTHLY_CPI: float | None = apy_percent_to_monthly_fraction(CONSTANT_CPI_APY_PERCENT)
+# CONSTANT_MONTHLY_ROI: float | None = None  # Fraction per month
+# CONSTANT_MONTHLY_CPI: float | None = None  # Fraction per month
+AL_INFLATION_FACTOR = 2.0  # AL escalates at 2x inflation
+LC_INFLATION_FACTOR = 1.5  # LC escalates at 1.5x inflation
 
 # To be varied
 MAN_INDEPENDENT_YRS = 10.
