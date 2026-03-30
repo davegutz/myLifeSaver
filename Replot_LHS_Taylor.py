@@ -18,6 +18,8 @@ import pandas as pd
 from Run_LHS_Taylor import (
     EDGE_CASE_CPI_APY_PERCENTS,
     EDGE_CASE_ROI_APY_PERCENTS,
+    PLOT_MAIN_TITLE,
+    add_lifecare_reference_line,
     plot_edge_case_subplots,
     plot_lhs_summary,
 )
@@ -96,7 +98,50 @@ def main() -> None:
     print(f"  CPI APY grid:  {cpi_apys}")
     print("Generating plots ...")
 
-    # Figure 1 – added worth (normalized) vs life structure params (3×1 subplots)
+    # Figure 1 – added_lc_worth_norm vs yrs_sum_al (stochastic rows only, no edge cases)
+    lhs_only = results[results["run_id"].apply(lambda v: isinstance(v, int))]
+    fig1, ax1 = plt.subplots(figsize=(12, 7))
+    if not lhs_only.empty:
+        x_vals = lhs_only["yrs_sum_al"].to_numpy(dtype=float)
+        y_vals = lhs_only["added_lc_worth_norm"].to_numpy(dtype=float)
+        positive_mask = y_vals > 0.0
+        non_positive_mask = ~positive_mask
+        if non_positive_mask.any():
+            ax1.scatter(
+                x_vals[non_positive_mask],
+                y_vals[non_positive_mask],
+                alpha=0.8,
+                color="red",
+                marker="x",
+                s=18,
+                label="stochastic LHS (<= 0)",
+            )
+        if positive_mask.any():
+            ax1.scatter(
+                x_vals[positive_mask],
+                y_vals[positive_mask],
+                alpha=0.8,
+                color="black",
+                marker="x",
+                s=18,
+                label="stochastic LHS (> 0)",
+            )
+        ax1.legend(loc="best", fontsize=9)
+    ax1.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
+    ax1.set_ylabel("Added Worth (normalized to 2026 dollars)")
+    ax1.set_title(PLOT_MAIN_TITLE, fontweight="bold", pad=20)
+    ax1.text(
+        0.5,
+        1.01,
+        "Added Worth (normalized) vs yrs_sum_al (No Edge Cases)",
+        transform=ax1.transAxes,
+        ha="center",
+        va="bottom",
+    )
+    ax1.grid(True, alpha=0.3)
+    add_lifecare_reference_line(ax1)
+
+    # Figure 2 – added worth (normalized) vs life structure params (3×1 subplots)
     plot_lhs_summary(
         results,
         include_edge_cases=include_edge,
@@ -105,7 +150,7 @@ def main() -> None:
         show=False,
     )
 
-    # Figure 2 – added worth (normalized) edge-case subplots, shared y-scale
+    # Figure 3 – added worth (normalized) edge-case subplots, shared y-scale
     plot_edge_case_subplots(
         results,
         roi_apys,
@@ -114,7 +159,7 @@ def main() -> None:
         show=False,
     )
 
-    # Figure 3 – added worth (normalized) edge-case subplots, free y-scale
+    # Figure 4 – added worth (normalized) edge-case subplots, free y-scale
     plot_edge_case_subplots(
         results,
         roi_apys,

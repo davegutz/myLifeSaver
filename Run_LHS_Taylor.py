@@ -57,6 +57,7 @@ EDGE_CASE_ROI_APY_PERCENTS = [6.0, 12.0]  # Fixed ROI rates (APY %) for edge cas
 EDGE_CASE_CPI_APY_PERCENTS = [0.0, 2.0, 6.0]  # Fixed CPI rates (APY %) for edge case matrix
 # EDGE_CASE_ROI_APY_PERCENTS = [10.0]  # Fixed ROI rates (APY %) for edge case matrix
 # EDGE_CASE_CPI_APY_PERCENTS = [5.0]  # Fixed CPI rates (APY %) for edge case matrix
+PLOT_MAIN_TITLE = "Taylor Community Lifecare / Continuing Care Decision,  2026 for Katherine and David Gutz"
 
 CSV_COLUMNS = [
     "run_id",
@@ -142,6 +143,25 @@ def format_screen_cell(value: object, width: int) -> str:
 
 def print_screen_row(row: dict[str, object], columns: list[str], widths: dict[str, int]) -> None:
     print(" ".join(format_screen_cell(row[column], widths[column]) for column in columns))
+
+
+def add_lifecare_reference_line(axis: plt.Axes) -> None:
+    """Add a bold y=0 reference line and a label just above it."""
+    axis.axhline(0.0, color="black", linewidth=3.0, alpha=0.95, zorder=0)
+    x_min, x_max = axis.get_xlim()
+    y_min, y_max = axis.get_ylim()
+    x_text = x_min + 0.02 * (x_max - x_min)
+    y_text = 0.0 + 0.02 * (y_max - y_min)
+    axis.text(
+        x_text,
+        y_text,
+        "Lifecare better",
+        color="black",
+        fontsize=10,
+        fontweight="bold",
+        va="bottom",
+        ha="left",
+    )
 
 
 
@@ -372,7 +392,10 @@ def plot_edge_case_subplots(
         constrained_layout=True,
     )
     suffix = "(Shared Y-Scale)" if shared_y_scale else "(Free Axis Scale)"
-    figure.suptitle(f"Edge Cases: Added Worth (normalized) {suffix}", fontsize=14)
+    figure.suptitle(
+        f"{PLOT_MAIN_TITLE}\nEdge Cases: Added Worth (normalized) {suffix}",
+        fontsize=14,
+    )
 
     cmap = LinearSegmentedColormap.from_list("bright_rg", ["#ff0000", "#00ff00"])
     independent_all = edge_results["man_independent_yrs"] + edge_results["woman_independent_yrs"]
@@ -411,12 +434,13 @@ def plot_edge_case_subplots(
                     alpha=0.85,
                     s=50,
                 )
-            ax.set_xlabel("yrs_sum_al")
-            ax.set_ylabel("Added Worth (normalized)")
+            ax.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
+            ax.set_ylabel("Added Worth (normalized to 2026 dollars)")
             ax.set_title(f"ROI={roi_apy:.3g}%  CPI={cpi_apy:.3g}%")
             if shared_y_scale:
                 ax.set_ylim(y_min, y_max)
             ax.grid(True, alpha=0.3)
+            add_lifecare_reference_line(ax)
 
     if mappable is not None:
         figure.colorbar(mappable, ax=axes.ravel().tolist(), label="combined independent years")
@@ -440,13 +464,16 @@ def plot_lhs_summary(
 
     # Three subplots (3×1): each uses a different x-axis variable.
     x_configs = [
-        ("yrs_sum_al",    "yrs_sum_al (man + woman AL years)",       "Added Worth (normalized) vs Sum of AL Years"),
+        ("yrs_sum_al",    "Sum of Assisted Living Years: yrs_sum_al (Years)",       "Added Worth (normalized) vs Sum of AL Years"),
         ("yrs_il_single", "yrs_il_single (years exactly one in IL)", "Added Worth (normalized) vs Years Single in IL"),
         ("yrs_il_double", "yrs_il_double (years both in IL)",        "Added Worth (normalized) vs Years Both in IL"),
     ]
 
     figure, axes = plt.subplots(3, 1, figsize=(12, 18), constrained_layout=True)
-    figure.suptitle("Added Worth (normalized) vs Life Structure Parameters", fontsize=14)
+    figure.suptitle(
+        f"{PLOT_MAIN_TITLE}\nAdded Worth (normalized) vs Life Structure Parameters",
+        fontsize=14,
+    )
 
     cmap = LinearSegmentedColormap.from_list("bright_rg", ["#ff0000", "#00ff00"])
     norm = None
@@ -478,9 +505,10 @@ def plot_lhs_summary(
         handles, _ = ax.get_legend_handles_labels()
         ax.legend(handles=handles, loc="best", fontsize=9)
         ax.set_xlabel(x_label)
-        ax.set_ylabel("Added Worth (normalized)")
+        ax.set_ylabel("Added Worth (normalized to 2026 dollars)")
         ax.set_title(title)
         ax.grid(True, alpha=0.3)
+        add_lifecare_reference_line(ax)
 
     if mappable is not None:
         figure.colorbar(mappable, ax=axes.tolist(), label="combined independent years")
@@ -543,21 +571,64 @@ def main() -> None:
             f"Worth LC range: {results['worth_lc'].min():,.0f} to {results['worth_lc'].max():,.0f}\n"
             f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
-        plot_lhs_summary(                                  # Figure 1 – 3×1 overview
+        # Figure 1 – added_lc_worth_norm vs yrs_sum_al (stochastic rows only, no edge cases)
+        lhs_only = results[results["run_id"].apply(lambda v: not isinstance(v, str))]
+        fig1, ax1 = plt.subplots(figsize=(12, 7))
+        if not lhs_only.empty:
+            x_vals = lhs_only["yrs_sum_al"].to_numpy(dtype=float)
+            y_vals = lhs_only["added_lc_worth_norm"].to_numpy(dtype=float)
+            positive_mask = y_vals > 0.0
+            non_positive_mask = ~positive_mask
+            if np.any(non_positive_mask):
+                ax1.scatter(
+                    x_vals[non_positive_mask],
+                    y_vals[non_positive_mask],
+                    alpha=0.8,
+                    color="red",
+                    marker="x",
+                    s=18,
+                    label="stochastic LHS (<= 0)",
+                )
+            if np.any(positive_mask):
+                ax1.scatter(
+                    x_vals[positive_mask],
+                    y_vals[positive_mask],
+                    alpha=0.8,
+                    color="black",
+                    marker="x",
+                    s=18,
+                    label="stochastic LHS (> 0)",
+                )
+            ax1.legend(loc="best", fontsize=9)
+        ax1.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
+        ax1.set_ylabel("Added Worth (normalized to 2026 dollars)")
+        ax1.set_title(PLOT_MAIN_TITLE, fontweight="bold", pad=20)
+        ax1.text(
+            0.5,
+            1.01,
+            "Added Worth (normalized) vs yrs_sum_al (No Edge Cases)",
+            transform=ax1.transAxes,
+            ha="center",
+            va="bottom",
+        )
+        ax1.grid(True, alpha=0.3)
+        add_lifecare_reference_line(ax1)
+
+        plot_lhs_summary(                                  # Figure 2 – 3×1 overview
             results,
             include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
             roi_apy_percents=EDGE_CASE_ROI_APY_PERCENTS,
             cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
             show=False,
         )
-        plot_edge_case_subplots(                           # Figure 2 – edge cases, shared y
+        plot_edge_case_subplots(                           # Figure 3 – edge cases, shared y
             results,
             EDGE_CASE_ROI_APY_PERCENTS,
             EDGE_CASE_CPI_APY_PERCENTS,
             shared_y_scale=True,
             show=False,
         )
-        plot_edge_case_subplots(                           # Figure 3 – edge cases, free y
+        plot_edge_case_subplots(                           # Figure 4 – edge cases, free y
             results,
             EDGE_CASE_ROI_APY_PERCENTS,
             EDGE_CASE_CPI_APY_PERCENTS,
