@@ -246,20 +246,20 @@ def main() -> None:
     # Precedence is: base defaults -> named default case -> local overrides.
     local_run_overrides = {
         "scenario": {
-            "man_independent_yrs": 10.0,
-            "woman_independent_yrs": 10.0,
-            "man_assisted_yrs": 5.,
-            "woman_assisted_yrs": 5.,
-            # "roi_seed": 0,
-            # "inflation_seed": 0,
-            # "roi_mean_shift": 10.0,
-            # "inflation_mean_shift": 5.0,
+            "man_independent_yrs": 9.2,
+            "woman_independent_yrs": 4.8,
+            "man_assisted_yrs": 4.5,
+            "woman_assisted_yrs": 5.5,
+            "roi_seed": 740264,
+            "inflation_seed": 898910,
+            "roi_mean_shift": 0.0080464851559136,
+            "inflation_mean_shift": -0.00459579542225717,
         },
         "context": {
-            # "ticker": "SPY",
-            # "current_date": "2026-03-27",
-            "constant_monthly_roi": 10.,
-            "constant_monthly_cpi": 5.,
+            "ticker": "SPY",
+            "current_date": "2026-03-29",
+            "constant_monthly_roi": None,  # was 10. — None → stochastic
+            "constant_monthly_cpi": None,  # was  5. — None → stochas
         },
     }
 
