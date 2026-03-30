@@ -60,6 +60,10 @@ EDGE_CASE_CPI_APY_PERCENTS = [0.0, 2.0, 6.0]  # Fixed CPI rates (APY %) for edge
 
 CSV_COLUMNS = [
     "run_id",
+    "yrs_il_single",          # col 2 – years exactly one person in independent living
+    "yrs_il_double",          # col 3 – years both people in independent living
+    "yrs_sum_al",             # col 4 – man_assisted_yrs + woman_assisted_yrs
+    "added_lc_worth_norm",    # col 5
     "man_independent_yrs",
     "woman_independent_yrs",
     "man_assisted_yrs",
@@ -90,7 +94,6 @@ CSV_COLUMNS = [
     "earn_norm_lc",
     "worth_lc",
     "worth_norm_lc",
-    "added_lc_worth_norm",
     "worth_cc",
     "worth_norm_cc",
     # Context constants from this run
@@ -258,6 +261,9 @@ def summarize_lhs_run(
         worth_cc=result.worth_cc,
         worth_norm_cc=result.worth_norm_cc,
         added_lc_worth_norm=result.worth_norm_lc - result.worth_norm_cc,
+        yrs_il_double=min(scenario.man_independent_yrs, scenario.woman_independent_yrs),
+        yrs_il_single=abs(scenario.man_independent_yrs - scenario.woman_independent_yrs),
+        yrs_sum_al=scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
         # Context constants
         ticker=context.ticker,
         current_date=str(context.current_date),
@@ -346,7 +352,6 @@ def plot_edge_case_subplots(
     show: bool = True,
 ) -> None:
     from matplotlib.colors import LinearSegmentedColormap, Normalize
-    from matplotlib.lines import Line2D
 
     # Only use generated edge-case rows for Figures 2/3 (exclude replay string run_ids).
     edge_results = results[
@@ -355,7 +360,6 @@ def plot_edge_case_subplots(
     if edge_results.empty:
         return
 
-    # Subplot shape automatically follows the configured ROI/CPI grids (2x2, 2x3, etc.).
     n_roi = len(roi_apy_percents)
     n_cpi = len(cpi_apy_percents)
     if n_roi == 0 or n_cpi == 0:
@@ -368,9 +372,8 @@ def plot_edge_case_subplots(
         constrained_layout=True,
     )
     suffix = "(Shared Y-Scale)" if shared_y_scale else "(Free Axis Scale)"
-    figure.suptitle(f"Edge Cases: Normalized Worth vs Combined Assisted Years {suffix}", fontsize=14)
+    figure.suptitle(f"Edge Cases: Added Worth (normalized) {suffix}", fontsize=14)
 
-    # Color encodes combined independent years (red=lower, green=higher).
     cmap = LinearSegmentedColormap.from_list("bright_rg", ["#ff0000", "#00ff00"])
     independent_all = edge_results["man_independent_yrs"] + edge_results["woman_independent_yrs"]
     norm = Normalize(vmin=float(independent_all.min()), vmax=float(independent_all.max()))
@@ -378,11 +381,8 @@ def plot_edge_case_subplots(
     y_min = 0.0
     y_max = 0.0
     if shared_y_scale:
-        # Force a shared y-range across all panels for direct visual comparison.
-        y_all = np.concatenate([
-            edge_results["worth_norm_lc"].to_numpy(dtype=float),
-            edge_results["worth_norm_cc"].to_numpy(dtype=float),
-        ])
+        # Use the full results range so Figure 2's y-scale matches Figure 1.
+        y_all = results["added_lc_worth_norm"].to_numpy(dtype=float)
         y_min = float(np.nanmin(y_all))
         y_max = float(np.nanmax(y_all))
         if math.isclose(y_min, y_max):
@@ -390,25 +390,20 @@ def plot_edge_case_subplots(
             y_min -= pad
             y_max += pad
 
-    style_handles = [
-        Line2D([0], [0], marker="o", color="gray", linestyle="None", markersize=7, label="lc"),
-        Line2D([0], [0], marker="^", color="gray", linestyle="None", markersize=7, label="cc"),
-    ]
-
     mappable = None
     for row_idx, roi_apy in enumerate(roi_apy_percents):
         for col_idx, cpi_apy in enumerate(cpi_apy_percents):
             ax = axes[row_idx, col_idx]
-            suffix = f"_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
+            ec_suffix = f"_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
             combo_rows = edge_results[
-                edge_results["run_id"].apply(lambda v, s=suffix: isinstance(v, str) and v.endswith(s))
+                edge_results["run_id"].apply(lambda v, s=ec_suffix: isinstance(v, str) and v.endswith(s))
             ]
             if not combo_rows.empty:
                 assisted_total = combo_rows["man_assisted_yrs"] + combo_rows["woman_assisted_yrs"]
                 independent_total = combo_rows["man_independent_yrs"] + combo_rows["woman_independent_yrs"]
                 mappable = ax.scatter(
                     assisted_total,
-                    combo_rows["worth_norm_lc"],
+                    combo_rows["added_lc_worth_norm"],
                     c=independent_total,
                     cmap=cmap,
                     norm=norm,
@@ -416,29 +411,19 @@ def plot_edge_case_subplots(
                     alpha=0.85,
                     s=50,
                 )
-                ax.scatter(
-                    assisted_total,
-                    combo_rows["worth_norm_cc"],
-                    c=independent_total,
-                    cmap=cmap,
-                    norm=norm,
-                    marker="^",
-                    alpha=0.55,
-                    s=50,
-                )
-            ax.set_xlabel("man_assisted_yrs + woman_assisted_yrs")
-            ax.set_ylabel("Worth (normalized)")
+            ax.set_xlabel("yrs_sum_al")
+            ax.set_ylabel("Added Worth (normalized)")
             ax.set_title(f"ROI={roi_apy:.3g}%  CPI={cpi_apy:.3g}%")
             if shared_y_scale:
                 ax.set_ylim(y_min, y_max)
             ax.grid(True, alpha=0.3)
-            ax.legend(handles=style_handles, loc="best", fontsize=7)
 
     if mappable is not None:
         figure.colorbar(mappable, ax=axes.ravel().tolist(), label="combined independent years")
 
     if show:
         plt.show()
+
 
 
 def plot_lhs_summary(
@@ -449,199 +434,57 @@ def plot_lhs_summary(
     show: bool = True,
 ) -> None:
     from matplotlib.colors import LinearSegmentedColormap, Normalize
-    from matplotlib.lines import Line2D
 
     lhs_rows = results[results["run_id"].apply(lambda v: not isinstance(v, str))]
     edge_rows = results[results["run_id"].apply(lambda v: isinstance(v, str))]
 
-    figure, axis = plt.subplots(figsize=(12, 7))
-
-    if not lhs_rows.empty:
-        lhs_x = lhs_rows["man_assisted_yrs"] + lhs_rows["woman_assisted_yrs"]
-        axis.scatter(lhs_x, lhs_rows["worth_norm_lc"], alpha=0.25, color="lightgray", marker="o", label="LHS lc")
-        axis.scatter(lhs_x, lhs_rows["worth_norm_cc"], alpha=0.25, color="gray", marker="^", label="LHS cc")
-
-    mappable = None
-    if include_edge_cases and not edge_rows.empty:
-        cmap = LinearSegmentedColormap.from_list("bright_rg", ["#ff0000", "#00ff00"])
-        independent_total = edge_rows["man_independent_yrs"] + edge_rows["woman_independent_yrs"]
-        norm = Normalize(vmin=float(independent_total.min()), vmax=float(independent_total.max()))
-        x_vals = edge_rows["man_assisted_yrs"] + edge_rows["woman_assisted_yrs"]
-        mappable = axis.scatter(
-            x_vals,
-            edge_rows["worth_norm_lc"],
-            c=independent_total,
-            cmap=cmap,
-            norm=norm,
-            marker="o",
-            alpha=0.9,
-            s=55,
-            label="edge lc",
-        )
-        axis.scatter(
-            x_vals,
-            edge_rows["worth_norm_cc"],
-            c=independent_total,
-            cmap=cmap,
-            norm=norm,
-            marker="^",
-            alpha=0.55,
-            s=55,
-            label="edge cc",
-        )
-
-    handles, _ = axis.get_legend_handles_labels()
-    style_handles = [
-        Line2D([0], [0], marker="o", color="gray", linestyle="None", markersize=8, label="o = lc"),
-        Line2D([0], [0], marker="^", color="gray", linestyle="None", markersize=8, label="^ = cc"),
+    # Three subplots (3×1): each uses a different x-axis variable.
+    x_configs = [
+        ("yrs_sum_al",    "yrs_sum_al (man + woman AL years)",       "Added Worth (normalized) vs Sum of AL Years"),
+        ("yrs_il_single", "yrs_il_single (years exactly one in IL)", "Added Worth (normalized) vs Years Single in IL"),
+        ("yrs_il_double", "yrs_il_double (years both in IL)",        "Added Worth (normalized) vs Years Both in IL"),
     ]
-    axis.legend(handles=handles + style_handles, loc="best", fontsize=9)
 
-    if mappable is not None:
-        figure.colorbar(mappable, ax=axis, label="combined independent years")
+    figure, axes = plt.subplots(3, 1, figsize=(12, 18), constrained_layout=True)
+    figure.suptitle("Added Worth (normalized) vs Life Structure Parameters", fontsize=14)
 
-    axis.set_xlabel("man_assisted_yrs + woman_assisted_yrs")
-    axis.set_ylabel("Worth (normalized)")
-    axis.set_title("Normalized Worth vs Combined Assisted Years")
-    axis.grid(True, alpha=0.3)
-    plt.tight_layout()
-    if show:
-        plt.show()
-
-
-def plot_added_lc_worth_norm_summary(
-    results: pd.DataFrame,
-    include_edge_cases: bool = True,
-    roi_apy_percents: list[float] | None = None,
-    cpi_apy_percents: list[float] | None = None,
-    show: bool = True,
-) -> None:
-    """Plot added_lc_worth_norm (worth_norm_lc - worth_norm_cc) summary."""
-    from matplotlib.colors import LinearSegmentedColormap, Normalize
-
-    lhs_rows = results[results["run_id"].apply(lambda v: not isinstance(v, str))]
-    edge_rows = results[results["run_id"].apply(lambda v: isinstance(v, str))]
-
-    figure, axis = plt.subplots(figsize=(12, 7))
-
-    if not lhs_rows.empty:
-        lhs_x = lhs_rows["man_assisted_yrs"] + lhs_rows["woman_assisted_yrs"]
-        axis.scatter(lhs_x, lhs_rows["added_lc_worth_norm"], alpha=0.25, color="lightgray", marker="o", label="LHS")
-
-    mappable = None
-    if include_edge_cases and not edge_rows.empty:
-        cmap = LinearSegmentedColormap.from_list("bright_rg", ["#ff0000", "#00ff00"])
-        independent_total = edge_rows["man_independent_yrs"] + edge_rows["woman_independent_yrs"]
-        norm = Normalize(vmin=float(independent_total.min()), vmax=float(independent_total.max()))
-        x_vals = edge_rows["man_assisted_yrs"] + edge_rows["woman_assisted_yrs"]
-        mappable = axis.scatter(
-            x_vals,
-            edge_rows["added_lc_worth_norm"],
-            c=independent_total,
-            cmap=cmap,
-            norm=norm,
-            marker="o",
-            alpha=0.9,
-            s=55,
-            label="edge cases",
-        )
-
-    handles, _ = axis.get_legend_handles_labels()
-    axis.legend(handles=handles, loc="best", fontsize=9)
-
-    if mappable is not None:
-        figure.colorbar(mappable, ax=axis, label="combined independent years")
-
-    axis.set_xlabel("man_assisted_yrs + woman_assisted_yrs")
-    axis.set_ylabel("Added Worth (normalized)")
-    axis.set_title("Added Normalized Worth (LC - CC) vs Combined Assisted Years")
-    axis.grid(True, alpha=0.3)
-    plt.tight_layout()
-    if show:
-        plt.show()
-
-
-def plot_added_lc_worth_norm_edge_case_subplots(
-    results: pd.DataFrame,
-    roi_apy_percents: list[float],
-    cpi_apy_percents: list[float],
-    shared_y_scale: bool = True,
-    show: bool = True,
-) -> None:
-    """Plot added_lc_worth_norm edge cases as subplots by ROI/CPI combination."""
-    from matplotlib.colors import LinearSegmentedColormap, Normalize
-
-    # Only use generated edge-case rows for Figures 5/6 (exclude replay string run_ids).
-    edge_results = results[
-        results["run_id"].apply(lambda v: isinstance(v, str) and v.startswith("EC_"))
-    ]
-    if edge_results.empty:
-        return
-
-    # Subplot shape automatically follows the configured ROI/CPI grids (2x2, 2x3, etc.).
-    n_roi = len(roi_apy_percents)
-    n_cpi = len(cpi_apy_percents)
-    if n_roi == 0 or n_cpi == 0:
-        return
-    figure, axes = plt.subplots(
-        n_roi,
-        n_cpi,
-        figsize=(6 * n_cpi, 5 * n_roi),
-        squeeze=False,
-        constrained_layout=True,
-    )
-    suffix = "(Shared Y-Scale)" if shared_y_scale else "(Free Axis Scale)"
-    figure.suptitle(f"Edge Cases: Added Normalized Worth vs Combined Assisted Years {suffix}", fontsize=14)
-
-    # Color encodes combined independent years (red=lower, green=higher).
     cmap = LinearSegmentedColormap.from_list("bright_rg", ["#ff0000", "#00ff00"])
-    independent_all = edge_results["man_independent_yrs"] + edge_results["woman_independent_yrs"]
-    norm = Normalize(vmin=float(independent_all.min()), vmax=float(independent_all.max()))
+    norm = None
+    mappable = None
+    if include_edge_cases and not edge_rows.empty:
+        independent_total_all = edge_rows["man_independent_yrs"] + edge_rows["woman_independent_yrs"]
+        norm = Normalize(vmin=float(independent_total_all.min()), vmax=float(independent_total_all.max()))
 
-    y_min = 0.0
-    y_max = 0.0
-    if shared_y_scale:
-        # Force a shared y-range across all panels for direct visual comparison.
-        y_all = edge_results["added_lc_worth_norm"].to_numpy(dtype=float)
-        y_min = float(np.nanmin(y_all))
-        y_max = float(np.nanmax(y_all))
-        if math.isclose(y_min, y_max):
-            pad = abs(y_min) * 0.01 + 1e-6
-            y_min -= pad
-            y_max += pad
+    for ax, (x_col, x_label, title) in zip(axes, x_configs):
+        if not lhs_rows.empty:
+            lhs_x = lhs_rows[x_col].to_numpy(dtype=float)
+            ax.scatter(lhs_x, lhs_rows["added_lc_worth_norm"], alpha=0.25, color="lightgray", marker="o", label="LHS")
 
-    for row_idx, roi_apy in enumerate(roi_apy_percents):
-        for col_idx, cpi_apy in enumerate(cpi_apy_percents):
-            ax = axes[row_idx, col_idx]
-            suffix = f"_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
-            combo_rows = edge_results[
-                edge_results["run_id"].apply(lambda v, s=suffix: isinstance(v, str) and v.endswith(s))
-            ]
-            if not combo_rows.empty:
-                assisted_total = combo_rows["man_assisted_yrs"] + combo_rows["woman_assisted_yrs"]
-                independent_total = combo_rows["man_independent_yrs"] + combo_rows["woman_independent_yrs"]
-                ax.scatter(
-                    assisted_total,
-                    combo_rows["added_lc_worth_norm"],
-                    c=independent_total,
-                    cmap=cmap,
-                    norm=norm,
-                    marker="o",
-                    alpha=0.85,
-                    s=50,
-                )
-            ax.set_xlabel("man_assisted_yrs + woman_assisted_yrs")
-            ax.set_ylabel("Added Worth (normalized)")
-            ax.set_title(f"ROI={roi_apy:.3g}%  CPI={cpi_apy:.3g}%")
-            if shared_y_scale:
-                ax.set_ylim(y_min, y_max)
-            ax.grid(True, alpha=0.3)
+        if include_edge_cases and not edge_rows.empty and norm is not None:
+            independent_total = edge_rows["man_independent_yrs"] + edge_rows["woman_independent_yrs"]
+            x_vals = edge_rows[x_col].to_numpy(dtype=float)
+            mappable = ax.scatter(
+                x_vals,
+                edge_rows["added_lc_worth_norm"],
+                c=independent_total,
+                cmap=cmap,
+                norm=norm,
+                marker="o",
+                alpha=0.9,
+                s=55,
+                label="edge cases",
+            )
 
-    figure.colorbar(
-        plt.cm.ScalarMappable(norm=norm, cmap=cmap),
-        ax=axes.ravel().tolist(),
-        label="combined independent years",
-    )
+        handles, _ = ax.get_legend_handles_labels()
+        ax.legend(handles=handles, loc="best", fontsize=9)
+        ax.set_xlabel(x_label)
+        ax.set_ylabel("Added Worth (normalized)")
+        ax.set_title(title)
+        ax.grid(True, alpha=0.3)
+
+    if mappable is not None:
+        figure.colorbar(mappable, ax=axes.tolist(), label="combined independent years")
+
 
     if show:
         plt.show()
@@ -700,42 +543,21 @@ def main() -> None:
             f"Worth LC range: {results['worth_lc'].min():,.0f} to {results['worth_lc'].max():,.0f}\n"
             f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
-        plot_added_lc_worth_norm_summary(
+        plot_lhs_summary(                                  # Figure 1 – 3×1 overview
             results,
             include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
             roi_apy_percents=EDGE_CASE_ROI_APY_PERCENTS,
             cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
             show=False,
         )
-        plot_lhs_summary(
-            results,
-            include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
-            roi_apy_percents=EDGE_CASE_ROI_APY_PERCENTS,
-            cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
-            show=False,
-        )
-        plot_added_lc_worth_norm_edge_case_subplots(
+        plot_edge_case_subplots(                           # Figure 2 – edge cases, shared y
             results,
             EDGE_CASE_ROI_APY_PERCENTS,
             EDGE_CASE_CPI_APY_PERCENTS,
             shared_y_scale=True,
             show=False,
         )
-        plot_added_lc_worth_norm_edge_case_subplots(
-            results,
-            EDGE_CASE_ROI_APY_PERCENTS,
-            EDGE_CASE_CPI_APY_PERCENTS,
-            shared_y_scale=False,
-            show=False,
-        )
-        plot_edge_case_subplots(
-            results,
-            EDGE_CASE_ROI_APY_PERCENTS,
-            EDGE_CASE_CPI_APY_PERCENTS,
-            shared_y_scale=True,
-            show=False,
-        )
-        plot_edge_case_subplots(
+        plot_edge_case_subplots(                           # Figure 3 – edge cases, free y
             results,
             EDGE_CASE_ROI_APY_PERCENTS,
             EDGE_CASE_CPI_APY_PERCENTS,

@@ -151,6 +151,12 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("woman assisted yrs", this_life.woman_assisted_yrs, this_life.woman_assisted_yrs),
         ("woman age to al", this_life.woman_age_to_al, this_life.woman_age_to_al),
         ("woman age at death", this_life.woman_age_at_death, this_life.woman_age_at_death),
+        ("yrs il double", min(this_life.man_independent_yrs, this_life.woman_independent_yrs),
+                          min(this_life.man_independent_yrs, this_life.woman_independent_yrs)),
+        ("yrs il single", abs(this_life.man_independent_yrs - this_life.woman_independent_yrs),
+                          abs(this_life.man_independent_yrs - this_life.woman_independent_yrs)),
+        ("yrs sum al", this_life.man_assisted_yrs + this_life.woman_assisted_yrs,
+                       this_life.man_assisted_yrs + this_life.woman_assisted_yrs),
     ]
     table_rows = [
         ("total expenses", total_expenses_cc, total_expenses_lc),

@@ -92,6 +92,9 @@ class LhsScenarioSummary:
     worth_cc: int
     worth_norm_cc: int
     added_lc_worth_norm: int
+    yrs_il_single: float
+    yrs_il_double: float
+    yrs_sum_al: float
     # Context constants
     ticker: str
     current_date: str
