@@ -90,7 +90,7 @@ INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
 INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
 INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
 
-DEFAULT_LHS_POINTS = 5
+DEFAULT_LHS_POINTS = 1000
 PLOT_EDGE_CASES_IN_LHS_PLOT = True
 # Edge points are explicit (roi_apy, cpi_apy) pairs instead of a Cartesian grid.
 EDGE_CASE_ROI_CPI_APY_PAIRS = [
@@ -663,6 +663,149 @@ def plot_lhs_summary(
         plt.show()
 
 
+def _format_gutz_figure1_annotation(row: pd.Series) -> str:
+    life_params = (
+        f"{float(row['man_independent_yrs']):.2f}/"
+        f"{float(row['woman_independent_yrs']):.2f}/"
+        f"{float(row['man_assisted_yrs']):.2f}/"
+        f"{float(row['woman_assisted_yrs']):.2f}"
+    )
+    apy_params = f"{float(row['apy_roi']):.2f}%/{float(row['apy_cpi']):.2f}%"
+    worth_norm_lc = f"worth_norm_lc=${float(row['worth_norm_lc']):,.0f}"
+    worth_norm_cc = f"worth_norm_cc=${float(row['worth_norm_cc']):,.0f}"
+    return f"{life_params}\n{apy_params}\n{worth_norm_lc}\n{worth_norm_cc}"
+
+
+def plot_gutz_lhs_figure1(results: pd.DataFrame, show: bool = True) -> tuple[plt.Figure, plt.Axes]:
+    """Plot Figure 1 for the Gutz LHS analysis from an existing results frame."""
+    lhs_only = results[results["run_id"].apply(lambda v: isinstance(v, int))]
+    centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
+
+    fig1, ax1 = plt.subplots(figsize=(12, 7))
+    if not lhs_only.empty:
+        x_vals = lhs_only["yrs_sum_al"].to_numpy(dtype=float)
+        y_vals = lhs_only["added_lc_worth_norm"].to_numpy(dtype=float)
+        worth_norm_lc_vals = lhs_only["worth_norm_lc"].to_numpy(dtype=float)
+        positive_mask = y_vals > 0.0
+        non_positive_mask = ~positive_mask
+        red_mask = non_positive_mask & (worth_norm_lc_vals <= 0.0)
+        green_mask = non_positive_mask & (worth_norm_lc_vals > 0.0)
+        black_mask = positive_mask & (worth_norm_lc_vals >= 0.0)
+        orange_mask = positive_mask & (worth_norm_lc_vals < 0.0)
+        if np.any(red_mask):
+            ax1.scatter(
+                x_vals[red_mask],
+                y_vals[red_mask],
+                alpha=0.8,
+                color="red",
+                marker="x",
+                s=18,
+                label="stochastic LHS (added <= 0, LC <= 0)",
+            )
+        if np.any(green_mask):
+            ax1.scatter(
+                x_vals[green_mask],
+                y_vals[green_mask],
+                alpha=0.8,
+                color="green",
+                marker="x",
+                s=18,
+                label="stochastic LHS (added <= 0, LC > 0)",
+            )
+        if np.any(black_mask):
+            ax1.scatter(
+                x_vals[black_mask],
+                y_vals[black_mask],
+                alpha=0.8,
+                color="black",
+                marker="x",
+                s=18,
+                label="stochastic LHS (added > 0, LC >= 0)",
+            )
+        if np.any(orange_mask):
+            ax1.scatter(
+                x_vals[orange_mask],
+                y_vals[orange_mask],
+                alpha=0.8,
+                color="orange",
+                marker="x",
+                s=18,
+                label="stochastic LHS (added > 0, LC < 0)",
+            )
+
+        max_idx = lhs_only["added_lc_worth_norm"].idxmax()
+        min_idx = lhs_only["added_lc_worth_norm"].idxmin()
+        max_row = lhs_only.loc[max_idx]
+        min_row = lhs_only.loc[min_idx]
+
+        ax1.annotate(
+            f"MAX\n{_format_gutz_figure1_annotation(max_row)}",
+            xy=(max_row["yrs_sum_al"], max_row["added_lc_worth_norm"]),
+            xytext=(10, 10),
+            textcoords="offset points",
+            bbox=dict(boxstyle="round,pad=0.5", facecolor="yellow", alpha=0.7),
+            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="black"),
+            fontsize=8,
+            ha="left",
+        )
+        ax1.annotate(
+            f"MIN\n{_format_gutz_figure1_annotation(min_row)}",
+            xy=(min_row["yrs_sum_al"], min_row["added_lc_worth_norm"]),
+            xytext=(10, -20),
+            textcoords="offset points",
+            bbox=dict(boxstyle="round,pad=0.5", facecolor="cyan", alpha=0.7),
+            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="black"),
+            fontsize=8,
+            ha="left",
+        )
+
+    if not centerpoint_rows.empty:
+        ax1.scatter(
+            centerpoint_rows["yrs_sum_al"].to_numpy(dtype=float),
+            centerpoint_rows["added_lc_worth_norm"].to_numpy(dtype=float),
+            color="blue",
+            marker="*",
+            s=360,
+            edgecolors="black",
+            linewidths=0.9,
+            zorder=6,
+            label="CENTERPOINT",
+        )
+        centerpoint_row = centerpoint_rows.iloc[0]
+        ax1.annotate(
+            f"CENTERPOINT\n{_format_gutz_figure1_annotation(centerpoint_row)}",
+            xy=(centerpoint_row["yrs_sum_al"], centerpoint_row["added_lc_worth_norm"]),
+            xytext=(14, 14),
+            textcoords="offset points",
+            bbox=dict(boxstyle="round,pad=0.5", facecolor="#dbeafe", alpha=0.85),
+            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="blue"),
+            fontsize=8,
+            ha="left",
+        )
+
+    if not lhs_only.empty or not centerpoint_rows.empty:
+        ax1.legend(loc="best", fontsize=9)
+    ax1.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
+    ax1.set_ylabel("Added Worth (normalized to 2026 dollars)")
+    ax1.set_title(PLOT_MAIN_TITLE, fontweight="bold", pad=20)
+    ax1.text(
+        0.5,
+        1.08,
+        "Added Worth (normalized) vs yrs_sum_al (Gutz Centerpoint LHS)\n"
+        "Params: man_IL/woman_IL/man_AL/woman_AL/roi_apy/cpi_apy",
+        transform=ax1.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=9,
+    )
+    ax1.grid(True, alpha=0.3)
+    add_lifecare_reference_line(ax1)
+
+    if show:
+        plt.show()
+    return fig1, ax1
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="LHS Monte Carlo anchored to Gutz case centerpoint from Run_one_Taylor.py"
@@ -719,93 +862,7 @@ def main() -> None:
             f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
         
-        # Figure 1 – stochastic cloud plus explicit CENTERPOINT star
-        lhs_only = results[results["run_id"].apply(lambda v: isinstance(v, int))]
-        centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
-        fig1, ax1 = plt.subplots(figsize=(12, 7))
-        if not lhs_only.empty:
-            x_vals = lhs_only["yrs_sum_al"].to_numpy(dtype=float)
-            y_vals = lhs_only["added_lc_worth_norm"].to_numpy(dtype=float)
-            positive_mask = y_vals > 0.0
-            non_positive_mask = ~positive_mask
-            if np.any(non_positive_mask):
-                ax1.scatter(
-                    x_vals[non_positive_mask],
-                    y_vals[non_positive_mask],
-                    alpha=0.8,
-                    color="red",
-                    marker="x",
-                    s=18,
-                    label="stochastic LHS (<= 0)",
-                )
-            if np.any(positive_mask):
-                ax1.scatter(
-                    x_vals[positive_mask],
-                    y_vals[positive_mask],
-                    alpha=0.8,
-                    color="black",
-                    marker="x",
-                    s=18,
-                    label="stochastic LHS (> 0)",
-                )
-            # Annotate highest and lowest added_lc_worth_norm
-            max_idx = lhs_only["added_lc_worth_norm"].idxmax()
-            min_idx = lhs_only["added_lc_worth_norm"].idxmin()
-            max_row = lhs_only.loc[max_idx]
-            min_row = lhs_only.loc[min_idx]
-            
-            # Format: man_il / woman_il / man_al / woman_al / roi_seed / inflation_seed
-            max_params = f"{max_row['man_independent_yrs']:.2f}/{max_row['woman_independent_yrs']:.2f}/{max_row['man_assisted_yrs']:.2f}/{max_row['woman_assisted_yrs']:.2f}/{int(max_row['roi_seed'])}/{int(max_row['inflation_seed'])}"
-            min_params = f"{min_row['man_independent_yrs']:.2f}/{min_row['woman_independent_yrs']:.2f}/{min_row['man_assisted_yrs']:.2f}/{min_row['woman_assisted_yrs']:.2f}/{int(min_row['roi_seed'])}/{int(min_row['inflation_seed'])}"
-            
-            ax1.annotate(
-                f"MAX\n{max_params}",
-                xy=(max_row["yrs_sum_al"], max_row["added_lc_worth_norm"]),
-                xytext=(10, 10),
-                textcoords="offset points",
-                bbox=dict(boxstyle="round,pad=0.5", facecolor="yellow", alpha=0.7),
-                arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="black"),
-                fontsize=8,
-                ha="left",
-            )
-            ax1.annotate(
-                f"MIN\n{min_params}",
-                xy=(min_row["yrs_sum_al"], min_row["added_lc_worth_norm"]),
-                xytext=(10, -20),
-                textcoords="offset points",
-                bbox=dict(boxstyle="round,pad=0.5", facecolor="cyan", alpha=0.7),
-                arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="black"),
-                fontsize=8,
-                ha="left",
-            )
-        if not centerpoint_rows.empty:
-            ax1.scatter(
-                centerpoint_rows["yrs_sum_al"].to_numpy(dtype=float),
-                centerpoint_rows["added_lc_worth_norm"].to_numpy(dtype=float),
-                color="blue",
-                marker="*",
-                s=360,
-                edgecolors="black",
-                linewidths=0.9,
-                zorder=6,
-                label="CENTERPOINT",
-            )
-        if not lhs_only.empty or not centerpoint_rows.empty:
-            ax1.legend(loc="best", fontsize=9)
-        ax1.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
-        ax1.set_ylabel("Added Worth (normalized to 2026 dollars)")
-        ax1.set_title(PLOT_MAIN_TITLE, fontweight="bold", pad=20)
-        ax1.text(
-            0.5,
-            1.01,
-            "Added Worth (normalized) vs yrs_sum_al (Gutz Centerpoint LHS)\nParams: man_IL/woman_IL/man_AL/woman_AL/roi_seed/inflation_seed",
-            transform=ax1.transAxes,
-            ha="center",
-            va="bottom",
-            fontsize=9,
-        )
-        ax1.grid(True, alpha=0.3)
-        add_lifecare_reference_line(ax1)
+        plot_gutz_lhs_figure1(results, show=False)
 
         plot_lhs_summary(
             results,
