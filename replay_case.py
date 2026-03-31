@@ -89,6 +89,20 @@ REPLAY_CASES: dict[str, dict[str, float | int]] = {
         "inflation_vol_multiplier": 0.5155143062915538,
         "inflation_mean_reversion": 0.3732552173746054,
     },
+    "REPLAY_GUTZ_1": {
+        "man_independent_yrs": 11.119851304450926,
+        "woman_independent_yrs": 23.151157732325107,
+        "man_assisted_yrs": 2.749282500878669,
+        "woman_assisted_yrs": 7.201015734520627,
+        "roi_seed": 493950,
+        "inflation_seed": 6660,
+        "roi_mean_shift": 0.0068122507422182,
+        "roi_vol_multiplier": 0.8934722576907159,
+        "roi_mean_reversion": 0.3971721322072199,
+        "inflation_mean_shift": -0.0048161705509744,
+        "inflation_vol_multiplier": 1.0502745708323007,
+        "inflation_mean_reversion": 0.0459961806916466,
+    },
 
 }
 

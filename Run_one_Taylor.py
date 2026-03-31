@@ -252,10 +252,10 @@ def main() -> None:
     # Precedence is: base defaults -> named default case -> local overrides.
     local_run_overrides = {
         "scenario": {
-            "man_independent_yrs": 9.2,
-            "woman_independent_yrs": 4.8,
-            "man_assisted_yrs": 4.5,
-            "woman_assisted_yrs": 5.5,
+            "man_independent_yrs": 10.,  # google age men enter al - current age
+            "woman_independent_yrs": 15.5,  # google age women enter al - current age
+            "man_assisted_yrs": 2.35,  # google men in al; assume no mc (conservative for yes on lc decision)
+            "woman_assisted_yrs": 5.5,  # google women in al; assume no mc (conservative for yes on lc decision)
             "roi_seed": 740264,
             "inflation_seed": 898910,
             "roi_mean_shift": 0.0080464851559136,

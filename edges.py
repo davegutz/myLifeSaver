@@ -129,3 +129,76 @@ def build_replay_case_scenarios() -> list[tuple[str, LhsScenario]]:
 
     return scenarios
 
+
+# ============================================================================
+# CUSTOM GUTZ EDGE CASES (for Run_LHS_Gutz_Taylor.py)
+# ============================================================================
+
+CUSTOM_EDGE_CASES_GUTZ = None  # Set to a dict to define custom Gutz edge cases
+
+
+def build_custom_edge_cases_gutz(
+    centerpoint_man_independent_yrs: float,
+    centerpoint_woman_independent_yrs: float,
+    centerpoint_man_assisted_yrs: float,
+    centerpoint_woman_assisted_yrs: float,
+    centerpoint_roi_seed: int,
+    centerpoint_inflation_seed: int,
+) -> list[tuple[str, LhsScenario]]:
+    """
+    Convert CUSTOM_EDGE_CASES_GUTZ dict into (name, LhsScenario) tuples.
+    Falls back to centerpoint values for any missing fields.
+    """
+    if CUSTOM_EDGE_CASES_GUTZ is None:
+        return []
+    cases = []
+    for case_name, params in CUSTOM_EDGE_CASES_GUTZ.items():
+        scenario = LhsScenario(
+            man_independent_yrs=params.get("man_independent_yrs", centerpoint_man_independent_yrs),
+            woman_independent_yrs=params.get("woman_independent_yrs", centerpoint_woman_independent_yrs),
+            man_assisted_yrs=params.get("man_assisted_yrs", centerpoint_man_assisted_yrs),
+            woman_assisted_yrs=params.get("woman_assisted_yrs", centerpoint_woman_assisted_yrs),
+            roi_seed=int(params.get("roi_seed", centerpoint_roi_seed)),
+            inflation_seed=int(params.get("inflation_seed", centerpoint_inflation_seed)),
+            roi_mean_shift=float(params.get("roi_mean_shift", 0.0)),
+            roi_vol_multiplier=float(params.get("roi_vol_multiplier", 1.0)),
+            roi_mean_reversion=float(params.get("roi_mean_reversion", 0.0)),
+            inflation_mean_shift=float(params.get("inflation_mean_shift", 0.0)),
+            inflation_vol_multiplier=float(params.get("inflation_vol_multiplier", 1.0)),
+            inflation_mean_reversion=float(params.get("inflation_mean_reversion", 0.0)),
+        )
+        cases.append((case_name, scenario))
+    return cases
+
+
+def get_edge_cases_gutz(
+    roi_apy: float,
+    cpi_apy: float,
+    centerpoint_man_independent_yrs: float,
+    centerpoint_woman_independent_yrs: float,
+    centerpoint_man_assisted_yrs: float,
+    centerpoint_woman_assisted_yrs: float,
+    centerpoint_roi_seed: int,
+    centerpoint_inflation_seed: int,
+) -> list[tuple[str, LhsScenario]]:
+    """
+    Return either custom Gutz edge cases (if CUSTOM_EDGE_CASES_GUTZ is set) or standard ones.
+    When using custom cases, apply the ROI/CPI fixed rates by appending suffix to case names.
+    """
+    if CUSTOM_EDGE_CASES_GUTZ is not None:
+        # Use custom cases and append ROI/CPI suffix to case names
+        custom_cases = build_custom_edge_cases_gutz(
+            centerpoint_man_independent_yrs=centerpoint_man_independent_yrs,
+            centerpoint_woman_independent_yrs=centerpoint_woman_independent_yrs,
+            centerpoint_man_assisted_yrs=centerpoint_man_assisted_yrs,
+            centerpoint_woman_assisted_yrs=centerpoint_woman_assisted_yrs,
+            centerpoint_roi_seed=centerpoint_roi_seed,
+            centerpoint_inflation_seed=centerpoint_inflation_seed,
+        )
+        roi_cpi_suffix = f"_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
+        return [(name + roi_cpi_suffix, scenario) for name, scenario in custom_cases]
+    else:
+        # Fall back to standard edge cases
+        return build_edge_case_scenarios(roi_apy_percent=roi_apy, cpi_apy_percent=cpi_apy)
+
+
