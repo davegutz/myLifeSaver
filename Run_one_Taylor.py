@@ -264,8 +264,10 @@ def main() -> None:
         "context": {
             "ticker": "SPY",
             "current_date": "2026-03-29",
-            "constant_monthly_roi": None,  # was 10. — None → stochastic
-            "constant_monthly_cpi": None,  # was  5. — None → stochas
+            # "constant_monthly_roi": None,  # was 10. — None → stochastic
+            # "constant_monthly_cpi": None,  # was  5. — None → stochas
+            "constant_monthly_roi": 4.,  # was 10. — None → stochastic
+            "constant_monthly_cpi": 5.,  # was  5. — None → stochas
         },
     }
 
