@@ -199,7 +199,7 @@ def upsert_replay_case_definition(run_id: int, scenario: LhsScenario) -> Path:
         flags=re.MULTILINE,
     )
     content_wo_entry = entry_pattern.sub("", content)
-    marker = "REPLAY_CASES_GUTZ: dict[str, dict[str, float | int]] = {"
+    marker = "REPLAY_CASES_GUTZ: dict[str, dict[str, float | int | None]] = {"
     marker_index = content_wo_entry.find(marker)
     if marker_index == -1:
         raise ValueError("Could not find REPLAY_CASES_GUTZ dictionary in replay_gutz_case.py")

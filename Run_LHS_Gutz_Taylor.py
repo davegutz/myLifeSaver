@@ -433,15 +433,26 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
 
     # Process Gutz replay cases once, outside the fixed edge-point loop.
     replay_cases = build_replay_case_scenarios_gutz()
-    for case_name, scenario in replay_cases:
-        model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
+    for case_name, scenario, replay_constant_roi, replay_constant_cpi in replay_cases:
+        replay_context = ScenarioRunContext(
+            ticker=context.ticker,
+            current_date=context.current_date,
+            history_years=context.history_years,
+            al_cum_running_avg_yrs=context.al_cum_running_avg_yrs,
+            start_clock=context.start_clock,
+            man_dob=context.man_dob,
+            woman_dob=context.woman_dob,
+            constant_monthly_roi=normalize_centerpoint_constant_monthly(replay_constant_roi),
+            constant_monthly_cpi=normalize_centerpoint_constant_monthly(replay_constant_cpi),
+        )
+        model, result = evaluate_lhs_scenario(scenario=scenario, context=replay_context)
         row = asdict(
             summarize_lhs_run(
                 run_id=case_name,
                 scenario=scenario,
                 model=model,
                 result=result,
-                context=context,
+                context=replay_context,
             )
         )
         ordered_row = {column: row[column] for column in CSV_COLUMNS}

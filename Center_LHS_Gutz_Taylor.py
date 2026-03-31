@@ -16,5 +16,5 @@ CENTERPOINT_CONSTANT_MONTHLY_CPI = 5.
 # Toggle for CENTERPOINT row only in Run_LHS_Gutz_Taylor:
 #   False -> centerpoint row uses stochastic ROI/CPI
 #   True  -> centerpoint row uses CENTERPOINT_CONSTANT_MONTHLY_ROI/CPI above
-CENTERPOINT_USE_CONSTANT_RATES = False
+CENTERPOINT_USE_CONSTANT_RATES = True
 

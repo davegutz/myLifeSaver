@@ -132,10 +132,10 @@ def build_replay_case_scenarios() -> list[tuple[str, LhsScenario]]:
     return scenarios
 
 
-def build_replay_case_scenarios_gutz() -> list[tuple[str, LhsScenario]]:
-    """Build Gutz replay scenarios once (not per ROI/CPI edge-case combination)."""
-    scenarios: list[tuple[str, LhsScenario]] = []
-    replay_cases_gutz: dict[str, dict[str, float | int]] = (
+def build_replay_case_scenarios_gutz() -> list[tuple[str, LhsScenario, float | None, float | None]]:
+    """Build Gutz replay scenarios once, with optional per-case constant ROI/CPI overrides."""
+    scenarios: list[tuple[str, LhsScenario, float | None, float | None]] = []
+    replay_cases_gutz: dict[str, dict[str, float | int | None]] = (
         REPLAY_CASES_GUTZ if isinstance(REPLAY_CASES_GUTZ, dict) else {}
     )
 
@@ -163,7 +163,9 @@ def build_replay_case_scenarios_gutz() -> list[tuple[str, LhsScenario]]:
             f"woman={float(kwargs['woman_assisted_yrs']):.3f})  "
             f"seeds=(roi={int(kwargs['roi_seed'])}, inf={int(kwargs['inflation_seed'])})"
         )
-        scenarios.append((full_name, scenario))
+        constant_monthly_roi = None if kwargs.get("constant_monthly_roi") is None else float(kwargs["constant_monthly_roi"])
+        constant_monthly_cpi = None if kwargs.get("constant_monthly_cpi") is None else float(kwargs["constant_monthly_cpi"])
+        scenarios.append((full_name, scenario, constant_monthly_roi, constant_monthly_cpi))
 
     return scenarios
 
