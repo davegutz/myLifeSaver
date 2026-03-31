@@ -129,6 +129,36 @@ def main() -> None:
                 s=18,
                 label="stochastic LHS (> 0)",
             )
+        # Annotate highest and lowest added_lc_worth_norm
+        max_idx = lhs_only["added_lc_worth_norm"].idxmax()
+        min_idx = lhs_only["added_lc_worth_norm"].idxmin()
+        max_row = lhs_only.loc[max_idx]
+        min_row = lhs_only.loc[min_idx]
+        
+        # Format: man_il / woman_il / man_al / woman_al / roi_seed / inflation_seed
+        max_params = f"{max_row['man_independent_yrs']:.2f}/{max_row['woman_independent_yrs']:.2f}/{max_row['man_assisted_yrs']:.2f}/{max_row['woman_assisted_yrs']:.2f}/{int(max_row['roi_seed'])}/{int(max_row['inflation_seed'])}"
+        min_params = f"{min_row['man_independent_yrs']:.2f}/{min_row['woman_independent_yrs']:.2f}/{min_row['man_assisted_yrs']:.2f}/{min_row['woman_assisted_yrs']:.2f}/{int(min_row['roi_seed'])}/{int(min_row['inflation_seed'])}"
+        
+        ax1.annotate(
+            f"MAX\n{max_params}",
+            xy=(max_row["yrs_sum_al"], max_row["added_lc_worth_norm"]),
+            xytext=(10, 10),
+            textcoords="offset points",
+            bbox=dict(boxstyle="round,pad=0.5", facecolor="yellow", alpha=0.7),
+            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="black"),
+            fontsize=8,
+            ha="left",
+        )
+        ax1.annotate(
+            f"MIN\n{min_params}",
+            xy=(min_row["yrs_sum_al"], min_row["added_lc_worth_norm"]),
+            xytext=(10, -20),
+            textcoords="offset points",
+            bbox=dict(boxstyle="round,pad=0.5", facecolor="cyan", alpha=0.7),
+            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="black"),
+            fontsize=8,
+            ha="left",
+        )
     if not centerpoint_rows.empty:
         ax1.scatter(
             centerpoint_rows["yrs_sum_al"].to_numpy(dtype=float),
@@ -148,11 +178,12 @@ def main() -> None:
     ax1.set_title(PLOT_MAIN_TITLE, fontweight="bold", pad=20)
     ax1.text(
         0.5,
-        1.01,
-        "Added Worth (normalized) vs yrs_sum_al (Gutz Centerpoint LHS)",
+        1.12,
+        "Added Worth (normalized) vs yrs_sum_al (Gutz Centerpoint LHS)\nParams: man_IL/woman_IL/man_AL/woman_AL/roi_seed/inflation_seed",
         transform=ax1.transAxes,
         ha="center",
         va="bottom",
+        fontsize=9,
     )
     ax1.grid(True, alpha=0.3)
     add_lifecare_reference_line(ax1)
