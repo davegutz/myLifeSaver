@@ -19,6 +19,16 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import cast
+from Center_LHS_Gutz_Taylor import (
+    CENTERPOINT_CONSTANT_MONTHLY_CPI,
+    CENTERPOINT_CONSTANT_MONTHLY_ROI,
+    CENTERPOINT_INFLATION_SEED,
+    CENTERPOINT_MAN_ASSISTED_YRS,
+    CENTERPOINT_MAN_INDEPENDENT_YRS,
+    CENTERPOINT_ROI_SEED,
+    CENTERPOINT_WOMAN_ASSISTED_YRS,
+    CENTERPOINT_WOMAN_INDEPENDENT_YRS,
+)
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
     CONSTANT_MONTHLY_CPI,
@@ -53,16 +63,6 @@ from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 # ============================================================================
 
 # ============================================================================
-# CENTERPOINT SCENARIO (from Run_one_Taylor.py local_run_overrides)
-# ============================================================================
-CENTERPOINT_MAN_INDEPENDENT_YRS = 10.0
-CENTERPOINT_WOMAN_INDEPENDENT_YRS = 15.5
-CENTERPOINT_MAN_ASSISTED_YRS = 2.35
-CENTERPOINT_WOMAN_ASSISTED_YRS = 5.5
-CENTERPOINT_ROI_SEED = 740264
-CENTERPOINT_INFLATION_SEED = 898910
-
-# ============================================================================
 # LHS VARIATION RANGES (±% around centerpoint for life parameters)
 # ============================================================================
 # For life parameters, use ±50% range around centerpoint
@@ -93,7 +93,7 @@ INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
 INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
 INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
 
-DEFAULT_LHS_POINTS = 1000
+DEFAULT_LHS_POINTS = 10
 PLOT_EDGE_CASES_IN_LHS_PLOT = True
 EDGE_CASE_ROI_APY_PERCENTS = [6.0, 12.0]
 EDGE_CASE_CPI_APY_PERCENTS = [0.0, 2.0, 6.0]
@@ -246,6 +246,24 @@ def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
     return scenarios
 
 
+def build_centerpoint_scenario() -> LhsScenario:
+    """Build the explicit centerpoint scenario for the Gutz LHS run."""
+    return LhsScenario(
+        man_independent_yrs=CENTERPOINT_MAN_INDEPENDENT_YRS,
+        woman_independent_yrs=CENTERPOINT_WOMAN_INDEPENDENT_YRS,
+        man_assisted_yrs=CENTERPOINT_MAN_ASSISTED_YRS,
+        woman_assisted_yrs=CENTERPOINT_WOMAN_ASSISTED_YRS,
+        roi_seed=CENTERPOINT_ROI_SEED,
+        inflation_seed=CENTERPOINT_INFLATION_SEED,
+        roi_mean_shift=(ROI_MEAN_SHIFT_RANGE[0] + ROI_MEAN_SHIFT_RANGE[1]) / 2.0,
+        roi_vol_multiplier=(ROI_VOL_MULTIPLIER_RANGE[0] + ROI_VOL_MULTIPLIER_RANGE[1]) / 2.0,
+        roi_mean_reversion=(ROI_MEAN_REVERSION_RANGE[0] + ROI_MEAN_REVERSION_RANGE[1]) / 2.0,
+        inflation_mean_shift=(INFLATION_MEAN_SHIFT_RANGE[0] + INFLATION_MEAN_SHIFT_RANGE[1]) / 2.0,
+        inflation_vol_multiplier=(INFLATION_VOL_MULTIPLIER_RANGE[0] + INFLATION_VOL_MULTIPLIER_RANGE[1]) / 2.0,
+        inflation_mean_reversion=(INFLATION_MEAN_REVERSION_RANGE[0] + INFLATION_MEAN_REVERSION_RANGE[1]) / 2.0,
+    )
+
+
 def last_value(values: list[float]) -> float:
     return float(values[-1]) if values else 0.0
 
@@ -276,6 +294,21 @@ def effective_apy_from_cumulative(cumulative_path: np.ndarray, monthly_fallback:
 
 def format_constant_monthly_output(value: float | None) -> float | str:
     return "stochastic" if value is None else value
+
+
+def normalize_centerpoint_constant_monthly(value: float | None) -> float | None:
+    """
+    Accept either:
+      - monthly fraction (e.g., 0.008 for 0.8%/mo), or
+      - APY percent (e.g., 10.0 for 10% APY)
+    for centerpoint constant ROI/CPI inputs.
+    """
+    if value is None:
+        return None
+    numeric = float(value)
+    if abs(numeric) > 1.0:
+        return apy_percent_to_monthly_fraction(numeric)
+    return numeric
 
 
 def summarize_lhs_run(
@@ -411,6 +444,22 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
 
+    # Process the explicit centerpoint scenario once and append as CENTERPOINT.
+    centerpoint_scenario = build_centerpoint_scenario()
+    model, result = evaluate_lhs_scenario(scenario=centerpoint_scenario, context=context)
+    centerpoint_row = asdict(
+        summarize_lhs_run(
+            run_id="CENTERPOINT",
+            scenario=centerpoint_scenario,
+            model=model,
+            result=result,
+            context=context,
+        )
+    )
+    ordered_centerpoint_row = {column: centerpoint_row[column] for column in CSV_COLUMNS}
+    print_screen_row(row=ordered_centerpoint_row, columns=CSV_COLUMNS, widths=column_widths)
+    rows.append(ordered_centerpoint_row)
+
     frame = pd.DataFrame(rows, columns=CSV_COLUMNS)
     frame.to_csv(output_path, index=False)
     return frame
@@ -510,8 +559,11 @@ def plot_lhs_summary(
 ) -> None:
     from matplotlib.colors import LinearSegmentedColormap, Normalize
 
+    centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
     lhs_rows = results[results["run_id"].apply(lambda v: not isinstance(v, str))]
-    edge_rows = results[results["run_id"].apply(lambda v: isinstance(v, str))]
+    edge_rows = results[
+        results["run_id"].apply(lambda v: isinstance(v, str) and str(v) != "CENTERPOINT")
+    ]
 
     # Three subplots (3×1): each uses a different x-axis variable.
     x_configs = [
@@ -551,6 +603,21 @@ def plot_lhs_summary(
                 alpha=0.9,
                 s=55,
                 label="edge cases",
+            )
+
+        if not centerpoint_rows.empty:
+            cx = centerpoint_rows[x_col].to_numpy(dtype=float)
+            cy = centerpoint_rows["added_lc_worth_norm"].to_numpy(dtype=float)
+            ax.scatter(
+                cx,
+                cy,
+                color="blue",
+                marker="*",
+                s=300,
+                edgecolors="black",
+                linewidths=0.8,
+                zorder=5,
+                label="CENTERPOINT",
             )
 
         handles, _ = ax.get_legend_handles_labels()
@@ -604,8 +671,8 @@ def main() -> None:
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
         woman_dob=WOMAN_DOB,
-        constant_monthly_roi=CONSTANT_MONTHLY_ROI,
-        constant_monthly_cpi=CONSTANT_MONTHLY_CPI,
+        constant_monthly_roi=normalize_centerpoint_constant_monthly(CENTERPOINT_CONSTANT_MONTHLY_ROI),
+        constant_monthly_cpi=normalize_centerpoint_constant_monthly(CENTERPOINT_CONSTANT_MONTHLY_CPI),
     )
     if args.lhs_points > 0:
         output_path = Path(args.lhs_output)
@@ -622,8 +689,9 @@ def main() -> None:
             f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
         
-        # Figure 1 – centerpoint only
+        # Figure 1 – stochastic cloud plus explicit CENTERPOINT star
         lhs_only = results[results["run_id"].apply(lambda v: isinstance(v, int))]
+        centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
         fig1, ax1 = plt.subplots(figsize=(12, 7))
         if not lhs_only.empty:
             x_vals = lhs_only["yrs_sum_al"].to_numpy(dtype=float)
@@ -650,6 +718,19 @@ def main() -> None:
                     s=18,
                     label="stochastic LHS (> 0)",
                 )
+        if not centerpoint_rows.empty:
+            ax1.scatter(
+                centerpoint_rows["yrs_sum_al"].to_numpy(dtype=float),
+                centerpoint_rows["added_lc_worth_norm"].to_numpy(dtype=float),
+                color="blue",
+                marker="*",
+                s=360,
+                edgecolors="black",
+                linewidths=0.9,
+                zorder=6,
+                label="CENTERPOINT",
+            )
+        if not lhs_only.empty or not centerpoint_rows.empty:
             ax1.legend(loc="best", fontsize=9)
         ax1.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
         ax1.set_ylabel("Added Worth (normalized to 2026 dollars)")

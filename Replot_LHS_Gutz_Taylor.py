@@ -13,6 +13,7 @@ Usage:
 
 import argparse
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from Run_LHS_Gutz_Taylor import (
@@ -101,13 +102,14 @@ def main() -> None:
 
     # Figure 1 – added_lc_worth_norm vs yrs_sum_al (stochastic rows only, no edge cases)
     lhs_only = results[results["run_id"].apply(lambda v: isinstance(v, int))]
+    centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
     fig1, ax1 = plt.subplots(figsize=(12, 7))
     if not lhs_only.empty:
         x_vals = lhs_only["yrs_sum_al"].to_numpy(dtype=float)
         y_vals = lhs_only["added_lc_worth_norm"].to_numpy(dtype=float)
         positive_mask = y_vals > 0.0
         non_positive_mask = ~positive_mask
-        if non_positive_mask.any():
+        if np.any(non_positive_mask):
             ax1.scatter(
                 x_vals[non_positive_mask],
                 y_vals[non_positive_mask],
@@ -117,7 +119,7 @@ def main() -> None:
                 s=18,
                 label="stochastic LHS (<= 0)",
             )
-        if positive_mask.any():
+        if np.any(positive_mask):
             ax1.scatter(
                 x_vals[positive_mask],
                 y_vals[positive_mask],
@@ -127,6 +129,19 @@ def main() -> None:
                 s=18,
                 label="stochastic LHS (> 0)",
             )
+    if not centerpoint_rows.empty:
+        ax1.scatter(
+            centerpoint_rows["yrs_sum_al"].to_numpy(dtype=float),
+            centerpoint_rows["added_lc_worth_norm"].to_numpy(dtype=float),
+            color="blue",
+            marker="*",
+            s=360,
+            edgecolors="black",
+            linewidths=0.9,
+            zorder=6,
+            label="CENTERPOINT",
+        )
+    if not lhs_only.empty or not centerpoint_rows.empty:
         ax1.legend(loc="best", fontsize=9)
     ax1.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
     ax1.set_ylabel("Added Worth (normalized to 2026 dollars)")
