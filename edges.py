@@ -2,6 +2,7 @@ from default_case import DEFAULT_SEED, MAN_DOB, START_CLOCK, WOMAN_DOB, load_def
 from Taylor import LhsScenario
 from utils import age
 from replay_case import REPLAY_CASES
+from replay_gutz_case import REPLAY_CASES_GUTZ
 
 
 MAN_BASELINE_INDEPENDENT_YRS = 2./12.
@@ -100,8 +101,9 @@ def build_edge_case_scenarios(
 def build_replay_case_scenarios() -> list[tuple[str, LhsScenario]]:
     """Build replay scenarios once (not per ROI/CPI edge-case combination)."""
     scenarios: list[tuple[str, LhsScenario]] = []
+    replay_cases: dict[str, dict[str, float | int]] = REPLAY_CASES if isinstance(REPLAY_CASES, dict) else {}
 
-    for replay_name, kwargs in REPLAY_CASES.items():
+    for replay_name, kwargs in replay_cases.items():
         full_name = replay_name
         scenario = LhsScenario(
             man_independent_yrs=float(kwargs["man_independent_yrs"]),
@@ -118,6 +120,42 @@ def build_replay_case_scenarios() -> list[tuple[str, LhsScenario]]:
             inflation_mean_reversion=float(kwargs["inflation_mean_reversion"]),
         )
         print(f"  Replay case '{full_name}':")
+        print(
+            f"    ind_yrs=(man={float(kwargs['man_independent_yrs']):.3f}, "
+            f"woman={float(kwargs['woman_independent_yrs']):.3f})  "
+            f"ast_yrs=(man={float(kwargs['man_assisted_yrs']):.3f}, "
+            f"woman={float(kwargs['woman_assisted_yrs']):.3f})  "
+            f"seeds=(roi={int(kwargs['roi_seed'])}, inf={int(kwargs['inflation_seed'])})"
+        )
+        scenarios.append((full_name, scenario))
+
+    return scenarios
+
+
+def build_replay_case_scenarios_gutz() -> list[tuple[str, LhsScenario]]:
+    """Build Gutz replay scenarios once (not per ROI/CPI edge-case combination)."""
+    scenarios: list[tuple[str, LhsScenario]] = []
+    replay_cases_gutz: dict[str, dict[str, float | int]] = (
+        REPLAY_CASES_GUTZ if isinstance(REPLAY_CASES_GUTZ, dict) else {}
+    )
+
+    for replay_name, kwargs in replay_cases_gutz.items():
+        full_name = replay_name
+        scenario = LhsScenario(
+            man_independent_yrs=float(kwargs["man_independent_yrs"]),
+            woman_independent_yrs=float(kwargs["woman_independent_yrs"]),
+            man_assisted_yrs=float(kwargs["man_assisted_yrs"]),
+            woman_assisted_yrs=float(kwargs["woman_assisted_yrs"]),
+            roi_seed=int(kwargs["roi_seed"]),
+            inflation_seed=int(kwargs["inflation_seed"]),
+            roi_mean_shift=float(kwargs["roi_mean_shift"]),
+            roi_vol_multiplier=float(kwargs["roi_vol_multiplier"]),
+            roi_mean_reversion=float(kwargs["roi_mean_reversion"]),
+            inflation_mean_shift=float(kwargs["inflation_mean_shift"]),
+            inflation_vol_multiplier=float(kwargs["inflation_vol_multiplier"]),
+            inflation_mean_reversion=float(kwargs["inflation_mean_reversion"]),
+        )
+        print(f"  Gutz replay case '{full_name}':")
         print(
             f"    ind_yrs=(man={float(kwargs['man_independent_yrs']):.3f}, "
             f"woman={float(kwargs['woman_independent_yrs']):.3f})  "
@@ -149,10 +187,9 @@ def build_custom_edge_cases_gutz(
     Convert CUSTOM_EDGE_CASES_GUTZ dict into (name, LhsScenario) tuples.
     Falls back to centerpoint values for any missing fields.
     """
-    if CUSTOM_EDGE_CASES_GUTZ is None:
-        return []
     cases = []
-    for case_name, params in CUSTOM_EDGE_CASES_GUTZ.items():
+    custom_edge_cases_gutz = CUSTOM_EDGE_CASES_GUTZ if isinstance(CUSTOM_EDGE_CASES_GUTZ, dict) else {}
+    for case_name, params in custom_edge_cases_gutz.items():
         scenario = LhsScenario(
             man_independent_yrs=params.get("man_independent_yrs", centerpoint_man_independent_yrs),
             woman_independent_yrs=params.get("woman_independent_yrs", centerpoint_woman_independent_yrs),

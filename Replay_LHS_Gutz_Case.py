@@ -26,7 +26,7 @@ from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
 # Default path written by Run_LHS_Gutz_Taylor.py
 DEFAULT_LHS_CSV = "lhs_gutz_taylor_results.csv"
-REPLAY_CASE_FILE = Path(__file__).with_name("replay_case.py")
+REPLAY_CASE_FILE = Path(__file__).with_name("replay_gutz_case.py")
 REPLAY_FIELD_ORDER = [
     "man_independent_yrs",
     "woman_independent_yrs",
@@ -185,7 +185,7 @@ def _format_replay_case_block(case_name: str, scenario: LhsScenario) -> str:
 
 
 def upsert_replay_case_definition(run_id: int, scenario: LhsScenario) -> Path:
-    """Insert REPLAY_CASES['REPLAY_GUTZ_<run_id>'] at the bottom of replay_case.py."""
+    """Insert REPLAY_CASES_GUTZ['REPLAY_GUTZ_<run_id>'] at the bottom of replay_gutz_case.py."""
     case_name = f"REPLAY_GUTZ_{run_id}"
     file_path = REPLAY_CASE_FILE
     if not file_path.exists():
@@ -195,17 +195,17 @@ def upsert_replay_case_definition(run_id: int, scenario: LhsScenario) -> Path:
     block = _format_replay_case_block(case_name, scenario)
 
     entry_pattern = re.compile(
-        rf'(^\s*"{re.escape(case_name)}"\s*:\s*\{{\n(?:.*\n)*?^\s*\}},\n?)',
+        rf'(^\s*"{re.escape(case_name)}"\s*:\s*\{{\n(?:.*\n)*?^\s*}},\n?)',
         flags=re.MULTILINE,
     )
     content_wo_entry = entry_pattern.sub("", content)
-    marker = "REPLAY_CASES: dict[str, dict[str, float | int]] = {"
+    marker = "REPLAY_CASES_GUTZ: dict[str, dict[str, float | int]] = {"
     marker_index = content_wo_entry.find(marker)
     if marker_index == -1:
-        raise ValueError("Could not find REPLAY_CASES dictionary in replay_case.py")
+        raise ValueError("Could not find REPLAY_CASES_GUTZ dictionary in replay_gutz_case.py")
     close_index = content_wo_entry.find("\n}", marker_index)
     if close_index == -1:
-        raise ValueError("Could not find REPLAY_CASES closing brace in replay_case.py")
+        raise ValueError("Could not find REPLAY_CASES_GUTZ closing brace in replay_gutz_case.py")
     insertion = ("\n" if content_wo_entry[close_index - 1] != "\n" else "") + block + "\n"
     updated = content_wo_entry[:close_index] + insertion + content_wo_entry[close_index:]
 
@@ -321,12 +321,12 @@ def main() -> None:
     replay_case_path = upsert_replay_case_definition(run_id=run_id, scenario=scenario)
     print(
         f"Replay edge-case definition updated in '{replay_case_path.name}' "
-        f"as REPLAY_CASES['REPLAY_GUTZ_{run_id}']."
+        f"as REPLAY_CASES_GUTZ['REPLAY_GUTZ_{run_id}']."
     )
     print(
         f"\nTo include this case in the next Run_LHS_Gutz_Taylor run, add "
-        f"'REPLAY_GUTZ_{run_id}' to build_replay_case_scenarios() in edges.py "
-        f"(it was auto-written to replay_case.py under that key)."
+        f"'REPLAY_GUTZ_{run_id}' to build_replay_case_scenarios_gutz() in edges.py "
+        f"(it was auto-written to replay_gutz_case.py under that key)."
     )
 
     # Write monthly CSV

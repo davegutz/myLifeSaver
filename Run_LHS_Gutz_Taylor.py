@@ -32,9 +32,6 @@ from Center_LHS_Gutz_Taylor import (
 )
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
-    CONSTANT_MONTHLY_CPI,
-    CONSTANT_MONTHLY_ROI,
-    DEFAULT_CURRENT_DATE,
     DEFAULT_SEED,
     HISTORY_YEARS,
     MAN_DOB,
@@ -42,11 +39,10 @@ from default_case import (
     WOMAN_DOB,
     apy_percent_to_monthly_fraction,
 )
-from edges import build_edge_case_scenarios, build_replay_case_scenarios, format_apy_suffix, build_custom_edge_cases_gutz, get_edge_cases_gutz, CUSTOM_EDGE_CASES_GUTZ
-from Inflation import plot_inflation_views
-from Roi import TICKER, plot_projection_views
+from edges import build_replay_case_scenarios_gutz, format_apy_suffix
+from Roi import TICKER
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
-from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
+from utils import evaluate_lhs_scenario
 
 # ============================================================================
 # IMPORTANT: ROI AND INFLATION RATES
@@ -96,8 +92,17 @@ INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
 
 DEFAULT_LHS_POINTS = 10
 PLOT_EDGE_CASES_IN_LHS_PLOT = True
-EDGE_CASE_ROI_APY_PERCENTS = [6.0, 12.0]
-EDGE_CASE_CPI_APY_PERCENTS = [0.0, 2.0, 6.0]
+# Edge points are explicit (roi_apy, cpi_apy) pairs instead of a Cartesian grid.
+EDGE_CASE_ROI_CPI_APY_PAIRS = [
+    (0.0, 0.0),
+    (0.0, 12.0),
+    (2.0, 6.0),
+    (5.0, 4.0),
+    (6.0, 6.0),
+]
+# Keep these for subplot layout/CLI compatibility; generation uses PAIRS above.
+EDGE_CASE_ROI_APY_PERCENTS = sorted({pair[0] for pair in EDGE_CASE_ROI_CPI_APY_PAIRS})
+EDGE_CASE_CPI_APY_PERCENTS = sorted({pair[1] for pair in EDGE_CASE_ROI_CPI_APY_PAIRS})
 PLOT_MAIN_TITLE = "Taylor Community Lifecare / Continuing Care Decision,  2026 for Katherine and David Gutz"
 
 
@@ -395,41 +400,39 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
     
-    # Process edge cases for every ROI  CPI combination (both fixed)
-    for roi_apy in EDGE_CASE_ROI_APY_PERCENTS:
-        for cpi_apy in EDGE_CASE_CPI_APY_PERCENTS:
-            fixed_monthly_roi = apy_percent_to_monthly_fraction(roi_apy)
-            fixed_monthly_cpi = apy_percent_to_monthly_fraction(cpi_apy)
-            both_context = ScenarioRunContext(
-                ticker=context.ticker,
-                current_date=context.current_date,
-                history_years=context.history_years,
-                al_cum_running_avg_yrs=context.al_cum_running_avg_yrs,
-                start_clock=context.start_clock,
-                man_dob=context.man_dob,
-                woman_dob=context.woman_dob,
-                constant_monthly_roi=fixed_monthly_roi,
-                constant_monthly_cpi=fixed_monthly_cpi,
+    # Process explicit fixed edge points from centerpoint scenario (no stochastic rates).
+    for roi_apy, cpi_apy in EDGE_CASE_ROI_CPI_APY_PAIRS:
+        fixed_monthly_roi = apy_percent_to_monthly_fraction(roi_apy)
+        fixed_monthly_cpi = apy_percent_to_monthly_fraction(cpi_apy)
+        edge_context = ScenarioRunContext(
+            ticker=context.ticker,
+            current_date=context.current_date,
+            history_years=context.history_years,
+            al_cum_running_avg_yrs=context.al_cum_running_avg_yrs,
+            start_clock=context.start_clock,
+            man_dob=context.man_dob,
+            woman_dob=context.woman_dob,
+            constant_monthly_roi=fixed_monthly_roi,
+            constant_monthly_cpi=fixed_monthly_cpi,
+        )
+        edge_scenario = build_centerpoint_scenario()
+        case_name = f"EC_CENTERPOINT_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
+        model, result = evaluate_lhs_scenario(scenario=edge_scenario, context=edge_context)
+        row = asdict(
+            summarize_lhs_run(
+                run_id=case_name,
+                scenario=edge_scenario,
+                model=model,
+                result=result,
+                context=edge_context,
             )
-            edge_cases = get_edge_cases_gutz(
-                roi_apy=roi_apy,
-                cpi_apy=cpi_apy,
-                centerpoint_man_independent_yrs=CENTERPOINT_MAN_INDEPENDENT_YRS,
-                centerpoint_woman_independent_yrs=CENTERPOINT_WOMAN_INDEPENDENT_YRS,
-                centerpoint_man_assisted_yrs=CENTERPOINT_MAN_ASSISTED_YRS,
-                centerpoint_woman_assisted_yrs=CENTERPOINT_WOMAN_ASSISTED_YRS,
-                centerpoint_roi_seed=CENTERPOINT_ROI_SEED,
-                centerpoint_inflation_seed=CENTERPOINT_INFLATION_SEED,
-            )
-            for case_name, scenario in edge_cases:
-                model, result = evaluate_lhs_scenario(scenario=scenario, context=both_context)
-                row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, result=result, context=both_context))
-                ordered_row = {column: row[column] for column in CSV_COLUMNS}
-                print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
-                rows.append(ordered_row)
+        )
+        ordered_row = {column: row[column] for column in CSV_COLUMNS}
+        print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
+        rows.append(ordered_row)
 
-    # Process replay cases once, outside the ROI  CPI edge-case matrix loop.
-    replay_cases = build_replay_case_scenarios()
+    # Process Gutz replay cases once, outside the fixed edge-point loop.
+    replay_cases = build_replay_case_scenarios_gutz()
     for case_name, scenario in replay_cases:
         model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
         row = asdict(
