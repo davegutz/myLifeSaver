@@ -98,6 +98,15 @@ def prompt_for_run_id(csv_path: str) -> int:
         print(f"  '{raw}' is not a valid run_id. Please choose from {available}.")
 
 
+def parse_optional_constant_field(value: object) -> float | None:
+    if pd.isna(value):
+        return None
+    text = str(value).strip()
+    if text == "" or text.lower() == "stochastic":
+        return None
+    return float(text)
+
+
 def load_scenario_from_csv(csv_path: str, run_id: int) -> tuple[LhsScenario, dict]:
     """
     Read a stochastic LHS row from the CSV and reconstruct its LhsScenario and context.
@@ -143,8 +152,8 @@ def load_scenario_from_csv(csv_path: str, run_id: int) -> tuple[LhsScenario, dic
         "start_clock": str(r["start_clock"]),
         "man_dob": str(r["man_dob"]),
         "woman_dob": str(r["woman_dob"]),
-        "constant_monthly_roi": float(r["constant_monthly_roi"]) if pd.notna(r["constant_monthly_roi"]) else None,
-        "constant_monthly_cpi": float(r["constant_monthly_cpi"]) if pd.notna(r["constant_monthly_cpi"]) else None,
+        "constant_monthly_roi": parse_optional_constant_field(r["constant_monthly_roi"]),
+        "constant_monthly_cpi": parse_optional_constant_field(r["constant_monthly_cpi"]),
     }
     
     return scenario, context_dict

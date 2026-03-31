@@ -145,6 +145,10 @@ def print_screen_row(row: dict[str, object], columns: list[str], widths: dict[st
     print(" ".join(format_screen_cell(row[column], widths[column]) for column in columns))
 
 
+def format_constant_monthly_output(value: float | None) -> float | str:
+    return "stochastic" if value is None else value
+
+
 def add_lifecare_reference_line(axis: plt.Axes) -> None:
     """Add a bold y=0 reference line and a label just above it."""
     axis.axhline(0.0, color="black", linewidth=3.0, alpha=0.95, zorder=0)
@@ -292,8 +296,8 @@ def summarize_lhs_run(
         start_clock=context.start_clock,
         man_dob=context.man_dob,
         woman_dob=context.woman_dob,
-        constant_monthly_roi=context.constant_monthly_roi,
-        constant_monthly_cpi=context.constant_monthly_cpi,
+        constant_monthly_roi=format_constant_monthly_output(context.constant_monthly_roi),
+        constant_monthly_cpi=format_constant_monthly_output(context.constant_monthly_cpi),
     )
 
 

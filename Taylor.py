@@ -103,8 +103,8 @@ class LhsScenarioSummary:
     start_clock: str
     man_dob: str
     woman_dob: str
-    constant_monthly_roi: float | None
-    constant_monthly_cpi: float | None
+    constant_monthly_roi: float | str | None
+    constant_monthly_cpi: float | str | None
 
 
 @dataclass(frozen=True)
