@@ -26,6 +26,7 @@ from Center_LHS_Gutz_Taylor import (
     CENTERPOINT_MAN_ASSISTED_YRS,
     CENTERPOINT_MAN_INDEPENDENT_YRS,
     CENTERPOINT_ROI_SEED,
+    CENTERPOINT_USE_CONSTANT_RATES,
     CENTERPOINT_WOMAN_ASSISTED_YRS,
     CENTERPOINT_WOMAN_INDEPENDENT_YRS,
 )
@@ -445,15 +446,28 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
         rows.append(ordered_row)
 
     # Process the explicit centerpoint scenario once and append as CENTERPOINT.
+    centerpoint_context = context
+    if CENTERPOINT_USE_CONSTANT_RATES:
+        centerpoint_context = ScenarioRunContext(
+            ticker=context.ticker,
+            current_date=context.current_date,
+            history_years=context.history_years,
+            al_cum_running_avg_yrs=context.al_cum_running_avg_yrs,
+            start_clock=context.start_clock,
+            man_dob=context.man_dob,
+            woman_dob=context.woman_dob,
+            constant_monthly_roi=normalize_centerpoint_constant_monthly(CENTERPOINT_CONSTANT_MONTHLY_ROI),
+            constant_monthly_cpi=normalize_centerpoint_constant_monthly(CENTERPOINT_CONSTANT_MONTHLY_CPI),
+        )
     centerpoint_scenario = build_centerpoint_scenario()
-    model, result = evaluate_lhs_scenario(scenario=centerpoint_scenario, context=context)
+    model, result = evaluate_lhs_scenario(scenario=centerpoint_scenario, context=centerpoint_context)
     centerpoint_row = asdict(
         summarize_lhs_run(
             run_id="CENTERPOINT",
             scenario=centerpoint_scenario,
             model=model,
             result=result,
-            context=context,
+            context=centerpoint_context,
         )
     )
     ordered_centerpoint_row = {column: centerpoint_row[column] for column in CSV_COLUMNS}
@@ -671,8 +685,10 @@ def main() -> None:
         start_clock=START_CLOCK,
         man_dob=MAN_DOB,
         woman_dob=WOMAN_DOB,
-        constant_monthly_roi=normalize_centerpoint_constant_monthly(CENTERPOINT_CONSTANT_MONTHLY_ROI),
-        constant_monthly_cpi=normalize_centerpoint_constant_monthly(CENTERPOINT_CONSTANT_MONTHLY_CPI),
+        # Keep sampled LHS rows stochastic by default; CENTERPOINT row constants
+        # are controlled separately via CENTERPOINT_USE_CONSTANT_RATES.
+        constant_monthly_roi=None,
+        constant_monthly_cpi=None,
     )
     if args.lhs_points > 0:
         output_path = Path(args.lhs_output)
