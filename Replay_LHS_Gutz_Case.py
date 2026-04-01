@@ -294,8 +294,18 @@ def main() -> None:
                                  min(this_life.man_independent_yrs, this_life.woman_independent_yrs)),
         ("yrs il single",        abs(this_life.man_independent_yrs - this_life.woman_independent_yrs),
                                  abs(this_life.man_independent_yrs - this_life.woman_independent_yrs)),
+        ("yrs al double",        min(this_life.man_assisted_yrs, this_life.woman_assisted_yrs),
+                                 min(this_life.man_assisted_yrs, this_life.woman_assisted_yrs)),
+        ("yrs al single",        abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs),
+                                 abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs)),
         ("yrs sum al",           this_life.man_assisted_yrs + this_life.woman_assisted_yrs,
                                  this_life.man_assisted_yrs + this_life.woman_assisted_yrs),
+        ("AL_CC_1",              this_life.initial_al_cc_1, 0.0),
+        ("AL_CC_2",              this_life.initial_al_cc_2, 0.0),
+        ("CC_1",                 this_life.initial_cc_1, 0.0),
+        ("CC_2",                 this_life.initial_cc_2, 0.0),
+        ("LC_1",                 0.0, this_life.initial_lc_1),
+        ("LC_2",                 0.0, this_life.initial_lc_2),
     ]
     table_rows = [
         ("total expenses",            total_expenses_cc,    total_expenses_lc),
@@ -370,4 +380,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

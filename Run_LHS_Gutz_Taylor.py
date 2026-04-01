@@ -40,6 +40,7 @@ from default_case import (
     apy_percent_to_monthly_fraction,
 )
 from edges import build_replay_case_scenarios_gutz, format_apy_suffix
+from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
 from Roi import TICKER
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
 from utils import evaluate_lhs_scenario
@@ -677,133 +678,31 @@ def _format_gutz_figure1_annotation(row: pd.Series) -> str:
 
 
 def plot_gutz_lhs_figure1(results: pd.DataFrame, show: bool = True) -> tuple[plt.Figure, plt.Axes]:
-    """Plot Figure 1 for the Gutz LHS analysis from an existing results frame."""
-    lhs_only = results[results["run_id"].apply(lambda v: isinstance(v, int))]
-    centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
-
-    fig1, ax1 = plt.subplots(figsize=(12, 7))
-    if not lhs_only.empty:
-        x_vals = lhs_only["yrs_sum_al"].to_numpy(dtype=float)
-        y_vals = lhs_only["added_lc_worth_norm"].to_numpy(dtype=float)
-        worth_norm_lc_vals = lhs_only["worth_norm_lc"].to_numpy(dtype=float)
-        positive_mask = y_vals > 0.0
-        non_positive_mask = ~positive_mask
-        red_mask = non_positive_mask & (worth_norm_lc_vals <= 0.0)
-        green_mask = non_positive_mask & (worth_norm_lc_vals > 0.0)
-        black_mask = positive_mask & (worth_norm_lc_vals >= 0.0)
-        orange_mask = positive_mask & (worth_norm_lc_vals < 0.0)
-        if np.any(red_mask):
-            ax1.scatter(
-                x_vals[red_mask],
-                y_vals[red_mask],
-                alpha=0.8,
-                color="red",
-                marker="x",
-                s=18,
-                label="stochastic LHS (added <= 0, LC <= 0)",
-            )
-        if np.any(green_mask):
-            ax1.scatter(
-                x_vals[green_mask],
-                y_vals[green_mask],
-                alpha=0.8,
-                color="green",
-                marker="x",
-                s=18,
-                label="stochastic LHS (added <= 0, LC > 0)",
-            )
-        if np.any(black_mask):
-            ax1.scatter(
-                x_vals[black_mask],
-                y_vals[black_mask],
-                alpha=0.8,
-                color="black",
-                marker="x",
-                s=18,
-                label="stochastic LHS (added > 0, LC >= 0)",
-            )
-        if np.any(orange_mask):
-            ax1.scatter(
-                x_vals[orange_mask],
-                y_vals[orange_mask],
-                alpha=0.8,
-                color="orange",
-                marker="x",
-                s=18,
-                label="stochastic LHS (added > 0, LC < 0)",
-            )
-
-        max_idx = lhs_only["added_lc_worth_norm"].idxmax()
-        min_idx = lhs_only["added_lc_worth_norm"].idxmin()
-        max_row = lhs_only.loc[max_idx]
-        min_row = lhs_only.loc[min_idx]
-
-        ax1.annotate(
-            f"MAX\n{_format_gutz_figure1_annotation(max_row)}",
-            xy=(max_row["yrs_sum_al"], max_row["added_lc_worth_norm"]),
-            xytext=(10, 10),
-            textcoords="offset points",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="yellow", alpha=0.7),
-            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="black"),
-            fontsize=8,
-            ha="left",
-        )
-        ax1.annotate(
-            f"MIN\n{_format_gutz_figure1_annotation(min_row)}",
-            xy=(min_row["yrs_sum_al"], min_row["added_lc_worth_norm"]),
-            xytext=(10, -20),
-            textcoords="offset points",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="cyan", alpha=0.7),
-            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="black"),
-            fontsize=8,
-            ha="left",
-        )
-
-    if not centerpoint_rows.empty:
-        ax1.scatter(
-            centerpoint_rows["yrs_sum_al"].to_numpy(dtype=float),
-            centerpoint_rows["added_lc_worth_norm"].to_numpy(dtype=float),
-            color="blue",
-            marker="*",
-            s=360,
-            edgecolors="black",
-            linewidths=0.9,
-            zorder=6,
-            label="CENTERPOINT",
-        )
-        centerpoint_row = centerpoint_rows.iloc[0]
-        ax1.annotate(
-            f"CENTERPOINT\n{_format_gutz_figure1_annotation(centerpoint_row)}",
-            xy=(centerpoint_row["yrs_sum_al"], centerpoint_row["added_lc_worth_norm"]),
-            xytext=(14, 14),
-            textcoords="offset points",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="#dbeafe", alpha=0.85),
-            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0", color="blue"),
-            fontsize=8,
-            ha="left",
-        )
-
-    if not lhs_only.empty or not centerpoint_rows.empty:
-        ax1.legend(loc="best", fontsize=9)
-    ax1.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
-    ax1.set_ylabel("Added Worth (normalized to 2026 dollars)")
-    ax1.set_title(PLOT_MAIN_TITLE, fontweight="bold", pad=20)
-    ax1.text(
-        0.5,
-        1.08,
-        "Added Worth (normalized) vs yrs_sum_al (Gutz Centerpoint LHS)\n"
-        "Params: man_IL/woman_IL/man_AL/woman_AL/roi_apy/cpi_apy",
-        transform=ax1.transAxes,
-        ha="center",
-        va="bottom",
-        fontsize=9,
+    figure, axis, _ = plot_lhs_figure1(
+        results,
+        main_title=PLOT_MAIN_TITLE,
+        subtitle=(
+            "Added Worth (normalized) vs yrs_sum_al (Gutz Centerpoint LHS)\n"
+            "Params: man_IL/woman_IL/man_AL/woman_AL/roi_apy/cpi_apy"
+        ),
+        add_reference_line=add_lifecare_reference_line,
+        annotation_formatter=_format_gutz_figure1_annotation,
+        subtitle_y=1.08,
+        color_mode="worth_override",
+        annotate_centerpoint=True,
+        show=show,
     )
-    ax1.grid(True, alpha=0.3)
-    add_lifecare_reference_line(ax1)
+    return figure, axis
 
-    if show:
-        plt.show()
-    return fig1, ax1
+
+def plot_gutz_lhs_worth_subplots(results: pd.DataFrame, show: bool = True) -> tuple[plt.Figure, np.ndarray]:
+    return plot_lhs_figure2_worth_subplots(
+        results,
+        main_title=PLOT_MAIN_TITLE,
+        add_reference_line=add_lifecare_reference_line,
+        annotation_formatter=_format_gutz_figure1_annotation,
+        show=show,
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -863,6 +762,7 @@ def main() -> None:
         )
         
         plot_gutz_lhs_figure1(results, show=False)
+        plot_gutz_lhs_worth_subplots(results, show=False)
 
         plot_lhs_summary(
             results,

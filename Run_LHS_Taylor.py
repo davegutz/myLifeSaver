@@ -20,6 +20,7 @@ from default_case import (
 )
 from edges import build_edge_case_scenarios, build_replay_case_scenarios, format_apy_suffix
 from Inflation import plot_inflation_views
+from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
 from Roi import TICKER, plot_projection_views
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
 from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
@@ -522,6 +523,47 @@ def plot_lhs_summary(
         plt.show()
 
 
+def _format_taylor_figure1_annotation(row: pd.Series) -> str:
+    life_params = (
+        f"{float(row['man_independent_yrs']):.2f}/"
+        f"{float(row['woman_independent_yrs']):.2f}/"
+        f"{float(row['man_assisted_yrs']):.2f}/"
+        f"{float(row['woman_assisted_yrs']):.2f}"
+    )
+    apy_params = f"{float(row['apy_roi']):.2f}%/{float(row['apy_cpi']):.2f}%"
+    worth_norm_lc = f"worth_norm_lc=${float(row['worth_norm_lc']):,.0f}"
+    worth_norm_cc = f"worth_norm_cc=${float(row['worth_norm_cc']):,.0f}"
+    return f"{life_params}\n{apy_params}\n{worth_norm_lc}\n{worth_norm_cc}"
+
+
+def plot_taylor_lhs_figure1(results: pd.DataFrame, show: bool = True) -> tuple[plt.Figure, plt.Axes]:
+    figure, axis, _ = plot_lhs_figure1(
+        results,
+        main_title=PLOT_MAIN_TITLE,
+        subtitle=(
+            "Added Worth (normalized) vs yrs_sum_al (No Edge Cases)\n"
+            "Params: man_IL/woman_IL/man_AL/woman_AL/roi_apy/cpi_apy"
+        ),
+        add_reference_line=add_lifecare_reference_line,
+        annotation_formatter=_format_taylor_figure1_annotation,
+        subtitle_y=1.08,
+        color_mode="basic",
+        annotate_centerpoint=False,
+        show=show,
+    )
+    return figure, axis
+
+
+def plot_taylor_lhs_worth_subplots(results: pd.DataFrame, show: bool = True) -> tuple[plt.Figure, np.ndarray]:
+    return plot_lhs_figure2_worth_subplots(
+        results,
+        main_title=PLOT_MAIN_TITLE,
+        add_reference_line=add_lifecare_reference_line,
+        annotation_formatter=_format_taylor_figure1_annotation,
+        show=show,
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Monte Carlo monthly ROI projection anchored to historical long-run growth."
@@ -575,64 +617,24 @@ def main() -> None:
             f"Worth LC range: {results['worth_lc'].min():,.0f} to {results['worth_lc'].max():,.0f}\n"
             f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
         )
-        # Figure 1 – added_lc_worth_norm vs yrs_sum_al (stochastic rows only, no edge cases)
-        lhs_only = results[results["run_id"].apply(lambda v: not isinstance(v, str))]
-        fig1, ax1 = plt.subplots(figsize=(12, 7))
-        if not lhs_only.empty:
-            x_vals = lhs_only["yrs_sum_al"].to_numpy(dtype=float)
-            y_vals = lhs_only["added_lc_worth_norm"].to_numpy(dtype=float)
-            positive_mask = y_vals > 0.0
-            non_positive_mask = ~positive_mask
-            if np.any(non_positive_mask):
-                ax1.scatter(
-                    x_vals[non_positive_mask],
-                    y_vals[non_positive_mask],
-                    alpha=0.8,
-                    color="red",
-                    marker="x",
-                    s=18,
-                    label="stochastic LHS (<= 0)",
-                )
-            if np.any(positive_mask):
-                ax1.scatter(
-                    x_vals[positive_mask],
-                    y_vals[positive_mask],
-                    alpha=0.8,
-                    color="black",
-                    marker="x",
-                    s=18,
-                    label="stochastic LHS (> 0)",
-                )
-            ax1.legend(loc="best", fontsize=9)
-        ax1.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
-        ax1.set_ylabel("Added Worth (normalized to 2026 dollars)")
-        ax1.set_title(PLOT_MAIN_TITLE, fontweight="bold", pad=20)
-        ax1.text(
-            0.5,
-            1.01,
-            "Added Worth (normalized) vs yrs_sum_al (No Edge Cases)",
-            transform=ax1.transAxes,
-            ha="center",
-            va="bottom",
-        )
-        ax1.grid(True, alpha=0.3)
-        add_lifecare_reference_line(ax1)
+        plot_taylor_lhs_figure1(results, show=False)
+        plot_taylor_lhs_worth_subplots(results, show=False)
 
-        plot_lhs_summary(                                  # Figure 2 – 3×1 overview
+        plot_lhs_summary(                                  # Figure 3 – 3×1 overview
             results,
             include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
             roi_apy_percents=EDGE_CASE_ROI_APY_PERCENTS,
             cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
             show=False,
         )
-        plot_edge_case_subplots(                           # Figure 3 – edge cases, shared y
+        plot_edge_case_subplots(                           # Figure 4 – edge cases, shared y
             results,
             EDGE_CASE_ROI_APY_PERCENTS,
             EDGE_CASE_CPI_APY_PERCENTS,
             shared_y_scale=True,
             show=False,
         )
-        plot_edge_case_subplots(                           # Figure 4 – edge cases, free y
+        plot_edge_case_subplots(                           # Figure 5 – edge cases, free y
             results,
             EDGE_CASE_ROI_APY_PERCENTS,
             EDGE_CASE_CPI_APY_PERCENTS,

@@ -20,6 +20,7 @@ from Run_LHS_Gutz_Taylor import (
     EDGE_CASE_ROI_APY_PERCENTS,
     plot_edge_case_subplots,
     plot_gutz_lhs_figure1,
+    plot_gutz_lhs_worth_subplots,
     plot_lhs_summary,
 )
 
@@ -99,8 +100,9 @@ def main() -> None:
     print("Generating plots ...")
 
     plot_gutz_lhs_figure1(results, show=False)
+    plot_gutz_lhs_worth_subplots(results, show=False)
 
-    # Figure 2 – added worth (normalized) vs life structure params (3×1 subplots)
+    # Figure 3 – added worth (normalized) vs life structure params (3×1 subplots)
     plot_lhs_summary(
         results,
         include_edge_cases=include_edge,
@@ -109,7 +111,7 @@ def main() -> None:
         show=False,
     )
 
-    # Figure 3 – added worth (normalized) edge-case subplots, shared y-scale
+    # Figure 4 – added worth (normalized) edge-case subplots, shared y-scale
     plot_edge_case_subplots(
         results,
         roi_apys,
@@ -118,7 +120,7 @@ def main() -> None:
         show=False,
     )
 
-    # Figure 4 – added worth (normalized) edge-case subplots, free y-scale
+    # Figure 5 – added worth (normalized) edge-case subplots, free y-scale
     plot_edge_case_subplots(
         results,
         roi_apys,
