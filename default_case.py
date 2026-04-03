@@ -33,8 +33,8 @@ CONSTANT_MONTHLY_ROI: float | None = None  # Fraction per month
 CONSTANT_MONTHLY_CPI: float | None = None  # Fraction per month
 AL_INFLATION_FACTOR = 2.0  # AL escalates at 2x inflation
 LC_INFLATION_FACTOR = 1.5  # LC escalates at 1.5x inflation
-P_MAN_AL = 0.175
-P_WOMAN_AL = 0.525
+P_MAN_AL = 0.7
+P_WOMAN_AL = 0.7
 # P_MAN_AL = 1.  # disable the Pal logic
 # P_WOMAN_AL = 1.  # disable the Pal logic
 

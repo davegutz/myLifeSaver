@@ -149,6 +149,9 @@ class Roi:
 
     def load_price_history(self, ticker: str = TICKER) -> pd.Series:
         end_date_to_use = pd.Timestamp.today().normalize() if self.current_date is None else pd.Timestamp(self.current_date)
+        # Roll back to Friday if end date lands on a weekend (yfinance may return empty otherwise)
+        while end_date_to_use.dayofweek >= 5:  # 5=Saturday, 6=Sunday
+            end_date_to_use -= pd.Timedelta(days=1)
         start_date_to_use = end_date_to_use - pd.DateOffset(years=self.history_years)
         data = yf.download(
             ticker,

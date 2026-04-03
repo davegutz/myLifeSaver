@@ -155,12 +155,12 @@ def plot_lhs_figure1(
         _scatter_figure1_points(axis, lhs_rows, color_mode)
 
         index_tags: dict[int, list[str]] = {}
-        _append_index_tag(index_tags, extreme_indices.get("f1_max"), "F1 MAX")
-        _append_index_tag(index_tags, extreme_indices.get("f1_min"), "F1 MIN")
-        _append_index_tag(index_tags, extreme_indices.get("f2_lc_max"), "F2 LC MAX")
-        _append_index_tag(index_tags, extreme_indices.get("f2_lc_min"), "F2 LC MIN")
-        _append_index_tag(index_tags, extreme_indices.get("f2_cc_max"), "F2 CC MAX")
-        _append_index_tag(index_tags, extreme_indices.get("f2_cc_min"), "F2 CC MIN")
+        _append_index_tag(index_tags, extreme_indices.get("f1_max"), "Norm MAX")
+        _append_index_tag(index_tags, extreme_indices.get("f1_min"), "Norm MIN")
+        _append_index_tag(index_tags, extreme_indices.get("f2_lc_max"), "Abs LC MAX")
+        _append_index_tag(index_tags, extreme_indices.get("f2_lc_min"), "Abs LC MIN")
+        _append_index_tag(index_tags, extreme_indices.get("f2_cc_max"), "Abs CC MAX")
+        _append_index_tag(index_tags, extreme_indices.get("f2_cc_min"), "Abs CC MIN")
         _annotate_tagged_points(axis, lhs_rows, index_tags, "added_lc_worth_norm", annotation_formatter)
 
     if not centerpoint_rows.empty:
@@ -207,7 +207,7 @@ def plot_lhs_figure2_worth_subplots(
     results: pd.DataFrame,
     *,
     main_title: str,
-    add_reference_line: ReferenceLineAdder,
+    add_reference_line: ReferenceLineAdder | None,
     annotation_formatter: AnnotationFormatter | None,
     show: bool,
 ) -> tuple[plt.Figure, np.ndarray]:
@@ -240,10 +240,10 @@ def plot_lhs_figure2_worth_subplots(
                 axis.scatter(x_vals[zero_mask], y_vals[zero_mask], alpha=0.8, color="gray", marker="x", s=18, label=f"{column} = 0")
 
             index_tags: dict[int, list[str]] = {}
-            _append_index_tag(index_tags, extreme_indices.get(own_max_key), "F2 MAX")
-            _append_index_tag(index_tags, extreme_indices.get(own_min_key), "F2 MIN")
-            _append_index_tag(index_tags, extreme_indices.get("f1_max"), "F1 MAX")
-            _append_index_tag(index_tags, extreme_indices.get("f1_min"), "F1 MIN")
+            _append_index_tag(index_tags, extreme_indices.get(own_max_key), "Abs MAX")
+            _append_index_tag(index_tags, extreme_indices.get(own_min_key), "Abs MIN")
+            _append_index_tag(index_tags, extreme_indices.get("f1_max"), "Norm MAX")
+            _append_index_tag(index_tags, extreme_indices.get("f1_min"), "Norm MIN")
             _annotate_tagged_points_outside(
                 axis,
                 lhs_rows,
@@ -274,7 +274,8 @@ def plot_lhs_figure2_worth_subplots(
         axis.set_ylabel("Worth (normalized to 2026 dollars)")
         axis.set_title(title)
         axis.grid(True, alpha=0.3)
-        add_reference_line(axis)
+        if add_reference_line is not None:
+            add_reference_line(axis)
 
     if show:
         plt.show()

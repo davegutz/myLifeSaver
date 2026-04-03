@@ -18,10 +18,13 @@ import pandas as pd
 from Run_LHS_Gutz_Taylor import (
     EDGE_CASE_CPI_APY_PERCENTS,
     EDGE_CASE_ROI_APY_PERCENTS,
+    _select_nearest_ep_lhs,
+    plot_demographic_stats,
     plot_edge_case_subplots,
     plot_gutz_lhs_figure1,
     plot_gutz_lhs_worth_subplots,
     plot_lhs_summary,
+    plot_worth_vs_earn,
 )
 
 DEFAULT_LHS_CSV = "lhs_gutz_taylor_results.csv"
@@ -101,8 +104,18 @@ def main() -> None:
 
     plot_gutz_lhs_figure1(results, show=False)
     plot_gutz_lhs_worth_subplots(results, show=False)
+    plot_worth_vs_earn(results, show=False)
 
-    # Figure 3 – added worth (normalized) vs life structure params (3×1 subplots)
+    # Figures 4-6: figures 1-3 filtered to the 100 LHS points
+    # with earning_potential nearest to the centerpoint (symmetric above/below).
+    nearest_results = _select_nearest_ep_lhs(results, n=100)
+    plot_gutz_lhs_figure1(nearest_results, show=False)
+    plot_gutz_lhs_worth_subplots(nearest_results, show=False)
+    plot_worth_vs_earn(nearest_results, show=False)
+
+    plot_demographic_stats(results, show=False)
+
+    # Figure 7 – added worth (normalized) vs life structure params (3×1 subplots)
     plot_lhs_summary(
         results,
         include_edge_cases=include_edge,
@@ -111,7 +124,7 @@ def main() -> None:
         show=False,
     )
 
-    # Figure 4 – added worth (normalized) edge-case subplots, shared y-scale
+    # Figure 8 – added worth (normalized) edge-case subplots, shared y-scale
     plot_edge_case_subplots(
         results,
         roi_apys,
@@ -120,7 +133,7 @@ def main() -> None:
         show=False,
     )
 
-    # Figure 5 – added worth (normalized) edge-case subplots, free y-scale
+    # Figure 9 – added worth (normalized) edge-case subplots, free y-scale
     plot_edge_case_subplots(
         results,
         roi_apys,

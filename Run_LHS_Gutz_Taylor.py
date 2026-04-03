@@ -15,7 +15,7 @@ regions of the scenario space.
 # User inputs
 #  To force the probability both man and woman go to AL instead of dying right away
 force_al = False
-DEFAULT_LHS_POINTS = 1000
+DEFAULT_LHS_POINTS = 1
 
 
 import argparse
@@ -48,6 +48,7 @@ from default_case import (
     MAN_DOB,
     P_MAN_AL,
     P_WOMAN_AL,
+    PILE_AT_START,
     START_CLOCK,
     WOMAN_DOB,
     apy_percent_to_monthly_fraction,
@@ -56,7 +57,7 @@ from edges import build_replay_case_scenarios_gutz, format_apy_suffix
 from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
 from Roi import TICKER
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
-from utils import evaluate_lhs_scenario
+from utils import age, evaluate_lhs_scenario
 
 
 
@@ -135,6 +136,9 @@ CSV_COLUMNS = [
     "yrs_il_single",
     "yrs_il_double",
     "yrs_sum_al",
+    "total_living_yrs",
+    "elapsed_time_yrs",
+    "earning_potential",
     "added_lc_worth_norm",
     "man_independent_yrs",
     "woman_independent_yrs",
@@ -154,6 +158,10 @@ CSV_COLUMNS = [
     "woman_goes_to_al_seed",
     "man_goes_to_al",
     "woman_goes_to_al",
+    "man_age_to_al",
+    "woman_age_to_al",
+    "man_age_at_death",
+    "woman_age_at_death",
     "exp_al_cc",
     "exp_norm_al_cc",
     "exp_cc",
@@ -172,6 +180,8 @@ CSV_COLUMNS = [
     "worth_norm_lc",
     "worth_cc",
     "worth_norm_cc",
+    "man_age_at_start",
+    "woman_age_at_start",
     # Context constants from this run
     "ticker",
     "current_date",
@@ -405,10 +415,19 @@ def summarize_lhs_run(
         yrs_il_double=min(scenario.man_independent_yrs, scenario.woman_independent_yrs),
         yrs_il_single=abs(scenario.man_independent_yrs - scenario.woman_independent_yrs),
         yrs_sum_al=scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
+        total_living_yrs=scenario.man_independent_yrs + scenario.woman_independent_yrs + scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
+        elapsed_time_yrs=float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425),
+        earning_potential=float(PILE_AT_START * (model.roi.life_horizon_roi_cum[-1] - model.cpi.life_horizon_inflation_cum[-1]) * float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425)),
         man_goes_to_al_seed=scenario.man_goes_to_al_seed,
         woman_goes_to_al_seed=scenario.woman_goes_to_al_seed,
         man_goes_to_al=model.man_goes_to_al,
         woman_goes_to_al=model.woman_goes_to_al,
+        man_age_to_al=model.man_age_to_al if model.man_goes_to_al else '',
+        woman_age_to_al=model.woman_age_to_al if model.woman_goes_to_al else '',
+        man_age_at_death=model.man_age_at_death,
+        woman_age_at_death=model.woman_age_at_death,
+        man_age_at_start=age(context.start_clock, context.man_dob),
+        woman_age_at_start=age(context.start_clock, context.woman_dob),
         # Context constants
         ticker=context.ticker,
         current_date=str(context.current_date),
@@ -718,6 +737,164 @@ def _format_gutz_figure1_annotation(row: pd.Series) -> str:
     return f"{life_params}\n{apy_params}\n{worth_norm_lc}\n{worth_norm_cc}"
 
 
+def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
+    lhs = results[pd.to_numeric(results["run_id"], errors="coerce").notna()]
+    cp = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
+
+    figure, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(21, 6), constrained_layout=True)
+    figure.suptitle("Worth vs Earnings (normalized)", fontsize=14)
+
+    # Left: worth_norm vs earn_norm
+    ax1.scatter(lhs["earn_norm_lc"], lhs["worth_norm_lc"],
+                marker="o", s=18, alpha=0.6, label="LC")
+    ax1.scatter(lhs["earn_norm_cc"], lhs["worth_norm_cc"],
+                marker="x", s=18, alpha=0.6, label="CC")
+
+    # Middle: earn_norm vs total_living_yrs
+    ax2.scatter(lhs["total_living_yrs"], lhs["earn_norm_lc"],
+                marker="o", s=18, alpha=0.6, label="LC")
+    ax2.scatter(lhs["total_living_yrs"], lhs["earn_norm_cc"],
+                marker="x", s=18, alpha=0.6, label="CC")
+
+    # Right: worth_norm vs earning_potential
+    ax3.scatter(lhs["earning_potential"], lhs["worth_norm_lc"],
+                marker="o", s=18, alpha=0.6, label="LC")
+    ax3.scatter(lhs["earning_potential"], lhs["worth_norm_cc"],
+                marker="x", s=18, alpha=0.6, label="CC")
+
+    if not cp.empty:
+        row = cp.iloc[0]
+        earn_lc  = float(row["earn_norm_lc"])
+        worth_lc = float(row["worth_norm_lc"])
+        earn_cc  = float(row["earn_norm_cc"])
+        worth_cc = float(row["worth_norm_cc"])
+        cp_total_living = float(row["total_living_yrs"])
+        cp_earning_potential = float(row["earning_potential"])
+
+        ax1.scatter([earn_lc], [worth_lc], marker="*", s=260, alpha=0.4,
+                    color="steelblue", edgecolors="steelblue", zorder=5, label="CP LC")
+        ax1.scatter([earn_cc], [worth_cc], marker="*", s=260, alpha=0.4,
+                    color="darkorange", edgecolors="darkorange", zorder=5, label="CP CC")
+
+        ax2.scatter([cp_total_living], [earn_lc], marker="*", s=260, alpha=0.4,
+                    color="steelblue", edgecolors="steelblue", zorder=5, label="CP LC")
+        ax2.scatter([cp_total_living], [earn_cc], marker="*", s=260, alpha=0.4,
+                    color="darkorange", edgecolors="darkorange", zorder=5, label="CP CC")
+
+        ax3.scatter([cp_earning_potential], [worth_lc], marker="*", s=260, alpha=0.4,
+                    color="steelblue", edgecolors="steelblue", zorder=5, label="CP LC")
+        ax3.scatter([cp_earning_potential], [worth_cc], marker="*", s=260, alpha=0.4,
+                    color="darkorange", edgecolors="darkorange", zorder=5, label="CP CC")
+
+    ax1.set_xlabel("Normalized Earnings")
+    ax1.set_ylabel("Normalized Worth")
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+
+    ax2.set_xlabel("total_living_yrs (years)")
+    ax2.set_ylabel("Normalized Earnings")
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+
+    ax3.set_xlabel("earning_potential")
+    ax3.set_ylabel("Normalized Worth")
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+
+    if show:
+        plt.show()
+    return figure
+
+
+def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figure:
+    MAN_COLOR = "lightblue"
+    WOMAN_COLOR = "fuchsia"
+
+    results = results[pd.to_numeric(results["run_id"], errors="coerce").notna()]
+    man_al = results[results["man_goes_to_al"] == True]
+    woman_al = results[results["woman_goes_to_al"] == True]
+    man_age_to_al = pd.to_numeric(man_al["man_age_to_al"], errors="coerce").dropna()
+    woman_age_to_al = pd.to_numeric(woman_al["woman_age_to_al"], errors="coerce").dropna()
+
+    figure, axes = plt.subplot_mosaic(
+        [["death_cdf", "al_cdf"], ["man_al", "woman_al"], ["pdf", "pdf"], ["age_start", "age_start"]],
+        figsize=(13, 18), constrained_layout=True,
+    )
+    figure.suptitle("Demographic Stats", fontsize=14)
+
+    def _plot_cdf(ax, data, color, label):
+        sorted_data = np.sort(data)
+        cdf = np.arange(1, len(sorted_data) + 1) / len(sorted_data)
+        ax.plot(sorted_data, cdf, color=color, linewidth=2, label=label)
+        ax.fill_between(sorted_data, cdf, alpha=0.2, color=color)
+
+    # age at death CDF, both genders
+    _plot_cdf(axes["death_cdf"], results["man_age_at_death"].values, MAN_COLOR, "Man")
+    _plot_cdf(axes["death_cdf"], results["woman_age_at_death"].values, WOMAN_COLOR, "Woman")
+    axes["death_cdf"].set_title("Age at death")
+    axes["death_cdf"].set_xlabel("Age")
+    axes["death_cdf"].set_ylabel("Cumulative probability")
+    axes["death_cdf"].set_ylim(0, 1)
+    axes["death_cdf"].legend()
+
+    # age to AL CDF, both genders
+    if len(man_age_to_al):
+        _plot_cdf(axes["al_cdf"], man_age_to_al.values, MAN_COLOR, f"Man (n={len(man_age_to_al)})")
+    if len(woman_age_to_al):
+        _plot_cdf(axes["al_cdf"], woman_age_to_al.values, WOMAN_COLOR, f"Woman (n={len(woman_age_to_al)})")
+    axes["al_cdf"].set_title(f"Age to AL  (of {len(results)} runs)")
+    axes["al_cdf"].set_xlabel("Age")
+    axes["al_cdf"].set_ylabel("Cumulative probability")
+    axes["al_cdf"].set_ylim(0, 1)
+    axes["al_cdf"].legend()
+
+    # man time in AL dot plot
+    axes["man_al"].scatter(
+        range(len(man_al)), man_al["man_assisted_yrs"],
+        marker="x", color=MAN_COLOR, linewidths=1.2, s=40,
+    )
+    axes["man_al"].set_title("Man time in AL")
+    axes["man_al"].set_xlabel("Run index")
+    axes["man_al"].set_ylabel("Years")
+
+    # woman time in AL dot plot
+    axes["woman_al"].scatter(
+        range(len(woman_al)), woman_al["woman_assisted_yrs"],
+        marker="x", color=WOMAN_COLOR, linewidths=1.2, s=40,
+    )
+    axes["woman_al"].set_title("Woman time in AL")
+    axes["woman_al"].set_xlabel("Run index")
+    axes["woman_al"].set_ylabel("Years")
+
+    # age at death PDF, both genders (full-width)
+    axes["pdf"].hist(results["man_age_at_death"], bins=20, density=True,
+                     color=MAN_COLOR, edgecolor="steelblue", alpha=0.6, label="Man")
+    axes["pdf"].hist(results["woman_age_at_death"], bins=20, density=True,
+                     color=WOMAN_COLOR, edgecolor="deeppink", alpha=0.6, label="Woman")
+    axes["pdf"].set_title("Age at Death — Probability Density")
+    axes["pdf"].set_xlabel("Age")
+    axes["pdf"].set_ylabel("Density")
+    axes["pdf"].legend()
+
+    # age at start dot plot, both genders (full-width)
+    axes["age_start"].scatter(
+        range(len(results)), results["man_age_at_start"],
+        marker="x", color=MAN_COLOR, linewidths=1.2, s=40, label="Man",
+    )
+    axes["age_start"].scatter(
+        range(len(results)), results["woman_age_at_start"],
+        marker="x", color=WOMAN_COLOR, linewidths=1.2, s=40, label="Woman",
+    )
+    axes["age_start"].set_title("Age at Start")
+    axes["age_start"].set_xlabel("Run index")
+    axes["age_start"].set_ylabel("Age")
+    axes["age_start"].legend()
+
+    if show:
+        plt.show()
+    return figure
+
+
 def plot_gutz_lhs_figure1(results: pd.DataFrame, show: bool = True) -> tuple[plt.Figure, plt.Axes]:
     figure, axis, _ = plot_lhs_figure1(
         results,
@@ -740,10 +917,31 @@ def plot_gutz_lhs_worth_subplots(results: pd.DataFrame, show: bool = True) -> tu
     return plot_lhs_figure2_worth_subplots(
         results,
         main_title=PLOT_MAIN_TITLE,
-        add_reference_line=add_lifecare_reference_line,
+        add_reference_line=None,
         annotation_formatter=_format_gutz_figure1_annotation,
         show=show,
     )
+
+
+def _select_nearest_ep_lhs(results: pd.DataFrame, n: int = 100) -> pd.DataFrame:
+    """Return the n LHS rows nearest to the centerpoint earning_potential (symmetric
+    above/below) plus the centerpoint row itself.  If one side has fewer than n//2
+    points, the count is clamped symmetrically (e.g. 45 below and 45 above)."""
+    centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
+    lhs_rows = results[results["run_id"].apply(lambda v: not isinstance(v, str))].copy()
+
+    if centerpoint_rows.empty or lhs_rows.empty:
+        return results
+
+    cp_ep = float(centerpoint_rows.iloc[0]["earning_potential"])
+    ep = lhs_rows["earning_potential"].astype(float)
+
+    below = lhs_rows[ep < cp_ep].sort_values("earning_potential", ascending=False)
+    above = lhs_rows[ep >= cp_ep].sort_values("earning_potential", ascending=True)
+
+    n_sym = min(n // 2, len(below), len(above))
+    selected = pd.concat([below.head(n_sym), above.head(n_sym), centerpoint_rows])
+    return selected.reset_index(drop=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -804,6 +1002,16 @@ def main() -> None:
         
         plot_gutz_lhs_figure1(results, show=False)
         plot_gutz_lhs_worth_subplots(results, show=False)
+        plot_worth_vs_earn(results, show=False)
+
+        # Figures 4-6: figures 1-3 filtered to the 100 LHS points
+        # with earning_potential nearest to the centerpoint (symmetric above/below).
+        nearest_results = _select_nearest_ep_lhs(results, n=100)
+        plot_gutz_lhs_figure1(nearest_results, show=False)
+        plot_gutz_lhs_worth_subplots(nearest_results, show=False)
+        plot_worth_vs_earn(nearest_results, show=False)
+
+        plot_demographic_stats(results, show=False)
 
         plot_lhs_summary(
             results,
@@ -826,6 +1034,7 @@ def main() -> None:
             shared_y_scale=False,
             show=False,
         )
+
         plt.show()
         return
 

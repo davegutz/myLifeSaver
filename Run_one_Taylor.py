@@ -21,6 +21,7 @@ from default_case import (
     MAN_INDEPENDENT_YRS,
     P_MAN_AL,
     P_WOMAN_AL,
+    PILE_AT_START,
     ROI_MEAN_REVERSION,
     ROI_MEAN_SHIFT,
     ROI_VOL_MULTIPLIER,
@@ -182,6 +183,15 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("AL_CC_1", this_life.initial_al_cc_1 * 12.0, 0.0),
         ("yrs sum al", this_life.man_assisted_yrs + this_life.woman_assisted_yrs,
                        this_life.man_assisted_yrs + this_life.woman_assisted_yrs),
+        ("total_living_yrs",
+         this_life.man_independent_yrs + this_life.woman_independent_yrs + this_life.man_assisted_yrs + this_life.woman_assisted_yrs,
+         this_life.man_independent_yrs + this_life.woman_independent_yrs + this_life.man_assisted_yrs + this_life.woman_assisted_yrs),
+        ("elapsed_time_yrs",
+         float((pd.Timestamp(this_life.dates[-1]) - this_life.start_clock).days / 365.2425),
+         float((pd.Timestamp(this_life.dates[-1]) - this_life.start_clock).days / 365.2425)),
+        ("earning_potential",
+         float(PILE_AT_START * (this_life.roi.life_horizon_roi_cum[-1] - this_life.cpi.life_horizon_inflation_cum[-1]) * (pd.Timestamp(this_life.dates[-1]) - this_life.start_clock).days / 365.2425),
+         float(PILE_AT_START * (this_life.roi.life_horizon_roi_cum[-1] - this_life.cpi.life_horizon_inflation_cum[-1]) * (pd.Timestamp(this_life.dates[-1]) - this_life.start_clock).days / 365.2425)),
     ]
     table_rows = [
         ("total expenses", total_expenses_cc, total_expenses_lc),
@@ -287,12 +297,12 @@ def main() -> None:
         "scenario": {
             "man_independent_yrs": 10.,  # google age men enter al - current age
             "woman_independent_yrs": 15.5,  # google age women enter al - current age
-            "man_assisted_yrs": 2.35,  # google men in al; assume no mc (conservative for yes on lc decision)
-            "woman_assisted_yrs": 5.5,  # google women in al; assume no mc (conservative for yes on lc decision)
+            "man_assisted_yrs": 2.35*P_MAN_AL,  # google men in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 man_goes_to_al = T
+            "woman_assisted_yrs": 5.5*P_WOMAN_AL,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
             "roi_seed": 740264,
             "inflation_seed": 898910,
-            # "man_goes_to_al": True,  # Uncomment this to force True
-            # "woman_goes_to_al": True,  # Uncomment this to force True
+            "man_goes_to_al": True,  # Uncomment this to force True
+            "woman_goes_to_al": True,  # Uncomment this to force True
             "roi_mean_shift": 0.0080464851559136,
             "inflation_mean_shift": -0.00459579542225717,
         },
@@ -301,8 +311,8 @@ def main() -> None:
             "current_date": "2026-03-29",
             # "constant_monthly_roi": None,  # was 10. — None → stochastic
             # "constant_monthly_cpi": None,  # was  5. — None → stochas
-            # "constant_monthly_roi": 4.,  # was 10. — None → stochastic
-            # "constant_monthly_cpi": 5.,  # was  5. — None → stochas
+            # "constant_monthly_roi": 8.,  # was 10. — None → stochastic
+            # "constant_monthly_cpi": 4.,  # was  5. — None → stochas
             "constant_monthly_roi": 0.,  # was 10. — None → stochastic
             "constant_monthly_cpi": 0.,  # was  5. — None → stochas
         },

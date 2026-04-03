@@ -83,6 +83,10 @@ class LhsScenarioSummary:
     woman_goes_to_al_seed: int
     man_goes_to_al: bool
     woman_goes_to_al: bool
+    man_age_to_al: float | str
+    woman_age_to_al: float | str
+    man_age_at_death: float
+    woman_age_at_death: float
     exp_al_cc: float
     exp_norm_al_cc: float
     exp_cc: float
@@ -105,6 +109,11 @@ class LhsScenarioSummary:
     yrs_il_single: float
     yrs_il_double: float
     yrs_sum_al: float
+    total_living_yrs: float
+    elapsed_time_yrs: float
+    earning_potential: float
+    man_age_at_start: float
+    woman_age_at_start: float
     # Context constants
     ticker: str
     current_date: str
