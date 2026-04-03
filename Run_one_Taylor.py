@@ -311,10 +311,10 @@ def main() -> None:
             "current_date": "2026-03-29",
             # "constant_monthly_roi": None,  # was 10. — None → stochastic
             # "constant_monthly_cpi": None,  # was  5. — None → stochas
-            # "constant_monthly_roi": 8.,  # was 10. — None → stochastic
-            # "constant_monthly_cpi": 4.,  # was  5. — None → stochas
-            "constant_monthly_roi": 0.,  # was 10. — None → stochastic
-            "constant_monthly_cpi": 0.,  # was  5. — None → stochas
+            "constant_monthly_roi": 8.,  # was 10. — None → stochastic
+            "constant_monthly_cpi": 4.,  # was  5. — None → stochas
+            # "constant_monthly_roi": 0.,  # was 10. — None → stochastic
+            # "constant_monthly_cpi": 0.,  # was  5. — None → stochas
         },
     }
 

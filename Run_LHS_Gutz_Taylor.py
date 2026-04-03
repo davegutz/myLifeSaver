@@ -741,25 +741,31 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
     lhs = results[pd.to_numeric(results["run_id"], errors="coerce").notna()]
     cp = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
 
-    figure, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(21, 6), constrained_layout=True)
+    figure, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(28, 6), constrained_layout=True)
     figure.suptitle("Worth vs Earnings (normalized)", fontsize=14)
 
-    # Left: worth_norm vs earn_norm
+    # Subplot 1: worth_norm vs earn_norm
     ax1.scatter(lhs["earn_norm_lc"], lhs["worth_norm_lc"],
                 marker="o", s=18, alpha=0.6, label="LC")
     ax1.scatter(lhs["earn_norm_cc"], lhs["worth_norm_cc"],
                 marker="x", s=18, alpha=0.6, label="CC")
 
-    # Middle: earn_norm vs total_living_yrs
+    # Subplot 2: earn_norm vs total_living_yrs
     ax2.scatter(lhs["total_living_yrs"], lhs["earn_norm_lc"],
                 marker="o", s=18, alpha=0.6, label="LC")
     ax2.scatter(lhs["total_living_yrs"], lhs["earn_norm_cc"],
                 marker="x", s=18, alpha=0.6, label="CC")
 
-    # Right: worth_norm vs earning_potential
+    # Subplot 3: worth_norm vs earning_potential
     ax3.scatter(lhs["earning_potential"], lhs["worth_norm_lc"],
                 marker="o", s=18, alpha=0.6, label="LC")
     ax3.scatter(lhs["earning_potential"], lhs["worth_norm_cc"],
+                marker="x", s=18, alpha=0.6, label="CC")
+
+    # Subplot 4: normalized expenses vs total_living_yrs
+    ax4.scatter(lhs["total_living_yrs"], lhs["exp_norm_lc"],
+                marker="o", s=18, alpha=0.6, label="LC")
+    ax4.scatter(lhs["total_living_yrs"], lhs["exp_norm_total_cc"],
                 marker="x", s=18, alpha=0.6, label="CC")
 
     if not cp.empty:
@@ -770,21 +776,28 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
         worth_cc = float(row["worth_norm_cc"])
         cp_total_living = float(row["total_living_yrs"])
         cp_earning_potential = float(row["earning_potential"])
+        cp_exp_lc = float(row["exp_norm_lc"])
+        cp_exp_cc = float(row["exp_norm_total_cc"])
 
         ax1.scatter([earn_lc], [worth_lc], marker="*", s=260, alpha=0.4,
-                    color="steelblue", edgecolors="steelblue", zorder=5, label="CP LC")
+                    color="green", edgecolors="green", zorder=5, label="CP LC")
         ax1.scatter([earn_cc], [worth_cc], marker="*", s=260, alpha=0.4,
-                    color="darkorange", edgecolors="darkorange", zorder=5, label="CP CC")
+                    color="red", edgecolors="red", zorder=5, label="CP CC")
 
         ax2.scatter([cp_total_living], [earn_lc], marker="*", s=260, alpha=0.4,
-                    color="steelblue", edgecolors="steelblue", zorder=5, label="CP LC")
+                    color="green", edgecolors="green", zorder=5, label="CP LC")
         ax2.scatter([cp_total_living], [earn_cc], marker="*", s=260, alpha=0.4,
-                    color="darkorange", edgecolors="darkorange", zorder=5, label="CP CC")
+                    color="red", edgecolors="red", zorder=5, label="CP CC")
 
         ax3.scatter([cp_earning_potential], [worth_lc], marker="*", s=260, alpha=0.4,
-                    color="steelblue", edgecolors="steelblue", zorder=5, label="CP LC")
+                    color="green", edgecolors="green", zorder=5, label="CP LC")
         ax3.scatter([cp_earning_potential], [worth_cc], marker="*", s=260, alpha=0.4,
-                    color="darkorange", edgecolors="darkorange", zorder=5, label="CP CC")
+                    color="red", edgecolors="red", zorder=5, label="CP CC")
+
+        ax4.scatter([cp_total_living], [cp_exp_lc], marker="*", s=260, alpha=0.4,
+                    color="green", edgecolors="green", zorder=5, label="CP LC")
+        ax4.scatter([cp_total_living], [cp_exp_cc], marker="*", s=260, alpha=0.4,
+                    color="red", edgecolors="red", zorder=5, label="CP CC")
 
     ax1.set_xlabel("Normalized Earnings")
     ax1.set_ylabel("Normalized Worth")
@@ -800,6 +813,11 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
     ax3.set_ylabel("Normalized Worth")
     ax3.legend()
     ax3.grid(True, alpha=0.3)
+
+    ax4.set_xlabel("total_living_yrs (years)")
+    ax4.set_ylabel("Normalized Expenses")
+    ax4.legend()
+    ax4.grid(True, alpha=0.3)
 
     if show:
         plt.show()
@@ -868,7 +886,7 @@ def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figu
 
     # age at death PDF, both genders (full-width)
     axes["pdf"].hist(results["man_age_at_death"], bins=20, density=True,
-                     color=MAN_COLOR, edgecolor="steelblue", alpha=0.6, label="Man")
+                     color=MAN_COLOR, edgecolor="green", alpha=0.6, label="Man")
     axes["pdf"].hist(results["woman_age_at_death"], bins=20, density=True,
                      color=WOMAN_COLOR, edgecolor="deeppink", alpha=0.6, label="Woman")
     axes["pdf"].set_title("Age at Death — Probability Density")
