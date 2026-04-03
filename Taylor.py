@@ -14,6 +14,8 @@ from default_case import (
     CONSTANT_MONTHLY_ROI,
     DEFAULT_CURRENT_DATE,
     DEFAULT_SEED,
+    ENTRANCE_FEE_CC,
+    ENTRANCE_FEE_LC,
     HISTORY_YEARS,
     INFLATION_MEAN_REVERSION,
     INFLATION_MEAN_SHIFT,
@@ -97,6 +99,9 @@ class LhsScenarioSummary:
     exp_norm_non_taylor: float
     exp_total_cc: float
     exp_norm_total_cc: float
+    exp_norm_total_lc: float
+    entrance_fee_cc: float
+    entrance_fee_lc: float
     earn_cc: float
     earn_norm_cc: float
     earn_lc: float
@@ -159,6 +164,8 @@ class TaylorLife:
         lc_1: float = LC_1,
         non_taylor_2: float = NON_TAYLOR_2,
         non_taylor_1: float = NON_TAYLOR_1,
+        entrance_fee_cc: float = ENTRANCE_FEE_CC,
+        entrance_fee_lc: float = ENTRANCE_FEE_LC,
         man_goes_to_al: bool = True,
         woman_goes_to_al: bool = True,
     ) -> None:
@@ -199,6 +206,8 @@ class TaylorLife:
         self.initial_lc_1 = lc_1
         self.initial_non_taylor_2 = non_taylor_2
         self.initial_non_taylor_1 = non_taylor_1
+        self.entrance_fee_cc = entrance_fee_cc
+        self.entrance_fee_lc = entrance_fee_lc
         self.worth_lc = self.worth_at_start
         self.worth_cc = self.worth_at_start
         self.worth_norm_lc = self.worth_lc
@@ -427,11 +436,13 @@ class TaylorLife:
             np.asarray(self.exp_cc_history, dtype=float)
             + np.asarray(self.exp_non_taylor_history, dtype=float)
             + np.asarray(self.exp_al_cc_history, dtype=float)
+            + self.entrance_fee_cc
         ).tolist()
         self.exp_total_lc_history = (
             np.asarray(self.exp_lc_history, dtype=float)
             + np.asarray(self.exp_non_taylor_history, dtype=float)
             + np.asarray(self.exp_al_lc_history, dtype=float)
+            + self.entrance_fee_lc
         ).tolist()
         worth_lc_history = self.build_worth_history(self.worth_at_start, self.exp_total_lc_history)
         worth_cc_history = self.build_worth_history(self.worth_at_start, self.exp_total_cc_history)
@@ -470,12 +481,26 @@ class TaylorLife:
             non_taylor_active,
             inflation_cum,
         )
-        self.exp_norm_total_cc = self.normalize_history(self.exp_total_cc_history, il_active | al_active, inflation_cum)
-        self.exp_norm_total_lc = self.normalize_history(
-            self.exp_total_lc_history,
-            il_active | non_taylor_active,
-            inflation_cum,
+        # Normalize only the ongoing (inflation-varying) portion, then add the entrance
+        # fees back as present-value constants so they are never deflated below face value.
+        exp_ongoing_cc = (
+            np.asarray(self.exp_cc_history, dtype=float)
+            + np.asarray(self.exp_non_taylor_history, dtype=float)
+            + np.asarray(self.exp_al_cc_history, dtype=float)
         )
+        exp_ongoing_lc = (
+            np.asarray(self.exp_lc_history, dtype=float)
+            + np.asarray(self.exp_non_taylor_history, dtype=float)
+            + np.asarray(self.exp_al_lc_history, dtype=float)
+        )
+        self.exp_norm_total_cc = [
+            v + self.entrance_fee_cc
+            for v in self.normalize_history(exp_ongoing_cc.tolist(), il_active | al_active, inflation_cum)
+        ]
+        self.exp_norm_total_lc = [
+            v + self.entrance_fee_lc
+            for v in self.normalize_history(exp_ongoing_lc.tolist(), il_active | non_taylor_active, inflation_cum)
+        ]
 
         result = int(self.worth_lc), int(self.worth_norm_lc), int(self.worth_cc), int(self.worth_norm_cc)
 

@@ -320,6 +320,8 @@ def main() -> None:
         ("yrs al single",        abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs),
                                  abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs)),
         ("AL_CC_1",              this_life.initial_al_cc_1 * 12.0, 0.0),
+        ("entrance_fee_cc",      this_life.entrance_fee_cc, 0.0),
+        ("entrance_fee_lc",      0.0, this_life.entrance_fee_lc),
         ("yrs sum al",           this_life.man_assisted_yrs + this_life.woman_assisted_yrs,
                                  this_life.man_assisted_yrs + this_life.woman_assisted_yrs),
     ]

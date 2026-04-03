@@ -121,6 +121,9 @@ CSV_COLUMNS = [
     "exp_norm_non_taylor",
     "exp_total_cc",
     "exp_norm_total_cc",
+    "exp_norm_total_lc",
+    "entrance_fee_cc",
+    "entrance_fee_lc",
     "earn_cc",
     "earn_norm_cc",
     "earn_lc",
@@ -316,6 +319,9 @@ def summarize_lhs_run(
         exp_norm_non_taylor=last_value(model.exp_norm_non_taylor),
         exp_total_cc=last_value(model.exp_total_cc_history),
         exp_norm_total_cc=last_value(model.exp_norm_total_cc),
+        exp_norm_total_lc=last_value(model.exp_norm_total_lc),
+        entrance_fee_cc=model.entrance_fee_cc,
+        entrance_fee_lc=model.entrance_fee_lc,
         earn_cc=last_value(model.earn_cc_history),
         earn_norm_cc=last_value(model.earn_norm_cc_history),
         earn_lc=last_value(model.earn_lc_history),
@@ -592,6 +598,15 @@ def plot_lhs_summary(
         plt.show()
 
 
+def _lc_norm_total(df: pd.DataFrame) -> pd.Series:
+    """Return normalized total LC expenses, always >= entrance_fee_lc.
+    Works with both new CSVs (exp_norm_total_lc column) and old CSVs (fallback)."""
+    if "exp_norm_total_lc" in df.columns:
+        return df["exp_norm_total_lc"]
+    fee = df["entrance_fee_lc"] if "entrance_fee_lc" in df.columns else pd.Series(0.0, index=df.index)
+    return df["exp_norm_lc"] + fee
+
+
 def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
     lhs = results[pd.to_numeric(results["run_id"], errors="coerce").notna()]
     cp = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
@@ -617,11 +632,11 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
     ax3.scatter(lhs["earning_potential"], lhs["worth_norm_cc"],
                 marker="x", s=18, alpha=0.6, label="CC")
 
-    # Subplot 4: normalized expenses vs total_living_yrs
-    ax4.scatter(lhs["total_living_yrs"], lhs["exp_norm_lc"],
-                marker="o", s=18, alpha=0.6, label="LC")
+    # Subplot 4: normalized total expenses (entrance fee in present-value dollars) vs total_living_yrs
+    ax4.scatter(lhs["total_living_yrs"], _lc_norm_total(lhs),
+                marker="o", s=18, alpha=0.6, label="LC total")
     ax4.scatter(lhs["total_living_yrs"], lhs["exp_norm_total_cc"],
-                marker="x", s=18, alpha=0.6, label="CC")
+                marker="x", s=18, alpha=0.6, label="CC total")
 
     if not cp.empty:
         row = cp.iloc[0]
@@ -631,7 +646,7 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
         worth_cc = float(row["worth_norm_cc"])
         cp_total_living = float(row["total_living_yrs"])
         cp_earning_potential = float(row["earning_potential"])
-        cp_exp_lc = float(row["exp_norm_lc"])
+        cp_exp_lc = float(_lc_norm_total(cp).iloc[0])
         cp_exp_cc = float(row["exp_norm_total_cc"])
 
         ax1.scatter([earn_lc], [worth_lc], marker="*", s=260, alpha=0.4,

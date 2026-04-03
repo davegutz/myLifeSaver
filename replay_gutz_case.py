@@ -36,6 +36,22 @@ REPLAY_CASES_GUTZ: dict[str, dict[str, float | int | None]] = {
         "inflation_vol_multiplier": 0.791577426233915,
         "inflation_mean_reversion": 0.2017712301852744,
     },
+    "REPLAY_GUTZ_1": {
+        "man_independent_yrs": 11.121189651624146,
+        "woman_independent_yrs": 12.554248771917171,
+        "man_assisted_yrs": 1.155256729698443,
+        "woman_assisted_yrs": 4.811128432628488,
+        "roi_seed": 167623,
+        "inflation_seed": 589218,
+        "man_goes_to_al_seed": 313758,
+        "woman_goes_to_al_seed": 157485,
+        "roi_mean_shift": 0.0043461613222931,
+        "roi_vol_multiplier": 0.8027624455185167,
+        "roi_mean_reversion": 0.4972516267922717,
+        "inflation_mean_shift": 0.0016483602220793,
+        "inflation_vol_multiplier": 0.6237331652056431,
+        "inflation_mean_reversion": 0.4398736586710609,
+    },
 
 }
 
