@@ -11,7 +11,7 @@ Each value is a dict of LhsScenario keyword arguments.
 Required keys:
     man_independent_yrs, woman_independent_yrs
     man_assisted_yrs,    woman_assisted_yrs
-    roi_seed,            inflation_seed
+    roi_seed,            inflation_seed,  man_goes_to_al_seed, woman_goes_to_al_seed
     roi_mean_shift,      roi_vol_multiplier,      roi_mean_reversion
     inflation_mean_shift, inflation_vol_multiplier, inflation_mean_reversion
 
@@ -40,6 +40,8 @@ REPLAY_CASES: dict[str, dict[str, float | int]] = {
         "woman_assisted_yrs": 3.1047997266971694,
         "roi_seed": 401824,
         "inflation_seed": 161476,
+        "man_goes_to_al_seed": 0,
+        "woman_goes_to_al_seed": 0,
         "roi_mean_shift": 0.0090405753569154,
         "roi_vol_multiplier": 0.8557312082496091,
         "roi_mean_reversion": 0.0005045962227744,
@@ -54,6 +56,8 @@ REPLAY_CASES: dict[str, dict[str, float | int]] = {
         "woman_assisted_yrs": 7.858870673526574,
         "roi_seed": 941395,
         "inflation_seed": 870484,
+        "man_goes_to_al_seed": 0,
+        "woman_goes_to_al_seed": 0,
         "roi_mean_shift": 0.009360766391067,
         "roi_vol_multiplier": 0.7607165851084816,
         "roi_mean_reversion": 0.3411801968729518,
@@ -68,6 +72,8 @@ REPLAY_CASES: dict[str, dict[str, float | int]] = {
         "woman_assisted_yrs": 7.496437487346723,
         "roi_seed": 167623,
         "inflation_seed": 589218,
+        "man_goes_to_al_seed": 0,
+        "woman_goes_to_al_seed": 0,
         "roi_mean_shift": 0.0043461613222931,
         "roi_vol_multiplier": 0.8027624455185167,
         "roi_mean_reversion": 0.4972516267922717,
@@ -82,6 +88,8 @@ REPLAY_CASES: dict[str, dict[str, float | int]] = {
         "woman_assisted_yrs": 6.1569892582897845,
         "roi_seed": 170918,
         "inflation_seed": 730053,
+        "man_goes_to_al_seed": 0,
+        "woman_goes_to_al_seed": 0,
         "roi_mean_shift": 0.008080986193485,
         "roi_vol_multiplier": 0.6695314780684418,
         "roi_mean_reversion": 0.2167429041929398,
@@ -96,6 +104,8 @@ REPLAY_CASES: dict[str, dict[str, float | int]] = {
         "woman_assisted_yrs": 7.201015734520627,
         "roi_seed": 493950,
         "inflation_seed": 6660,
+        "man_goes_to_al_seed": 0,
+        "woman_goes_to_al_seed": 0,
         "roi_mean_shift": 0.0068122507422182,
         "roi_vol_multiplier": 0.8934722576907159,
         "roi_mean_reversion": 0.3971721322072199,
@@ -110,6 +120,8 @@ REPLAY_CASES: dict[str, dict[str, float | int]] = {
         "woman_assisted_yrs": 6.176853214946561,
         "roi_seed": 795459,
         "inflation_seed": 571114,
+        "man_goes_to_al_seed": 0,
+        "woman_goes_to_al_seed": 0,
         "roi_mean_shift": 0.0038470603195669,
         "roi_vol_multiplier": 1.1841317279612382,
         "roi_mean_reversion": 0.3706448171340446,
@@ -124,6 +136,8 @@ REPLAY_CASES: dict[str, dict[str, float | int]] = {
         "woman_assisted_yrs": 3.332212419142857,
         "roi_seed": 462911,
         "inflation_seed": 49742,
+        "man_goes_to_al_seed": 0,
+        "woman_goes_to_al_seed": 0,
         "roi_mean_shift": 0.0070778688152443,
         "roi_vol_multiplier": 0.8512758723262078,
         "roi_mean_reversion": 0.2404855387956389,

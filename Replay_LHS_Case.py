@@ -21,6 +21,7 @@ from pathlib import Path
 import re
 from Inflation import plot_inflation_views
 from Roi import plot_projection_views
+from default_case import P_MAN_AL, P_WOMAN_AL
 from Taylor import LhsScenario, ScenarioRunContext
 from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
@@ -34,6 +35,8 @@ REPLAY_FIELD_ORDER = [
     "woman_assisted_yrs",
     "roi_seed",
     "inflation_seed",
+    "man_goes_to_al_seed",
+    "woman_goes_to_al_seed",
     "roi_mean_shift",
     "roi_vol_multiplier",
     "roi_mean_reversion",
@@ -128,6 +131,8 @@ def load_scenario_from_csv(csv_path: str, run_id: int) -> tuple[LhsScenario, dic
         )
 
     r = row.iloc[0]
+    man_goes_to_al_seed = int(float(r["man_goes_to_al_seed"])) if "man_goes_to_al_seed" in r.index else 0
+    woman_goes_to_al_seed = int(float(r["woman_goes_to_al_seed"])) if "woman_goes_to_al_seed" in r.index else 0
     scenario = LhsScenario(
         man_independent_yrs=float(r["man_independent_yrs"]),
         woman_independent_yrs=float(r["woman_independent_yrs"]),
@@ -141,6 +146,10 @@ def load_scenario_from_csv(csv_path: str, run_id: int) -> tuple[LhsScenario, dic
         inflation_mean_shift=float(r["inflation_mean_shift"]),
         inflation_vol_multiplier=float(r["inflation_vol_multiplier"]),
         inflation_mean_reversion=float(r["inflation_mean_reversion"]),
+        man_goes_to_al_seed=man_goes_to_al_seed,
+        woman_goes_to_al_seed=woman_goes_to_al_seed,
+        man_goes_to_al=bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)),
+        woman_goes_to_al=bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)),
     )
     
     # Extract context fields from CSV
@@ -266,6 +275,8 @@ def main() -> None:
         f"Monthly volatility:         {roi.monthly_volatility:.2%}\n"
         f"ROI seed:                   {scenario.roi_seed}\n"
         f"Inflation seed:             {scenario.inflation_seed}\n"
+        f"Man goes-to-AL seed:        {scenario.man_goes_to_al_seed}  -> {this_life.man_goes_to_al}\n"
+        f"Woman goes-to-AL seed:      {scenario.woman_goes_to_al_seed}  -> {this_life.woman_goes_to_al}\n"
         f"CPI current date:           {current_date.date()}\n"
         f"Effective annualized CPI:   {annualized_mean_cpi:.2%}\n"
         f"Cum. inflation of $1 since {context.start_clock}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
@@ -297,20 +308,20 @@ def main() -> None:
         ("woman age at death",   this_life.woman_age_at_death,   this_life.woman_age_at_death),
         ("yrs il double",        min(this_life.man_independent_yrs, this_life.woman_independent_yrs),
                                  min(this_life.man_independent_yrs, this_life.woman_independent_yrs)),
+        ("CC_2",                 this_life.initial_cc_2 * 12.0, 0.0),
+        ("LC_2",                 0.0, this_life.initial_lc_2 * 12.0),
         ("yrs il single",        abs(this_life.man_independent_yrs - this_life.woman_independent_yrs),
                                  abs(this_life.man_independent_yrs - this_life.woman_independent_yrs)),
+        ("CC_1",                 this_life.initial_cc_1 * 12.0, 0.0),
+        ("LC_1",                 0.0, this_life.initial_lc_1 * 12.0),
         ("yrs al double",        min(this_life.man_assisted_yrs, this_life.woman_assisted_yrs),
                                  min(this_life.man_assisted_yrs, this_life.woman_assisted_yrs)),
+        ("AL_CC_2",              this_life.initial_al_cc_2 * 12.0, 0.0),
         ("yrs al single",        abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs),
                                  abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs)),
+        ("AL_CC_1",              this_life.initial_al_cc_1 * 12.0, 0.0),
         ("yrs sum al",           this_life.man_assisted_yrs + this_life.woman_assisted_yrs,
                                  this_life.man_assisted_yrs + this_life.woman_assisted_yrs),
-        ("AL_CC_1",              this_life.initial_al_cc_1, 0.0),
-        ("AL_CC_2",              this_life.initial_al_cc_2, 0.0),
-        ("CC_1",                 this_life.initial_cc_1, 0.0),
-        ("CC_2",                 this_life.initial_cc_2, 0.0),
-        ("LC_1",                 0.0, this_life.initial_lc_1),
-        ("LC_2",                 0.0, this_life.initial_lc_2),
     ]
     table_rows = [
         ("total expenses",           total_expenses_cc,    total_expenses_lc),
@@ -332,7 +343,7 @@ def main() -> None:
     
     added_lc_worth_norm = result.worth_norm_lc - result.worth_norm_cc
     print(f"\nadded worth (norm lc - norm cc): {added_lc_worth_norm:>15,.0f}")
-    
+
     replay_case_path = upsert_replay_case_definition(run_id=run_id, scenario=scenario)
     print(f"Replay edge-case definition updated in '{replay_case_path.name}' as REPLAY_CASES['REPLAY_{run_id}'].")
 
@@ -379,4 +390,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

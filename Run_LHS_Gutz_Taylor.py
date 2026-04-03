@@ -11,6 +11,13 @@ The centerpoint scenario and ranges are defined below; modify them to explore di
 regions of the scenario space.
 """
 
+
+# User inputs
+#  To force the probability both man and woman go to AL instead of dying right away
+force_al = False
+DEFAULT_LHS_POINTS = 1000
+
+
 import argparse
 from dataclasses import asdict
 import math
@@ -24,10 +31,14 @@ from Center_LHS_Gutz_Taylor import (
     CENTERPOINT_CONSTANT_MONTHLY_ROI,
     CENTERPOINT_INFLATION_SEED,
     CENTERPOINT_MAN_ASSISTED_YRS,
+    CENTERPOINT_MAN_GOES_TO_AL,
+    CENTERPOINT_MAN_GOES_TO_AL_SEED,
     CENTERPOINT_MAN_INDEPENDENT_YRS,
     CENTERPOINT_ROI_SEED,
     CENTERPOINT_USE_CONSTANT_RATES,
     CENTERPOINT_WOMAN_ASSISTED_YRS,
+    CENTERPOINT_WOMAN_GOES_TO_AL,
+    CENTERPOINT_WOMAN_GOES_TO_AL_SEED,
     CENTERPOINT_WOMAN_INDEPENDENT_YRS,
 )
 from default_case import (
@@ -35,6 +46,8 @@ from default_case import (
     DEFAULT_SEED,
     HISTORY_YEARS,
     MAN_DOB,
+    P_MAN_AL,
+    P_WOMAN_AL,
     START_CLOCK,
     WOMAN_DOB,
     apy_percent_to_monthly_fraction,
@@ -44,6 +57,8 @@ from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
 from Roi import TICKER
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
 from utils import evaluate_lhs_scenario
+
+
 
 # ============================================================================
 # IMPORTANT: ROI AND INFLATION RATES
@@ -91,7 +106,15 @@ INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
 INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
 INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
 
-DEFAULT_LHS_POINTS = 1000
+# Set to True to force all stochastic LHS scenarios to go to AL regardless of seed.
+# None (or False) uses the seed-based Bernoulli draw with P_MAN_AL / P_WOMAN_AL.
+if force_al:
+    LHS_MAN_GOES_TO_AL: bool | None = True
+    LHS_WOMAN_GOES_TO_AL: bool | None = True
+else:
+    LHS_MAN_GOES_TO_AL: bool | None = None
+    LHS_WOMAN_GOES_TO_AL: bool | None = None
+
 PLOT_EDGE_CASES_IN_LHS_PLOT = True
 # Edge points are explicit (roi_apy, cpi_apy) pairs instead of a Cartesian grid.
 EDGE_CASE_ROI_CPI_APY_PAIRS = [
@@ -127,6 +150,10 @@ CSV_COLUMNS = [
     "inflation_mean_shift",
     "inflation_vol_multiplier",
     "inflation_mean_reversion",
+    "man_goes_to_al_seed",
+    "woman_goes_to_al_seed",
+    "man_goes_to_al",
+    "woman_goes_to_al",
     "exp_al_cc",
     "exp_norm_al_cc",
     "exp_cc",
@@ -229,9 +256,11 @@ def scale_lhs_column(values: np.ndarray, bounds: tuple[float, float]) -> np.ndar
 
 
 def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
-    sampled = sample_lhs_points(num_points, dimensions=12, seed=seed)
+    sampled = sample_lhs_points(num_points, dimensions=14, seed=seed)
     scenarios: list[LhsScenario] = []
     for idx in range(num_points):
+        man_goes_to_al_seed = int(round(scale_lhs_column(sampled[:, 12], SEED_RANGE)[idx]))
+        woman_goes_to_al_seed = int(round(scale_lhs_column(sampled[:, 13], SEED_RANGE)[idx]))
         scenario = cast(
             LhsScenario,
             LhsScenario(
@@ -247,6 +276,10 @@ def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
                 inflation_mean_shift=float(scale_lhs_column(sampled[:, 9], INFLATION_MEAN_SHIFT_RANGE)[idx]),
                 inflation_vol_multiplier=float(scale_lhs_column(sampled[:, 10], INFLATION_VOL_MULTIPLIER_RANGE)[idx]),
                 inflation_mean_reversion=float(scale_lhs_column(sampled[:, 11], INFLATION_MEAN_REVERSION_RANGE)[idx]),
+                man_goes_to_al_seed=man_goes_to_al_seed,
+                woman_goes_to_al_seed=woman_goes_to_al_seed,
+                man_goes_to_al=LHS_MAN_GOES_TO_AL if LHS_MAN_GOES_TO_AL is not None else bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)),
+                woman_goes_to_al=LHS_WOMAN_GOES_TO_AL if LHS_WOMAN_GOES_TO_AL is not None else bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)),
             ),
         )
         scenarios.append(scenario)
@@ -262,6 +295,10 @@ def build_centerpoint_scenario() -> LhsScenario:
         woman_assisted_yrs=CENTERPOINT_WOMAN_ASSISTED_YRS,
         roi_seed=CENTERPOINT_ROI_SEED,
         inflation_seed=CENTERPOINT_INFLATION_SEED,
+        man_goes_to_al_seed=CENTERPOINT_MAN_GOES_TO_AL_SEED,
+        woman_goes_to_al_seed=CENTERPOINT_WOMAN_GOES_TO_AL_SEED,
+        man_goes_to_al=CENTERPOINT_MAN_GOES_TO_AL,
+        woman_goes_to_al=CENTERPOINT_WOMAN_GOES_TO_AL,
         roi_mean_shift=(ROI_MEAN_SHIFT_RANGE[0] + ROI_MEAN_SHIFT_RANGE[1]) / 2.0,
         roi_vol_multiplier=(ROI_VOL_MULTIPLIER_RANGE[0] + ROI_VOL_MULTIPLIER_RANGE[1]) / 2.0,
         roi_mean_reversion=(ROI_MEAN_REVERSION_RANGE[0] + ROI_MEAN_REVERSION_RANGE[1]) / 2.0,
@@ -368,6 +405,10 @@ def summarize_lhs_run(
         yrs_il_double=min(scenario.man_independent_yrs, scenario.woman_independent_yrs),
         yrs_il_single=abs(scenario.man_independent_yrs - scenario.woman_independent_yrs),
         yrs_sum_al=scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
+        man_goes_to_al_seed=scenario.man_goes_to_al_seed,
+        woman_goes_to_al_seed=scenario.woman_goes_to_al_seed,
+        man_goes_to_al=model.man_goes_to_al,
+        woman_goes_to_al=model.woman_goes_to_al,
         # Context constants
         ticker=context.ticker,
         current_date=str(context.current_date),

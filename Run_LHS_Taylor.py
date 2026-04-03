@@ -14,6 +14,8 @@ from default_case import (
     DEFAULT_SEED,
     HISTORY_YEARS,
     MAN_DOB,
+    P_MAN_AL,
+    P_WOMAN_AL,
     START_CLOCK,
     WOMAN_DOB,
     apy_percent_to_monthly_fraction,
@@ -24,6 +26,13 @@ from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
 from Roi import TICKER, plot_projection_views
 from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
 from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
+
+
+# User inputs
+#  To force the probability both man and woman go to AL instead of dying right away
+force_al = False
+DEFAULT_LHS_POINTS = 1000  # will change seed values if not the same between runs
+
 
 # ============================================================================
 # IMPORTANT: ROI AND INFLATION RATES
@@ -52,7 +61,17 @@ ROI_MEAN_REVERSION_RANGE = (0.0, 0.5)
 INFLATION_MEAN_SHIFT_RANGE = (-0.005, 0.005)
 INFLATION_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
 INFLATION_MEAN_REVERSION_RANGE = (0.0, 0.5)
-DEFAULT_LHS_POINTS = 1000
+
+# Set to True to force all stochastic LHS scenarios to go to AL regardless of seed.
+# None (or False) uses the seed-based Bernoulli draw with P_MAN_AL / P_WOMAN_AL.
+if force_al:
+    LHS_MAN_GOES_TO_AL: bool | None = True
+    LHS_WOMAN_GOES_TO_AL: bool | None = True
+else:
+    LHS_MAN_GOES_TO_AL: bool | None = None
+    LHS_WOMAN_GOES_TO_AL: bool | None = None
+
+
 PLOT_EDGE_CASES_IN_LHS_PLOT = True
 EDGE_CASE_ROI_APY_PERCENTS = [6.0, 12.0]  # Fixed ROI rates (APY %) for edge case matrix
 EDGE_CASE_CPI_APY_PERCENTS = [0.0, 2.0, 6.0]  # Fixed CPI rates (APY %) for edge case matrix
@@ -80,6 +99,10 @@ CSV_COLUMNS = [
     "inflation_mean_shift",
     "inflation_vol_multiplier",
     "inflation_mean_reversion",
+    "man_goes_to_al_seed",
+    "woman_goes_to_al_seed",
+    "man_goes_to_al",
+    "woman_goes_to_al",
     "exp_al_cc",
     "exp_norm_al_cc",
     "exp_cc",
@@ -187,9 +210,11 @@ def scale_lhs_column(values: np.ndarray, bounds: tuple[float, float]) -> np.ndar
 
 
 def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
-    sampled = sample_lhs_points(num_points, dimensions=12, seed=seed)
+    sampled = sample_lhs_points(num_points, dimensions=14, seed=seed)
     scenarios: list[LhsScenario] = []
     for idx in range(num_points):
+        man_goes_to_al_seed = int(round(scale_lhs_column(sampled[:, 12], SEED_RANGE)[idx]))
+        woman_goes_to_al_seed = int(round(scale_lhs_column(sampled[:, 13], SEED_RANGE)[idx]))
         scenario = cast(
             LhsScenario,
             LhsScenario(
@@ -205,6 +230,10 @@ def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
                 inflation_mean_shift=float(scale_lhs_column(sampled[:, 9], INFLATION_MEAN_SHIFT_RANGE)[idx]),
                 inflation_vol_multiplier=float(scale_lhs_column(sampled[:, 10], INFLATION_VOL_MULTIPLIER_RANGE)[idx]),
                 inflation_mean_reversion=float(scale_lhs_column(sampled[:, 11], INFLATION_MEAN_REVERSION_RANGE)[idx]),
+                man_goes_to_al_seed=man_goes_to_al_seed,
+                woman_goes_to_al_seed=woman_goes_to_al_seed,
+                man_goes_to_al=LHS_MAN_GOES_TO_AL if LHS_MAN_GOES_TO_AL is not None else bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)),
+                woman_goes_to_al=LHS_WOMAN_GOES_TO_AL if LHS_WOMAN_GOES_TO_AL is not None else bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)),
             ),
         )
         scenarios.append(scenario)
@@ -289,6 +318,10 @@ def summarize_lhs_run(
         yrs_il_double=min(scenario.man_independent_yrs, scenario.woman_independent_yrs),
         yrs_il_single=abs(scenario.man_independent_yrs - scenario.woman_independent_yrs),
         yrs_sum_al=scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
+        man_goes_to_al_seed=scenario.man_goes_to_al_seed,
+        woman_goes_to_al_seed=scenario.woman_goes_to_al_seed,
+        man_goes_to_al=model.man_goes_to_al,
+        woman_goes_to_al=model.woman_goes_to_al,
         # Context constants
         ticker=context.ticker,
         current_date=str(context.current_date),
@@ -654,9 +687,6 @@ def main() -> None:
     if cpi.inflation_frame is None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
-    worth_lc = result.worth_lc
-    worth_cc = result.worth_cc
-
     effective_monthly_roi = realized_monthly_rate(roi.life_horizon_roi, roi.monthly_mean_return)
     effective_monthly_cpi = realized_monthly_rate(cpi.life_horizon_inflation, cpi.monthly_mean_inflation)
     annualized_mean = monthly_rate_to_apy(effective_monthly_roi)

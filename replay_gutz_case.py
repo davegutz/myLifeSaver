@@ -9,6 +9,8 @@ REPLAY_CASES_GUTZ: dict[str, dict[str, float | int | None]] = {
         "woman_assisted_yrs": CENTERPOINT_WOMAN_ASSISTED_YRS,
         "roi_seed": CENTERPOINT_ROI_SEED,
         "inflation_seed": CENTERPOINT_INFLATION_SEED,
+        "man_goes_to_al_seed": CENTERPOINT_MAN_GOES_TO_AL_SEED,
+        "woman_goes_to_al_seed": CENTERPOINT_WOMAN_GOES_TO_AL_SEED,
         "roi_mean_shift": 0.0068122507422182,
         "roi_vol_multiplier": 0.8934722576907159,
         "roi_mean_reversion": 0.3971721322072199,

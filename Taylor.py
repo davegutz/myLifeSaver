@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -26,6 +26,8 @@ from default_case import (
     MAN_INDEPENDENT_YRS,
     NON_TAYLOR_1,
     NON_TAYLOR_2,
+    P_MAN_AL,
+    P_WOMAN_AL,
     PILE_AT_START,
     ROI_MEAN_REVERSION,
     ROI_MEAN_SHIFT,
@@ -54,6 +56,10 @@ class LhsScenario:
     inflation_mean_shift: float = INFLATION_MEAN_SHIFT
     inflation_vol_multiplier: float = INFLATION_VOL_MULTIPLIER
     inflation_mean_reversion: float = INFLATION_MEAN_REVERSION
+    man_goes_to_al_seed: int = DEFAULT_SEED
+    woman_goes_to_al_seed: int = DEFAULT_SEED
+    man_goes_to_al: bool = field(default_factory=lambda: bool(np.random.binomial(1, P_MAN_AL)))
+    woman_goes_to_al: bool = field(default_factory=lambda: bool(np.random.binomial(1, P_WOMAN_AL)))
 
 
 @dataclass(frozen=True)
@@ -73,6 +79,10 @@ class LhsScenarioSummary:
     inflation_mean_shift: float
     inflation_vol_multiplier: float
     inflation_mean_reversion: float
+    man_goes_to_al_seed: int
+    woman_goes_to_al_seed: int
+    man_goes_to_al: bool
+    woman_goes_to_al: bool
     exp_al_cc: float
     exp_norm_al_cc: float
     exp_cc: float
@@ -140,6 +150,8 @@ class TaylorLife:
         lc_1: float = LC_1,
         non_taylor_2: float = NON_TAYLOR_2,
         non_taylor_1: float = NON_TAYLOR_1,
+        man_goes_to_al: bool = True,
+        woman_goes_to_al: bool = True,
     ) -> None:
         self.roi = roi
         self.cpi = cpi
@@ -160,6 +172,8 @@ class TaylorLife:
         self.woman_death_date = date_after_years(self.woman_move_to_al_date, self.woman_assisted_yrs)
         self.woman_age_at_death = age(self.woman_death_date, self.woman_dob)
         self.worth_at_start = worth_at_start
+        self.man_goes_to_al = man_goes_to_al
+        self.woman_goes_to_al = woman_goes_to_al
         self.initial_al_cc_2 = al_cc_2
         self.initial_al_cc_1 = al_cc_1
         self.initial_cc_2 = cc_2
@@ -295,6 +309,8 @@ class TaylorLife:
             man_assisted_yrs=scenario.man_assisted_yrs,
             woman_independent_yrs=scenario.woman_independent_yrs,
             woman_assisted_yrs=scenario.woman_assisted_yrs,
+            man_goes_to_al=scenario.man_goes_to_al,
+            woman_goes_to_al=scenario.woman_goes_to_al,
         )
 
     @staticmethod
@@ -450,8 +466,8 @@ class TaylorLife:
 
         for date in self.roi.life_horizon_dates:
             date_ts = pd.Timestamp(date)
-            man_in_al = self.man_move_to_al_date <= date_ts < self.man_death_date
-            woman_in_al = self.woman_move_to_al_date <= date_ts < self.woman_death_date
+            man_in_al = (self.man_move_to_al_date <= date_ts < self.man_death_date) and self.man_goes_to_al
+            woman_in_al = (self.woman_move_to_al_date <= date_ts < self.woman_death_date) and self.woman_goes_to_al
             man_pre_al = date_ts < self.man_move_to_al_date
             woman_pre_al = date_ts < self.woman_move_to_al_date
 

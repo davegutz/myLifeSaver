@@ -6,6 +6,10 @@ CENTERPOINT_MAN_ASSISTED_YRS = 2.35
 CENTERPOINT_WOMAN_ASSISTED_YRS = 5.5
 CENTERPOINT_ROI_SEED = 740264
 CENTERPOINT_INFLATION_SEED = 898910
+CENTERPOINT_MAN_GOES_TO_AL_SEED = 314159
+CENTERPOINT_WOMAN_GOES_TO_AL_SEED = 271828
+CENTERPOINT_MAN_GOES_TO_AL = True   # set False to let seed determine result
+CENTERPOINT_WOMAN_GOES_TO_AL = True  # set False to let seed determine result
 
 # If None, ROI/CPI are stochastic.
 # If float and abs(value) <= 1.0, it is treated as a fixed monthly fraction.

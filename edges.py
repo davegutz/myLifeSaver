@@ -1,4 +1,5 @@
-from default_case import DEFAULT_SEED, MAN_DOB, START_CLOCK, WOMAN_DOB, load_default_case
+import numpy as np
+from default_case import DEFAULT_SEED, MAN_DOB, P_MAN_AL, P_WOMAN_AL, START_CLOCK, WOMAN_DOB, load_default_case
 from Taylor import LhsScenario
 from utils import age
 from replay_case import REPLAY_CASES
@@ -28,6 +29,10 @@ def _build_edge_case(
         woman_assisted_yrs=woman_assisted_yrs,
         roi_seed=DEFAULT_SEED,
         inflation_seed=DEFAULT_SEED,
+        man_goes_to_al_seed=DEFAULT_SEED,
+        woman_goes_to_al_seed=DEFAULT_SEED,
+        man_goes_to_al=True,
+        woman_goes_to_al=True,
         roi_mean_shift=roi_mean_shift,
         roi_vol_multiplier=roi_vol_multiplier,
         roi_mean_reversion=roi_mean_reversion,
@@ -105,6 +110,8 @@ def build_replay_case_scenarios() -> list[tuple[str, LhsScenario]]:
 
     for replay_name, kwargs in replay_cases.items():
         full_name = replay_name
+        man_goes_to_al_seed = int(kwargs.get("man_goes_to_al_seed", DEFAULT_SEED))
+        woman_goes_to_al_seed = int(kwargs.get("woman_goes_to_al_seed", DEFAULT_SEED))
         scenario = LhsScenario(
             man_independent_yrs=float(kwargs["man_independent_yrs"]),
             woman_independent_yrs=float(kwargs["woman_independent_yrs"]),
@@ -112,6 +119,10 @@ def build_replay_case_scenarios() -> list[tuple[str, LhsScenario]]:
             woman_assisted_yrs=float(kwargs["woman_assisted_yrs"]),
             roi_seed=int(kwargs["roi_seed"]),
             inflation_seed=int(kwargs["inflation_seed"]),
+            man_goes_to_al_seed=man_goes_to_al_seed,
+            woman_goes_to_al_seed=woman_goes_to_al_seed,
+            man_goes_to_al=bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)),
+            woman_goes_to_al=bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)),
             roi_mean_shift=float(kwargs["roi_mean_shift"]),
             roi_vol_multiplier=float(kwargs["roi_vol_multiplier"]),
             roi_mean_reversion=float(kwargs["roi_mean_reversion"]),
@@ -125,7 +136,8 @@ def build_replay_case_scenarios() -> list[tuple[str, LhsScenario]]:
             f"woman={float(kwargs['woman_independent_yrs']):.3f})  "
             f"ast_yrs=(man={float(kwargs['man_assisted_yrs']):.3f}, "
             f"woman={float(kwargs['woman_assisted_yrs']):.3f})  "
-            f"seeds=(roi={int(kwargs['roi_seed'])}, inf={int(kwargs['inflation_seed'])})"
+            f"seeds=(roi={int(kwargs['roi_seed'])}, inf={int(kwargs['inflation_seed'])}, "
+            f"man_al={man_goes_to_al_seed}, woman_al={woman_goes_to_al_seed})"
         )
         scenarios.append((full_name, scenario))
 
@@ -141,6 +153,8 @@ def build_replay_case_scenarios_gutz() -> list[tuple[str, LhsScenario, float | N
 
     for replay_name, kwargs in replay_cases_gutz.items():
         full_name = replay_name
+        man_goes_to_al_seed = int(kwargs.get("man_goes_to_al_seed", DEFAULT_SEED))
+        woman_goes_to_al_seed = int(kwargs.get("woman_goes_to_al_seed", DEFAULT_SEED))
         scenario = LhsScenario(
             man_independent_yrs=float(kwargs["man_independent_yrs"]),
             woman_independent_yrs=float(kwargs["woman_independent_yrs"]),
@@ -148,6 +162,10 @@ def build_replay_case_scenarios_gutz() -> list[tuple[str, LhsScenario, float | N
             woman_assisted_yrs=float(kwargs["woman_assisted_yrs"]),
             roi_seed=int(kwargs["roi_seed"]),
             inflation_seed=int(kwargs["inflation_seed"]),
+            man_goes_to_al_seed=man_goes_to_al_seed,
+            woman_goes_to_al_seed=woman_goes_to_al_seed,
+            man_goes_to_al=bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)),
+            woman_goes_to_al=bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)),
             roi_mean_shift=float(kwargs["roi_mean_shift"]),
             roi_vol_multiplier=float(kwargs["roi_vol_multiplier"]),
             roi_mean_reversion=float(kwargs["roi_mean_reversion"]),
@@ -161,7 +179,8 @@ def build_replay_case_scenarios_gutz() -> list[tuple[str, LhsScenario, float | N
             f"woman={float(kwargs['woman_independent_yrs']):.3f})  "
             f"ast_yrs=(man={float(kwargs['man_assisted_yrs']):.3f}, "
             f"woman={float(kwargs['woman_assisted_yrs']):.3f})  "
-            f"seeds=(roi={int(kwargs['roi_seed'])}, inf={int(kwargs['inflation_seed'])})"
+            f"seeds=(roi={int(kwargs['roi_seed'])}, inf={int(kwargs['inflation_seed'])}, "
+            f"man_al={man_goes_to_al_seed}, woman_al={woman_goes_to_al_seed})"
         )
         constant_monthly_roi = None if kwargs.get("constant_monthly_roi") is None else float(kwargs["constant_monthly_roi"])
         constant_monthly_cpi = None if kwargs.get("constant_monthly_cpi") is None else float(kwargs["constant_monthly_cpi"])
@@ -184,6 +203,8 @@ def build_custom_edge_cases_gutz(
     centerpoint_woman_assisted_yrs: float,
     centerpoint_roi_seed: int,
     centerpoint_inflation_seed: int,
+    centerpoint_man_goes_to_al_seed: int,
+    centerpoint_woman_goes_to_al_seed: int,
 ) -> list[tuple[str, LhsScenario]]:
     """
     Convert CUSTOM_EDGE_CASES_GUTZ dict into (name, LhsScenario) tuples.
@@ -192,6 +213,8 @@ def build_custom_edge_cases_gutz(
     cases = []
     custom_edge_cases_gutz = CUSTOM_EDGE_CASES_GUTZ if isinstance(CUSTOM_EDGE_CASES_GUTZ, dict) else {}
     for case_name, params in custom_edge_cases_gutz.items():
+        man_goes_to_al_seed = int(params.get("man_goes_to_al_seed", centerpoint_man_goes_to_al_seed))
+        woman_goes_to_al_seed = int(params.get("woman_goes_to_al_seed", centerpoint_woman_goes_to_al_seed))
         scenario = LhsScenario(
             man_independent_yrs=params.get("man_independent_yrs", centerpoint_man_independent_yrs),
             woman_independent_yrs=params.get("woman_independent_yrs", centerpoint_woman_independent_yrs),
@@ -199,6 +222,10 @@ def build_custom_edge_cases_gutz(
             woman_assisted_yrs=params.get("woman_assisted_yrs", centerpoint_woman_assisted_yrs),
             roi_seed=int(params.get("roi_seed", centerpoint_roi_seed)),
             inflation_seed=int(params.get("inflation_seed", centerpoint_inflation_seed)),
+            man_goes_to_al_seed=man_goes_to_al_seed,
+            woman_goes_to_al_seed=woman_goes_to_al_seed,
+            man_goes_to_al=bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)),
+            woman_goes_to_al=bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)),
             roi_mean_shift=float(params.get("roi_mean_shift", 0.0)),
             roi_vol_multiplier=float(params.get("roi_vol_multiplier", 1.0)),
             roi_mean_reversion=float(params.get("roi_mean_reversion", 0.0)),
@@ -219,6 +246,8 @@ def get_edge_cases_gutz(
     centerpoint_woman_assisted_yrs: float,
     centerpoint_roi_seed: int,
     centerpoint_inflation_seed: int,
+    centerpoint_man_goes_to_al_seed: int,
+    centerpoint_woman_goes_to_al_seed: int,
 ) -> list[tuple[str, LhsScenario]]:
     """
     Return either custom Gutz edge cases (if CUSTOM_EDGE_CASES_GUTZ is set) or standard ones.
@@ -233,6 +262,8 @@ def get_edge_cases_gutz(
             centerpoint_woman_assisted_yrs=centerpoint_woman_assisted_yrs,
             centerpoint_roi_seed=centerpoint_roi_seed,
             centerpoint_inflation_seed=centerpoint_inflation_seed,
+            centerpoint_man_goes_to_al_seed=centerpoint_man_goes_to_al_seed,
+            centerpoint_woman_goes_to_al_seed=centerpoint_woman_goes_to_al_seed,
         )
         roi_cpi_suffix = f"_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
         return [(name + roi_cpi_suffix, scenario) for name, scenario in custom_cases]
