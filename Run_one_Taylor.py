@@ -82,17 +82,15 @@ def normalize_run_one_inputs(run_config: dict[str, dict[str, object]]) -> tuple[
     normalize_constant_rate("constant_monthly_cpi")
     if "current_date" in context_kwargs and context_kwargs["current_date"] is not None:
         context_kwargs["current_date"] = pd.Timestamp(context_kwargs["current_date"]).normalize()
-    if "man_goes_to_al_seed" not in scenario_kwargs:
-        scenario_kwargs["man_goes_to_al_seed"] = DEFAULT_SEED
-    if "woman_goes_to_al_seed" not in scenario_kwargs:
-        scenario_kwargs["woman_goes_to_al_seed"] = DEFAULT_SEED
+    man_goes_to_al_seed = int(scenario_kwargs.pop("man_goes_to_al_seed", DEFAULT_SEED))
+    woman_goes_to_al_seed = int(scenario_kwargs.pop("woman_goes_to_al_seed", DEFAULT_SEED))
     if "man_goes_to_al" not in scenario_kwargs:
         scenario_kwargs["man_goes_to_al"] = bool(
-            np.random.default_rng(scenario_kwargs["man_goes_to_al_seed"]).binomial(1, P_MAN_AL)
+            np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)
         )
     if "woman_goes_to_al" not in scenario_kwargs:
         scenario_kwargs["woman_goes_to_al"] = bool(
-            np.random.default_rng(scenario_kwargs["woman_goes_to_al_seed"]).binomial(1, P_WOMAN_AL)
+            np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)
         )
     return LhsScenario(**scenario_kwargs), ScenarioRunContext(**context_kwargs)
 
@@ -139,8 +137,8 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         f"Monthly volatility: {roi.monthly_volatility:.2%}\n"
         f"ROI seed: {scenario.roi_seed}\n"
         f"Inflation seed: {scenario.inflation_seed}\n"
-        f"Man goes-to-AL seed: {scenario.man_goes_to_al_seed}  -> {this_life.man_goes_to_al}\n"
-        f"Woman goes-to-AL seed: {scenario.woman_goes_to_al_seed}  -> {this_life.woman_goes_to_al}\n"
+        f"Man goes to AL: {this_life.man_goes_to_al}\n"
+        f"Woman goes to AL: {this_life.woman_goes_to_al}\n"
         f"CPI current date: {current_date.date()}\n"
         f"Effective annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
         f"Cumulative inflation growth of $1 since {START_CLOCK}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
@@ -209,6 +207,14 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'date': pd.to_datetime(this_life.dates),
         'apy_roi': [annualized_mean * 100.0] * len(this_life.dates),
         'apy_cpi': [annualized_mean_cpi * 100.0] * len(this_life.dates),
+        'num_il_2': this_life.num_il_2,
+        'num_il_1': this_life.num_il_1,
+        'num_al_2': this_life.num_al_2,
+        'num_al_1': this_life.num_al_1,
+        'num_il': (np.asarray(this_life.num_il_1) + np.asarray(this_life.num_il_2)).tolist(),
+        'num_non_taylor_2': this_life.num_non_taylor_2,
+        'num_non_taylor_1': this_life.num_non_taylor_1,
+        'num_non_taylor': (np.asarray(this_life.num_non_taylor_1) + np.asarray(this_life.num_non_taylor_2)).tolist(),
         'earn_lc': this_life.earn_lc_history,
         'earn_cc': this_life.earn_cc_history,
         'earn_norm_lc': this_life.earn_norm_lc_history,
@@ -248,8 +254,6 @@ def main() -> None:
             "woman_assisted_yrs": WOMAN_ASSISTED_YRS,
             "roi_seed": args.seed,
             "inflation_seed": args.seed,
-            "man_goes_to_al_seed": args.seed,
-            "woman_goes_to_al_seed": args.seed,
             "roi_mean_shift": ROI_MEAN_SHIFT,
             "roi_vol_multiplier": ROI_VOL_MULTIPLIER,
             "roi_mean_reversion": ROI_MEAN_REVERSION,
@@ -287,8 +291,6 @@ def main() -> None:
             "woman_assisted_yrs": 5.5,  # google women in al; assume no mc (conservative for yes on lc decision)
             "roi_seed": 740264,
             "inflation_seed": 898910,
-            "man_goes_to_al_seed": 314159,
-            "woman_goes_to_al_seed": 271828,
             # "man_goes_to_al": True,  # Uncomment this to force True
             # "woman_goes_to_al": True,  # Uncomment this to force True
             "roi_mean_shift": 0.0080464851559136,

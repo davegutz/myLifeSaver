@@ -160,16 +160,24 @@ class TaylorLife:
         self.man_dob = man_dob
         self.woman_dob = woman_dob
         self.man_independent_yrs = man_independent_yrs
-        self.man_assisted_yrs = man_assisted_yrs
+        self.man_assisted_yrs = man_assisted_yrs if man_goes_to_al else 0.0
         self.man_move_to_al_date = date_after_years(self.start_clock, self.man_independent_yrs)
         self.man_age_to_al = age(self.man_move_to_al_date, self.man_dob)
-        self.man_death_date = date_after_years(self.man_move_to_al_date, self.man_assisted_yrs)
+        self.man_death_date = (
+            date_after_years(self.man_move_to_al_date, self.man_assisted_yrs)
+            if man_goes_to_al
+            else self.man_move_to_al_date
+        )
         self.man_age_at_death = age(self.man_death_date, self.man_dob)
         self.woman_independent_yrs = woman_independent_yrs
-        self.woman_assisted_yrs = woman_assisted_yrs
+        self.woman_assisted_yrs = woman_assisted_yrs if woman_goes_to_al else 0.0
         self.woman_move_to_al_date = date_after_years(self.start_clock, self.woman_independent_yrs)
         self.woman_age_to_al = age(self.woman_move_to_al_date, self.woman_dob)
-        self.woman_death_date = date_after_years(self.woman_move_to_al_date, self.woman_assisted_yrs)
+        self.woman_death_date = (
+            date_after_years(self.woman_move_to_al_date, self.woman_assisted_yrs)
+            if woman_goes_to_al
+            else self.woman_move_to_al_date
+        )
         self.woman_age_at_death = age(self.woman_death_date, self.woman_dob)
         self.worth_at_start = worth_at_start
         self.man_goes_to_al = man_goes_to_al
@@ -262,8 +270,16 @@ class TaylorLife:
         current_date = pd.Timestamp(run_context.current_date).normalize()
         man_move_to_al_date = date_after_years(run_context.start_clock, scenario.man_independent_yrs)
         woman_move_to_al_date = date_after_years(run_context.start_clock, scenario.woman_independent_yrs)
-        man_death_date = date_after_years(man_move_to_al_date, scenario.man_assisted_yrs)
-        woman_death_date = date_after_years(woman_move_to_al_date, scenario.woman_assisted_yrs)
+        man_death_date = (
+            date_after_years(man_move_to_al_date, scenario.man_assisted_yrs)
+            if scenario.man_goes_to_al
+            else man_move_to_al_date
+        )
+        woman_death_date = (
+            date_after_years(woman_move_to_al_date, scenario.woman_assisted_yrs)
+            if scenario.woman_goes_to_al
+            else woman_move_to_al_date
+        )
         man_age_at_death = age(man_death_date, run_context.man_dob)
         woman_age_at_death = age(woman_death_date, run_context.woman_dob)
 
