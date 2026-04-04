@@ -192,8 +192,8 @@ CSV_COLUMNS = [
     "cum_mo_exp_total_lc_norm",
     "cum_mo_exp_total_cc_norm",
     "start_pile",
-    "worth_norm_cc_verify",
-    "worth_norm_lc_verify",
+    "final_worth_cc_verify",
+    "final_worth_lc_verify",
     "worth_lc",
     "worth_norm_lc",
     "worth_cc",
@@ -440,12 +440,8 @@ def summarize_lhs_run(
         cum_mo_exp_total_lc_norm=last_value(model.cum_mo_exp_total_lc_norm),
         cum_mo_exp_total_cc_norm=last_value(model.cum_mo_exp_total_cc_norm),
         start_pile=float(PILE_AT_START),
-        worth_norm_cc_verify=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm)
-            - last_value(model.cum_mo_exp_cc_norm) - last_value(model.cum_mo_exp_al_cc_norm)
-            - last_value(model.cum_mo_exp_non_taylor_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
-        worth_norm_lc_verify=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm)
-            - last_value(model.cum_mo_exp_lc_norm)
-            - last_value(model.cum_mo_exp_non_taylor_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
+        final_worth_cc_verify=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
+        final_worth_lc_verify=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
         worth_lc=result.worth_lc,
         worth_norm_lc=result.worth_norm_lc,
         worth_cc=result.worth_cc,

@@ -193,18 +193,16 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
 
     table_rows = [
         ("start_pile", PILE_AT_START, PILE_AT_START),
+        ("entrance_fee", this_life.entrance_fee_cc, this_life.entrance_fee_lc),
+        ("net_start_pile", PILE_AT_START - this_life.entrance_fee_cc, PILE_AT_START - this_life.entrance_fee_lc),
         ("cum_mo_earn_norm", _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
         ("cum_mo_exp_norm", _last(this_life.cum_mo_exp_cc_norm), _last(this_life.cum_mo_exp_lc_norm)),
         ("cum_mo_exp_al_norm", _last(this_life.cum_mo_exp_al_cc_norm), 0.0),
         ("cum_mo_exp_non_taylor_norm", _last(this_life.cum_mo_exp_non_taylor_norm), _last(this_life.cum_mo_exp_non_taylor_norm)),
         ("cum_mo_exp_total_norm", _last(this_life.cum_mo_exp_total_cc_norm), _last(this_life.cum_mo_exp_total_lc_norm)),
         ("final worth verify",
-         PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm)
-             - _last(this_life.cum_mo_exp_cc_norm) - _last(this_life.cum_mo_exp_al_cc_norm)
-             - _last(this_life.cum_mo_exp_non_taylor_norm) - _last(this_life.cum_mo_exp_total_cc_norm),
-         PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm)
-             - _last(this_life.cum_mo_exp_lc_norm)
-             - _last(this_life.cum_mo_exp_non_taylor_norm) - _last(this_life.cum_mo_exp_total_lc_norm)),
+         PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm),
+         PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)),
         ("final worth", worth_cc, worth_lc),
     ]
     print(f"{'item':<28}{'cc':>15}{'lc':>15}")
@@ -335,7 +333,7 @@ def main() -> None:
             "current_date": "2026-03-29",
             # "constant_monthly_roi": None,  # was 10. — None → stochastic
             # "constant_monthly_cpi": None,  # was  5. — None → stochas
-            # "constant_monthly_roi": 8.,  # was 10. — None → stochastic
+            # "constant_monthly_roi": 8.,  # was 10. — None → stochasticadd
             # "constant_monthly_cpi": 4.,  # was  5. — None → stochas
             "constant_monthly_roi": 0.,  # was 10. — None → stochastic
             "constant_monthly_cpi": 0.,  # was  5. — None → stochas

@@ -118,8 +118,8 @@ class LhsScenarioSummary:
     cum_mo_exp_total_lc_norm: float
     cum_mo_exp_total_cc_norm: float
     start_pile: float
-    worth_norm_cc_verify: float
-    worth_norm_lc_verify: float
+    final_worth_cc_verify: float
+    final_worth_lc_verify: float
     worth_lc: int
     worth_norm_lc: int
     worth_cc: int
