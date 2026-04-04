@@ -298,6 +298,9 @@ def main() -> None:
     header_rows = [
         ("apy roi %",            annualized_mean * 100.0,      annualized_mean * 100.0),
         ("apy cpi %",            annualized_mean_cpi * 100.0,  annualized_mean_cpi * 100.0),
+        ("roi_one_dollar_at_end", roi.life_horizon_roi_cum[-1], roi.life_horizon_roi_cum[-1]),
+        ("cpi_one_dollar_at_end", cpi.life_horizon_inflation_cum[-1], cpi.life_horizon_inflation_cum[-1]),
+        ("norm_one_dollar_at_end", cpi.life_horizon_inflation_cum[-1], cpi.life_horizon_inflation_cum[-1]),
         ("man independent yrs",  this_life.man_independent_yrs,  this_life.man_independent_yrs),
         ("man assisted yrs",     this_life.man_assisted_yrs,     this_life.man_assisted_yrs),
         ("man age to al",        this_life.man_age_to_al,        this_life.man_age_to_al),

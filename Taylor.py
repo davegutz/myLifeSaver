@@ -75,6 +75,9 @@ class LhsScenarioSummary:
     inflation_seed: int
     apy_roi: float
     apy_cpi: float
+    roi_one_dollar_at_end: float
+    cpi_one_dollar_at_end: float
+    norm_one_dollar_at_end: float
     roi_mean_shift: float
     roi_vol_multiplier: float
     roi_mean_reversion: float
@@ -106,6 +109,17 @@ class LhsScenarioSummary:
     earn_norm_cc: float
     earn_lc: float
     earn_norm_lc: float
+    cum_mo_earn_lc_norm: float
+    cum_mo_earn_cc_norm: float
+    cum_mo_exp_lc_norm: float
+    cum_mo_exp_cc_norm: float
+    cum_mo_exp_al_cc_norm: float
+    cum_mo_exp_non_taylor_norm: float
+    cum_mo_exp_total_lc_norm: float
+    cum_mo_exp_total_cc_norm: float
+    start_pile: float
+    worth_norm_cc_verify: float
+    worth_norm_lc_verify: float
     worth_lc: int
     worth_norm_lc: int
     worth_cc: int
@@ -117,6 +131,7 @@ class LhsScenarioSummary:
     total_living_yrs: float
     elapsed_time_yrs: float
     earning_potential: float
+    earning_potential_cc: float
     man_age_at_start: float
     woman_age_at_start: float
     # Context constants
@@ -220,6 +235,22 @@ class TaylorLife:
         self.earn_cc_history: list[float] = []
         self.earn_norm_lc_history: list[float] = []
         self.earn_norm_cc_history: list[float] = []
+        self.mo_earn_lc_norm: list[float] = []
+        self.cum_mo_earn_lc_norm: list[float] = []
+        self.mo_earn_cc_norm: list[float] = []
+        self.cum_mo_earn_cc_norm: list[float] = []
+        self.mo_exp_lc_norm: list[float] = []
+        self.cum_mo_exp_lc_norm: list[float] = []
+        self.mo_exp_cc_norm: list[float] = []
+        self.cum_mo_exp_cc_norm: list[float] = []
+        self.mo_exp_al_cc_norm: list[float] = []
+        self.cum_mo_exp_al_cc_norm: list[float] = []
+        self.mo_exp_non_taylor_norm: list[float] = []
+        self.cum_mo_exp_non_taylor_norm: list[float] = []
+        self.mo_exp_total_lc_norm: list[float] = []
+        self.cum_mo_exp_total_lc_norm: list[float] = []
+        self.mo_exp_total_cc_norm: list[float] = []
+        self.cum_mo_exp_total_cc_norm: list[float] = []
         self.worth_lc_history: list[float] = []
         self.worth_cc_history: list[float] = []
         self.worth_norm_lc_history: list[float] = []
@@ -452,6 +483,14 @@ class TaylorLife:
         self.earn_cc_history = earn_cc_history.tolist()
         self.earn_norm_lc_history = (earn_lc_history / inflation_cum).tolist()
         self.earn_norm_cc_history = (earn_cc_history / inflation_cum).tolist()
+        self.mo_earn_lc_norm, self.cum_mo_earn_lc_norm = self._monthly_norm(earn_lc_history, inflation_cum)
+        self.mo_earn_cc_norm, self.cum_mo_earn_cc_norm = self._monthly_norm(earn_cc_history, inflation_cum)
+        self.mo_exp_lc_norm, self.cum_mo_exp_lc_norm = self._monthly_norm(np.asarray(self.exp_lc_history, dtype=float), inflation_cum)
+        self.mo_exp_cc_norm, self.cum_mo_exp_cc_norm = self._monthly_norm(np.asarray(self.exp_cc_history, dtype=float), inflation_cum)
+        self.mo_exp_al_cc_norm, self.cum_mo_exp_al_cc_norm = self._monthly_norm(np.asarray(self.exp_al_cc_history, dtype=float), inflation_cum)
+        self.mo_exp_non_taylor_norm, self.cum_mo_exp_non_taylor_norm = self._monthly_norm(np.asarray(self.exp_non_taylor_history, dtype=float), inflation_cum)
+        self.mo_exp_total_lc_norm, self.cum_mo_exp_total_lc_norm = self._monthly_norm(np.asarray(self.exp_total_lc_history, dtype=float), inflation_cum)
+        self.mo_exp_total_cc_norm, self.cum_mo_exp_total_cc_norm = self._monthly_norm(np.asarray(self.exp_total_cc_history, dtype=float), inflation_cum)
         self.worth_lc_history = worth_lc_history.tolist()
         self.worth_cc_history = worth_cc_history.tolist()
         self.worth_norm_lc_history = (worth_lc_history / inflation_cum).tolist()
@@ -536,6 +575,16 @@ class TaylorLife:
             self.num_il = self.num_il_1 + self.num_il_2
             self.num_al = self.num_al_1 + self.num_al_2
             self.num_non_taylor = self.num_non_taylor_1 + self.num_non_taylor_2
+
+    @staticmethod
+    def _monthly_norm(cum_arr: np.ndarray, inflation_cum: np.ndarray) -> tuple[list[float], list[float]]:
+        """Return (mo_norm, cum_mo_norm): monthly increments of cum_arr each deflated by
+        their own inflation_cum, plus the running total of those deflated increments."""
+        if cum_arr.size == 0:
+            return [], []
+        mo = np.concatenate([[cum_arr[0]], np.diff(cum_arr)])
+        mo_norm = mo / inflation_cum
+        return mo_norm.tolist(), np.cumsum(mo_norm).tolist()
 
     @staticmethod
     def normalize_history(

@@ -15,7 +15,7 @@ regions of the scenario space.
 # User inputs
 #  To force the probability both man and woman go to AL instead of dying right away
 force_al = False
-DEFAULT_LHS_POINTS = 1000
+DEFAULT_LHS_POINTS = 1
 
 
 import argparse
@@ -138,7 +138,8 @@ CSV_COLUMNS = [
     "yrs_sum_al",
     "total_living_yrs",
     "elapsed_time_yrs",
-    "earning_potential",
+    "earning_potential",      # (PILE_AT_START - entrance_fee_lc) * (roi_cum[-1] / cpi_cum[-1]) * elapsed_time_yrs
+    "earning_potential_cc",   # (PILE_AT_START - entrance_fee_cc) * (roi_cum[-1] / cpi_cum[-1]) * elapsed_time_yrs
     "added_lc_worth_norm",
     "man_independent_yrs",
     "woman_independent_yrs",
@@ -148,6 +149,9 @@ CSV_COLUMNS = [
     "inflation_seed",
     "apy_roi",
     "apy_cpi",
+    "roi_one_dollar_at_end",
+    "cpi_one_dollar_at_end",
+    "norm_one_dollar_at_end",
     "roi_mean_shift",
     "roi_vol_multiplier",
     "roi_mean_reversion",
@@ -179,6 +183,17 @@ CSV_COLUMNS = [
     "earn_norm_cc",
     "earn_lc",
     "earn_norm_lc",
+    "cum_mo_earn_lc_norm",
+    "cum_mo_earn_cc_norm",
+    "cum_mo_exp_lc_norm",
+    "cum_mo_exp_cc_norm",
+    "cum_mo_exp_al_cc_norm",
+    "cum_mo_exp_non_taylor_norm",
+    "cum_mo_exp_total_lc_norm",
+    "cum_mo_exp_total_cc_norm",
+    "start_pile",
+    "worth_norm_cc_verify",
+    "worth_norm_lc_verify",
     "worth_lc",
     "worth_norm_lc",
     "worth_cc",
@@ -390,6 +405,9 @@ def summarize_lhs_run(
         inflation_seed=scenario.inflation_seed,
         apy_roi=roi_effective_apy,
         apy_cpi=cpi_effective_apy,
+        roi_one_dollar_at_end=float(model.roi.life_horizon_roi_cum[-1]),
+        cpi_one_dollar_at_end=float(model.cpi.life_horizon_inflation_cum[-1]),
+        norm_one_dollar_at_end=float(model.cpi.life_horizon_inflation_cum[-1]),
         roi_mean_shift=scenario.roi_mean_shift,
         roi_vol_multiplier=scenario.roi_vol_multiplier,
         roi_mean_reversion=scenario.roi_mean_reversion,
@@ -413,6 +431,21 @@ def summarize_lhs_run(
         earn_norm_cc=last_value(model.earn_norm_cc_history),
         earn_lc=last_value(model.earn_lc_history),
         earn_norm_lc=last_value(model.earn_norm_lc_history),
+        cum_mo_earn_lc_norm=last_value(model.cum_mo_earn_lc_norm),
+        cum_mo_earn_cc_norm=last_value(model.cum_mo_earn_cc_norm),
+        cum_mo_exp_lc_norm=last_value(model.cum_mo_exp_lc_norm),
+        cum_mo_exp_cc_norm=last_value(model.cum_mo_exp_cc_norm),
+        cum_mo_exp_al_cc_norm=last_value(model.cum_mo_exp_al_cc_norm),
+        cum_mo_exp_non_taylor_norm=last_value(model.cum_mo_exp_non_taylor_norm),
+        cum_mo_exp_total_lc_norm=last_value(model.cum_mo_exp_total_lc_norm),
+        cum_mo_exp_total_cc_norm=last_value(model.cum_mo_exp_total_cc_norm),
+        start_pile=float(PILE_AT_START),
+        worth_norm_cc_verify=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm)
+            - last_value(model.cum_mo_exp_cc_norm) - last_value(model.cum_mo_exp_al_cc_norm)
+            - last_value(model.cum_mo_exp_non_taylor_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
+        worth_norm_lc_verify=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm)
+            - last_value(model.cum_mo_exp_lc_norm)
+            - last_value(model.cum_mo_exp_non_taylor_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
         worth_lc=result.worth_lc,
         worth_norm_lc=result.worth_norm_lc,
         worth_cc=result.worth_cc,
@@ -423,7 +456,8 @@ def summarize_lhs_run(
         yrs_sum_al=scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
         total_living_yrs=scenario.man_independent_yrs + scenario.woman_independent_yrs + scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
         elapsed_time_yrs=float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425),
-        earning_potential=float(PILE_AT_START * (model.roi.life_horizon_roi_cum[-1] - model.cpi.life_horizon_inflation_cum[-1]) * float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425)),
+        earning_potential=float((PILE_AT_START - model.entrance_fee_lc) * (model.roi.life_horizon_roi_cum[-1] / model.cpi.life_horizon_inflation_cum[-1]) * float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425)),
+        earning_potential_cc=float((PILE_AT_START - model.entrance_fee_cc) * (model.roi.life_horizon_roi_cum[-1] / model.cpi.life_horizon_inflation_cum[-1]) * float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425)),
         man_goes_to_al_seed=scenario.man_goes_to_al_seed,
         woman_goes_to_al_seed=scenario.woman_goes_to_al_seed,
         man_goes_to_al=model.man_goes_to_al,
@@ -771,10 +805,12 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
     ax2.scatter(lhs["total_living_yrs"], lhs["earn_norm_cc"],
                 marker="x", s=18, alpha=0.6, label="CC")
 
-    # Subplot 3: worth_norm vs earning_potential
-    ax3.scatter(lhs["earning_potential"], lhs["worth_norm_lc"],
+    # Subplot 3: worth_norm vs earning_potential (entrance-fee-adjusted principal)
+    ep_lc_col = "earning_potential"
+    ep_cc_col = "earning_potential_cc" if "earning_potential_cc" in lhs.columns else "earning_potential"
+    ax3.scatter(lhs[ep_lc_col], lhs["worth_norm_lc"],
                 marker="o", s=18, alpha=0.6, label="LC")
-    ax3.scatter(lhs["earning_potential"], lhs["worth_norm_cc"],
+    ax3.scatter(lhs[ep_cc_col], lhs["worth_norm_cc"],
                 marker="x", s=18, alpha=0.6, label="CC")
 
     # Subplot 4: normalized total expenses (entrance fee in present-value dollars) vs total_living_yrs
@@ -790,7 +826,8 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
         earn_cc  = float(row["earn_norm_cc"])
         worth_cc = float(row["worth_norm_cc"])
         cp_total_living = float(row["total_living_yrs"])
-        cp_earning_potential = float(row["earning_potential"])
+        cp_ep_lc = float(row["earning_potential"])
+        cp_ep_cc = float(row["earning_potential_cc"]) if "earning_potential_cc" in results.columns else cp_ep_lc
         cp_exp_lc = float(_lc_norm_total(cp).iloc[0])
         cp_exp_cc = float(row["exp_norm_total_cc"])
 
@@ -804,9 +841,9 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
         ax2.scatter([cp_total_living], [earn_cc], marker="*", s=260, alpha=0.4,
                     color="red", edgecolors="red", zorder=5, label="CP CC")
 
-        ax3.scatter([cp_earning_potential], [worth_lc], marker="*", s=260, alpha=0.4,
+        ax3.scatter([cp_ep_lc], [worth_lc], marker="*", s=260, alpha=0.4,
                     color="green", edgecolors="green", zorder=5, label="CP LC")
-        ax3.scatter([cp_earning_potential], [worth_cc], marker="*", s=260, alpha=0.4,
+        ax3.scatter([cp_ep_cc], [worth_cc], marker="*", s=260, alpha=0.4,
                     color="red", edgecolors="red", zorder=5, label="CP CC")
 
         ax4.scatter([cp_total_living], [cp_exp_lc], marker="*", s=260, alpha=0.4,
