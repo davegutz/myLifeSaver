@@ -98,7 +98,6 @@ class LhsScenarioSummary:
     woman_age_at_death: float
     exp_al_cc: float
     exp_norm_al_cc: float
-    exp_cc: float
     exp_norm_cc: float
     exp_lc: float
     exp_norm_lc: float
@@ -109,9 +108,7 @@ class LhsScenarioSummary:
     exp_norm_total_lc: float
     entrance_fee_cc: float
     entrance_fee_lc: float
-    earn_cc: float
     earn_norm_cc: float
-    earn_lc: float
     earn_norm_lc: float
     cum_mo_earn_lc_norm: float
     cum_mo_earn_cc_norm: float
@@ -128,9 +125,7 @@ class LhsScenarioSummary:
     start_pile: float
     final_worth_norm_cc: float
     final_worth_norm_lc: float
-    worth_lc: int
     worth_norm_lc: int
-    worth_cc: int
     worth_norm_cc: int
     added_lc_worth_norm: int
     yrs_il_single: float

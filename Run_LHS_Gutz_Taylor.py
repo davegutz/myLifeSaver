@@ -168,7 +168,6 @@ CSV_COLUMNS = [
     "woman_age_at_death",
     "exp_al_cc",
     "exp_norm_al_cc",
-    "exp_cc",
     "exp_norm_cc",
     "exp_lc",
     "exp_norm_lc",
@@ -179,9 +178,7 @@ CSV_COLUMNS = [
     "exp_norm_total_lc",
     "entrance_fee_cc",
     "entrance_fee_lc",
-    "earn_cc",
     "earn_norm_cc",
-    "earn_lc",
     "earn_norm_lc",
     "cum_mo_earn_lc_norm",
     "cum_mo_earn_cc_norm",
@@ -198,9 +195,7 @@ CSV_COLUMNS = [
     "start_pile",
     "final_worth_norm_cc",
     "final_worth_norm_lc",
-    "worth_lc",
     "worth_norm_lc",
-    "worth_cc",
     "worth_norm_cc",
     "man_age_at_start",
     "woman_age_at_start",
@@ -420,7 +415,6 @@ def summarize_lhs_run(
         inflation_mean_reversion=scenario.inflation_mean_reversion,
         exp_al_cc=last_value(model.exp_al_cc_history),
         exp_norm_al_cc=last_value(model.exp_norm_al_cc),
-        exp_cc=last_value(model.exp_cc_history),
         exp_norm_cc=last_value(model.exp_norm_cc),
         exp_lc=last_value(model.exp_lc_history),
         exp_norm_lc=last_value(model.exp_norm_lc),
@@ -431,9 +425,7 @@ def summarize_lhs_run(
         exp_norm_total_lc=last_value(model.exp_norm_total_lc),
         entrance_fee_cc=model.entrance_fee_cc,
         entrance_fee_lc=model.entrance_fee_lc,
-        earn_cc=last_value(model.earn_cc_history),
         earn_norm_cc=last_value(model.earn_norm_cc_history),
-        earn_lc=last_value(model.earn_lc_history),
         earn_norm_lc=last_value(model.earn_norm_lc_history),
         cum_mo_earn_lc_norm=last_value(model.cum_mo_earn_lc_norm),
         cum_mo_earn_cc_norm=last_value(model.cum_mo_earn_cc_norm),
@@ -450,9 +442,7 @@ def summarize_lhs_run(
         start_pile=float(PILE_AT_START),
         final_worth_norm_cc=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
         final_worth_norm_lc=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
-        worth_lc=result.worth_lc,
         worth_norm_lc=result.worth_norm_lc,
-        worth_cc=result.worth_cc,
         worth_norm_cc=result.worth_norm_cc,
         added_lc_worth_norm=result.worth_norm_lc - result.worth_norm_cc,
         yrs_il_double=min(scenario.man_independent_yrs, scenario.woman_independent_yrs),
@@ -1070,8 +1060,8 @@ def main() -> None:
         print(
             f"LHS runs completed: {len(results)}\n"
             f"Output CSV: {output_path}\n"
-            f"Worth LC range: {results['worth_lc'].min():,.0f} to {results['worth_lc'].max():,.0f}\n"
-            f"Worth CC range: {results['worth_cc'].min():,.0f} to {results['worth_cc'].max():,.0f}"
+            f"Worth LC range: {results['worth_norm_lc'].min():,.0f} to {results['worth_norm_lc'].max():,.0f}\n"
+            f"Worth CC range: {results['worth_norm_cc'].min():,.0f} to {results['worth_norm_cc'].max():,.0f}"
         )
         
         plot_gutz_lhs_figure1(results, show=False)
