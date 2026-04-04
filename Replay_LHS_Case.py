@@ -282,19 +282,6 @@ def main() -> None:
         f"Cum. inflation of $1 since {context.start_clock}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
     )
 
-    total_expenses_cc    = this_life.exp_cc_history[-1]         if this_life.exp_cc_history         else 0.0
-    total_expenses_lc    = this_life.exp_lc_history[-1]         if this_life.exp_lc_history         else 0.0
-    total_al_expenses_cc = this_life.exp_al_cc_history[-1]      if this_life.exp_al_cc_history      else 0.0
-    total_al_expenses_lc = this_life.exp_al_cc_history[-1]      if this_life.exp_al_cc_history      else 0.0
-    total_non_taylor_cc  = this_life.exp_non_taylor_history[-1] if this_life.exp_non_taylor_history else 0.0
-    total_non_taylor_lc  = total_non_taylor_cc
-    grand_total_cc       = this_life.exp_total_cc_history[-1]   if this_life.exp_total_cc_history   else 0.0
-    grand_total_lc       = this_life.exp_total_lc_history[-1]   if this_life.exp_total_lc_history   else 0.0
-    total_returns_cc     = this_life.earn_cc_history[-1]         if this_life.earn_cc_history         else 0.0
-    total_returns_lc     = this_life.earn_lc_history[-1]         if this_life.earn_lc_history         else 0.0
-    worth_cc = result.worth_cc
-    worth_lc = result.worth_lc
-
     header_rows = [
         ("apy roi %",            annualized_mean * 100.0,      annualized_mean * 100.0),
         ("apy cpi %",            annualized_mean_cpi * 100.0,  annualized_mean_cpi * 100.0),
@@ -352,7 +339,6 @@ def main() -> None:
         ("final worth norm",
          PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm),
          PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)),
-        ("final worth",            worth_cc, worth_lc),
     ]
 
     print(f"\n{'item':<28}{'cc':>15}{'lc':>15}")
@@ -381,8 +367,6 @@ def main() -> None:
         "date":              pd.to_datetime(this_life.dates),
         "apy_roi":           monthly_apy_roi * 100.0,
         "apy_cpi":           monthly_apy_cpi * 100.0,
-        "earn_lc":                    this_life.earn_lc_history,
-        "earn_cc":                    this_life.earn_cc_history,
         "earn_norm_lc":               this_life.earn_norm_lc_history,
         "earn_norm_cc":               this_life.earn_norm_cc_history,
         "mo_earn_lc_norm":            this_life.mo_earn_lc_norm,
@@ -397,19 +381,11 @@ def main() -> None:
         "cum_mo_earn_pen_man_norm":   this_life.cum_mo_earn_pen_man_norm,
         "mo_earn_pen_woman_norm":     this_life.mo_earn_pen_woman_norm,
         "cum_mo_earn_pen_woman_norm": this_life.cum_mo_earn_pen_woman_norm,
-        "exp_total_lc":      this_life.exp_total_lc_history,
-        "exp_total_cc":      this_life.exp_total_cc_history,
         "exp_norm_total_lc": this_life.exp_norm_total_lc,
         "exp_norm_total_cc": this_life.exp_norm_total_cc,
-        "worth_lc":          this_life.worth_lc_history,
-        "worth_cc":          this_life.worth_cc_history,
         "worth_norm_lc":     this_life.worth_norm_lc_history,
         "worth_norm_cc":     this_life.worth_norm_cc_history,
         "added_lc_worth_norm":  [added_lc_worth_norm] * len(this_life.dates),
-        "exp_al_cc":         this_life.exp_al_cc_history,
-        "exp_cc":            this_life.exp_cc_history,
-        "exp_lc":            this_life.exp_lc_history,
-        "exp_non_taylor":    this_life.exp_non_taylor_history,
     })
     df_monthly.to_csv(out_csv, index=False)
     print(f"\nMonthly detail written to '{out_csv}'.")

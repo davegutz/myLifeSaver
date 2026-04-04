@@ -125,9 +125,6 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
     if cpi.inflation_frame is None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
-    worth_lc = result.worth_lc
-    worth_cc = result.worth_cc
-
     effective_monthly_roi = realized_monthly_rate(roi.life_horizon_roi, roi.monthly_mean_return)
     effective_monthly_cpi = realized_monthly_rate(cpi.life_horizon_inflation, cpi.monthly_mean_inflation)
     annualized_mean = monthly_rate_to_apy(effective_monthly_roi)
@@ -211,7 +208,6 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("final worth norm",
          PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm),
          PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)),
-        ("final worth", worth_cc, worth_lc),
     ]
     print(f"{'item':<28}{'cc':>15}{'lc':>15}")
     print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
@@ -239,8 +235,6 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'num_non_taylor_2': this_life.num_non_taylor_2,
         'num_non_taylor_1': this_life.num_non_taylor_1,
         'num_non_taylor': (np.asarray(this_life.num_non_taylor_1) + np.asarray(this_life.num_non_taylor_2)).tolist(),
-        'earn_lc': this_life.earn_lc_history,
-        'earn_cc': this_life.earn_cc_history,
         'earn_norm_lc': this_life.earn_norm_lc_history,
         'earn_norm_cc': this_life.earn_norm_cc_history,
         'mo_earn_lc_norm': this_life.mo_earn_lc_norm,
@@ -255,19 +249,11 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cum_mo_earn_pen_man_norm': this_life.cum_mo_earn_pen_man_norm,
         'mo_earn_pen_woman_norm': this_life.mo_earn_pen_woman_norm,
         'cum_mo_earn_pen_woman_norm': this_life.cum_mo_earn_pen_woman_norm,
-        'exp_total_lc': this_life.exp_total_lc_history,
-        'exp_total_cc': this_life.exp_total_cc_history,
         'exp_norm_total_lc': this_life.exp_norm_total_lc,
         'exp_norm_total_cc': this_life.exp_norm_total_cc,
-         'worth_lc': this_life.worth_lc_history,
-         'worth_cc': this_life.worth_cc_history,
          'worth_norm_lc': this_life.worth_norm_lc_history,
          'worth_norm_cc': this_life.worth_norm_cc_history,
          'added_lc_worth_norm': [result.worth_norm_lc - result.worth_norm_cc] * len(this_life.dates),
-         'exp_al_cc': this_life.exp_al_cc_history,
-        'exp_cc': this_life.exp_cc_history,
-        'exp_lc': this_life.exp_lc_history,
-        'exp_non_taylor': this_life.exp_non_taylor_history,
         'mo_exp_lc_norm': this_life.mo_exp_lc_norm,
         'cum_mo_exp_lc_norm': this_life.cum_mo_exp_lc_norm,
         'mo_exp_cc_norm': this_life.mo_exp_cc_norm,

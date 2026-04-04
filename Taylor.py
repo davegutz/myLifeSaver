@@ -96,14 +96,10 @@ class LhsScenarioSummary:
     woman_age_to_al: float | str
     man_age_at_death: float
     woman_age_at_death: float
-    exp_al_cc: float
     exp_norm_al_cc: float
     exp_norm_cc: float
-    exp_lc: float
     exp_norm_lc: float
-    exp_non_taylor: float
     exp_norm_non_taylor: float
-    exp_total_cc: float
     exp_norm_total_cc: float
     exp_norm_total_lc: float
     entrance_fee_cc: float
