@@ -14,15 +14,15 @@ library(zoo) # rollmean
  
 # Import Data
 D <- read.csv("lhs_taylor_results.csv")
-plot(yrs_sum_al ~ added_lc_worth_norm, data=D)
+plot( added_lc_worth_norm ~ yrs_sum_al, data=D)
 lm_sum_al <- lm(yrs_sum_al ~ added_lc_worth_norm, data=D)
 summary(lm_sum_al)
 
-plot(yrs_il_single ~ added_lc_worth_norm, data=D)
+plot(added_lc_worth_norm ~ yrs_il_single, data=D)
 lm_sum_il_single <- lm(yrs_il_single ~ added_lc_worth_norm, data=D)
 summary(lm_sum_il_single)
 
-plot(yrs_il_double ~ added_lc_worth_norm, data=D)
+plot(added_lc_worth_norm ~ yrs_il_double, data=D)
 lm_sum_il_double <- lm(yrs_il_double ~ added_lc_worth_norm, data=D)
 summary(lm_sum_il_double)
 
@@ -30,6 +30,76 @@ summary(lm_sum_il_double)
 glm_anD <- glm(added_lc_worth_norm ~ yrs_sum_al + yrs_il_single + yrs_il_double, family=gaussian, data=D)
 summary(glm_anD)
 plot(allEffects(glm_anD))
+
+#install.packages("leaps")
+library(leaps)
+#install.packages("regsubsets")
+#library(regsubsets)
+model_added <- leaps::regsubsets(added_lc_worth_norm ~ yrs_sum_al + yrs_il_single +
+                             yrs_il_double + total_living_yrs + elapsed_time_yrs +
+                             earning_potential + earning_potential_cc	+ 
+                             man_independent_yrs + woman_independent_yrs + 
+                             man_assisted_yrs + woman_assisted_yrs + apy_roi + 
+                             apy_cpi + roi_one_dollar_at_end + cpi_one_dollar_at_end + 
+                             man_goes_to_al + woman_goes_to_al + constant_monthly_roi + 
+                             constant_monthly_cpi,
+                             data=D, nbest=1)
+model_cc <- leaps::regsubsets(final_worth_cc_norm ~ yrs_sum_al + yrs_il_single +
+                             yrs_il_double + total_living_yrs + elapsed_time_yrs +
+                             earning_potential + earning_potential_cc	+ 
+                             man_independent_yrs + woman_independent_yrs + 
+                             man_assisted_yrs + woman_assisted_yrs + apy_roi + 
+                             apy_cpi + roi_one_dollar_at_end + cpi_one_dollar_at_end + 
+                             man_goes_to_al + woman_goes_to_al + constant_monthly_roi + 
+                             constant_monthly_cpi,
+                             data=D, nbest=1)
+model_lc <- leaps::regsubsets(final_worth_lc_norm ~ yrs_sum_al + yrs_il_single +
+                              yrs_il_double + total_living_yrs + elapsed_time_yrs +
+                                earning_potential + earning_potential_cc	+ 
+                                man_independent_yrs + woman_independent_yrs + 
+                                man_assisted_yrs + woman_assisted_yrs + apy_roi + 
+                                apy_cpi + roi_one_dollar_at_end + cpi_one_dollar_at_end + 
+                                man_goes_to_al + woman_goes_to_al + constant_monthly_roi + 
+                                constant_monthly_cpi,
+                              data=D, nbest=1)
+
+# potential more models
+#final_worth_cc_norm	final_worth_lc_norm
+#final_worth_norm_cc	final_worth_norm_lc	
+
+summary_models_added <- summary(model_added)
+summary(model_added)
+summary_models_added$cp
+summary_models_added$bic
+summary_models_added$adjr2
+# Find the index of the best model (e.g., minimum BIC)
+which.min(summary_models_added$bic)
+plot(model_added, scale = "bic") # Options: "bic", "cp", "adjr2", "r2"
+coef(model_added, id = 6) # Get coefficients for the best model (e.g., model with 9 predictors)
+
+
+summary_models_cc <- summary(model_cc)
+summary(model_cc)
+summary_models_cc$cp
+summary_models_cc$bic
+summary_models_cc$adjr2
+# Find the index of the best model (e.g., minimum BIC)
+which.min(summary_models_cc$bic)
+plot(model_cc, scale = "bic") # Options: "bic", "cp", "adjr2", "r2"
+coef(model_cc, id = 6) # Get coefficients for the best model (e.g., model with 9 predictors)
+
+
+summary_models_lc <- summary(model_lc)
+summary(model_lc)
+summary_models_lc$cp
+summary_models_lc$bic
+summary_models_lc$adjr2
+# Find the index of the best model (e.g., minimum BIC)
+which.min(summary_models_lc$bic)
+plot(model_lc, scale = "bic") # Options: "bic", "cp", "adjr2", "r2"
+coef(model_lc, id = 6) # Get coefficients for the best model (e.g., model with 9 predictors)
+
+
 
 ######### Ranch
 lm_faRa <- lm(Total.Value ~ Fin.area, data=Ra)
