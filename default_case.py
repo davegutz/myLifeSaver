@@ -21,6 +21,11 @@ NON_TAYLOR_2 = 9612.0 / 2.0
 NON_TAYLOR_1 = 5492.0
 ENTRANCE_FEE_CC = 481000.
 ENTRANCE_FEE_LC = 900000.
+SS_MAN = 3445.       # monthly Social Security income (grows with CPI)
+SS_WOMAN = 2667.     # monthly Social Security income (grows with CPI)
+PEN_MAN = 5705.      # monthly pension income (fixed nominal)
+PEN_WOMAN = 1552.    # monthly pension income (fixed nominal)
+
 AL_CC_1 = 9200.0
 AL_CC_2 = AL_CC_1 * 2.0
 CC_1 = 3150.0

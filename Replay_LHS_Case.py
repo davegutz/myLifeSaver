@@ -21,7 +21,7 @@ from pathlib import Path
 import re
 from Inflation import plot_inflation_views
 from Roi import plot_projection_views
-from default_case import P_MAN_AL, P_WOMAN_AL
+from default_case import P_MAN_AL, P_WOMAN_AL, PILE_AT_START
 from Taylor import LhsScenario, ScenarioRunContext
 from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
@@ -325,17 +325,34 @@ def main() -> None:
         ("AL_CC_1",              this_life.initial_al_cc_1 * 12.0, 0.0),
         ("entrance_fee_cc",      this_life.entrance_fee_cc, 0.0),
         ("entrance_fee_lc",      0.0, this_life.entrance_fee_lc),
+        ("SS_MAN mo",            this_life.ss_man, this_life.ss_man),
+        ("SS_WOMAN mo",          this_life.ss_woman, this_life.ss_woman),
+        ("PEN_MAN mo",           this_life.pen_man, this_life.pen_man),
+        ("PEN_WOMAN mo",         this_life.pen_woman, this_life.pen_woman),
         ("yrs sum al",           this_life.man_assisted_yrs + this_life.woman_assisted_yrs,
                                  this_life.man_assisted_yrs + this_life.woman_assisted_yrs),
     ]
+
+    def _last(lst: list) -> float:
+        return float(lst[-1]) if lst else 0.0
+
     table_rows = [
-        ("total expenses",           total_expenses_cc,    total_expenses_lc),
-        ("total al expenses",        total_al_expenses_cc, total_al_expenses_lc),
-        ("total non-taylor expenses",total_non_taylor_cc,  total_non_taylor_lc),
-        ("grand total expenses",     grand_total_cc,       grand_total_lc),
-        ("total returns",            total_returns_cc,     total_returns_lc),
-        ("final worth",              worth_cc,             worth_lc),
-        ("final worth_norm",         result.worth_norm_cc, result.worth_norm_lc),
+        ("start_pile",             PILE_AT_START, PILE_AT_START),
+        ("entrance_fee",           this_life.entrance_fee_cc, this_life.entrance_fee_lc),
+        ("net_start_pile",         PILE_AT_START - this_life.entrance_fee_cc, PILE_AT_START - this_life.entrance_fee_lc),
+        ("cum_mo_earn_norm",       _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
+        ("cum_mo_earn_ss_man_norm",   _last(this_life.cum_mo_earn_ss_man_norm),   _last(this_life.cum_mo_earn_ss_man_norm)),
+        ("cum_mo_earn_ss_woman_norm", _last(this_life.cum_mo_earn_ss_woman_norm), _last(this_life.cum_mo_earn_ss_woman_norm)),
+        ("cum_mo_earn_pen_man_norm",  _last(this_life.cum_mo_earn_pen_man_norm),  _last(this_life.cum_mo_earn_pen_man_norm)),
+        ("cum_mo_earn_pen_woman_norm",_last(this_life.cum_mo_earn_pen_woman_norm),_last(this_life.cum_mo_earn_pen_woman_norm)),
+        ("cum_mo_exp_norm",        _last(this_life.cum_mo_exp_cc_norm), _last(this_life.cum_mo_exp_lc_norm)),
+        ("cum_mo_exp_al_norm",     _last(this_life.cum_mo_exp_al_cc_norm), 0.0),
+        ("cum_mo_exp_non_taylor_norm", _last(this_life.cum_mo_exp_non_taylor_norm), _last(this_life.cum_mo_exp_non_taylor_norm)),
+        ("cum_mo_exp_total_norm",  _last(this_life.cum_mo_exp_total_cc_norm), _last(this_life.cum_mo_exp_total_lc_norm)),
+        ("final worth norm",
+         PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm),
+         PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)),
+        ("final worth",            worth_cc, worth_lc),
     ]
 
     print(f"\n{'item':<28}{'cc':>15}{'lc':>15}")
@@ -364,10 +381,22 @@ def main() -> None:
         "date":              pd.to_datetime(this_life.dates),
         "apy_roi":           monthly_apy_roi * 100.0,
         "apy_cpi":           monthly_apy_cpi * 100.0,
-        "earn_lc":           this_life.earn_lc_history,
-        "earn_cc":           this_life.earn_cc_history,
-        "earn_norm_lc":      this_life.earn_norm_lc_history,
-        "earn_norm_cc":      this_life.earn_norm_cc_history,
+        "earn_lc":                    this_life.earn_lc_history,
+        "earn_cc":                    this_life.earn_cc_history,
+        "earn_norm_lc":               this_life.earn_norm_lc_history,
+        "earn_norm_cc":               this_life.earn_norm_cc_history,
+        "mo_earn_lc_norm":            this_life.mo_earn_lc_norm,
+        "cum_mo_earn_lc_norm":        this_life.cum_mo_earn_lc_norm,
+        "mo_earn_cc_norm":            this_life.mo_earn_cc_norm,
+        "cum_mo_earn_cc_norm":        this_life.cum_mo_earn_cc_norm,
+        "mo_earn_ss_man_norm":        this_life.mo_earn_ss_man_norm,
+        "cum_mo_earn_ss_man_norm":    this_life.cum_mo_earn_ss_man_norm,
+        "mo_earn_ss_woman_norm":      this_life.mo_earn_ss_woman_norm,
+        "cum_mo_earn_ss_woman_norm":  this_life.cum_mo_earn_ss_woman_norm,
+        "mo_earn_pen_man_norm":       this_life.mo_earn_pen_man_norm,
+        "cum_mo_earn_pen_man_norm":   this_life.cum_mo_earn_pen_man_norm,
+        "mo_earn_pen_woman_norm":     this_life.mo_earn_pen_woman_norm,
+        "cum_mo_earn_pen_woman_norm": this_life.cum_mo_earn_pen_woman_norm,
         "exp_total_lc":      this_life.exp_total_lc_history,
         "exp_total_cc":      this_life.exp_total_cc_history,
         "exp_norm_total_lc": this_life.exp_norm_total_lc,

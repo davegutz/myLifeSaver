@@ -16,6 +16,10 @@ from default_case import (
     DEFAULT_SEED,
     ENTRANCE_FEE_CC,
     ENTRANCE_FEE_LC,
+    SS_MAN,
+    SS_WOMAN,
+    PEN_MAN,
+    PEN_WOMAN,
     HISTORY_YEARS,
     INFLATION_MEAN_REVERSION,
     INFLATION_MEAN_SHIFT,
@@ -111,6 +115,10 @@ class LhsScenarioSummary:
     earn_norm_lc: float
     cum_mo_earn_lc_norm: float
     cum_mo_earn_cc_norm: float
+    cum_mo_earn_ss_man_norm: float
+    cum_mo_earn_ss_woman_norm: float
+    cum_mo_earn_pen_man_norm: float
+    cum_mo_earn_pen_woman_norm: float
     cum_mo_exp_lc_norm: float
     cum_mo_exp_cc_norm: float
     cum_mo_exp_al_cc_norm: float
@@ -118,8 +126,8 @@ class LhsScenarioSummary:
     cum_mo_exp_total_lc_norm: float
     cum_mo_exp_total_cc_norm: float
     start_pile: float
-    final_worth_cc_verify: float
-    final_worth_lc_verify: float
+    final_worth_norm_cc: float
+    final_worth_norm_lc: float
     worth_lc: int
     worth_norm_lc: int
     worth_cc: int
@@ -181,6 +189,10 @@ class TaylorLife:
         non_taylor_1: float = NON_TAYLOR_1,
         entrance_fee_cc: float = ENTRANCE_FEE_CC,
         entrance_fee_lc: float = ENTRANCE_FEE_LC,
+        ss_man: float = SS_MAN,
+        ss_woman: float = SS_WOMAN,
+        pen_man: float = PEN_MAN,
+        pen_woman: float = PEN_WOMAN,
         man_goes_to_al: bool = True,
         woman_goes_to_al: bool = True,
     ) -> None:
@@ -223,6 +235,10 @@ class TaylorLife:
         self.initial_non_taylor_1 = non_taylor_1
         self.entrance_fee_cc = entrance_fee_cc
         self.entrance_fee_lc = entrance_fee_lc
+        self.ss_man = ss_man
+        self.ss_woman = ss_woman
+        self.pen_man = pen_man
+        self.pen_woman = pen_woman
         self.worth_lc = self.worth_at_start
         self.worth_cc = self.worth_at_start
         self.worth_norm_lc = self.worth_lc
@@ -239,6 +255,14 @@ class TaylorLife:
         self.cum_mo_earn_lc_norm: list[float] = []
         self.mo_earn_cc_norm: list[float] = []
         self.cum_mo_earn_cc_norm: list[float] = []
+        self.mo_earn_ss_man_norm: list[float] = []
+        self.cum_mo_earn_ss_man_norm: list[float] = []
+        self.mo_earn_ss_woman_norm: list[float] = []
+        self.cum_mo_earn_ss_woman_norm: list[float] = []
+        self.mo_earn_pen_man_norm: list[float] = []
+        self.cum_mo_earn_pen_man_norm: list[float] = []
+        self.mo_earn_pen_woman_norm: list[float] = []
+        self.cum_mo_earn_pen_woman_norm: list[float] = []
         self.mo_exp_lc_norm: list[float] = []
         self.cum_mo_exp_lc_norm: list[float] = []
         self.mo_exp_cc_norm: list[float] = []
@@ -483,8 +507,31 @@ class TaylorLife:
         self.earn_cc_history = earn_cc_history.tolist()
         self.earn_norm_lc_history = (earn_lc_history / inflation_cum).tolist()
         self.earn_norm_cc_history = (earn_cc_history / inflation_cum).tolist()
-        self.mo_earn_lc_norm, self.cum_mo_earn_lc_norm = self._monthly_norm(earn_lc_history, inflation_cum)
-        self.mo_earn_cc_norm, self.cum_mo_earn_cc_norm = self._monthly_norm(earn_cc_history, inflation_cum)
+        mo_earn_lc_norm_base, _ = self._monthly_norm(earn_lc_history, inflation_cum)
+        mo_earn_cc_norm_base, _ = self._monthly_norm(earn_cc_history, inflation_cum)
+        # SS grows with CPI: nominal = ss * inflation_cum → norm = ss (constant)
+        n = inflation_cum.size
+        ss_man_mo = np.full(n, self.ss_man)
+        ss_woman_mo = np.full(n, self.ss_woman)
+        self.mo_earn_ss_man_norm = ss_man_mo.tolist()
+        self.cum_mo_earn_ss_man_norm = np.cumsum(ss_man_mo).tolist()
+        self.mo_earn_ss_woman_norm = ss_woman_mo.tolist()
+        self.cum_mo_earn_ss_woman_norm = np.cumsum(ss_woman_mo).tolist()
+        # Pension is fixed nominal: norm = pen / inflation_cum
+        pen_man_mo = self.pen_man / inflation_cum
+        pen_woman_mo = self.pen_woman / inflation_cum
+        self.mo_earn_pen_man_norm = pen_man_mo.tolist()
+        self.cum_mo_earn_pen_man_norm = np.cumsum(pen_man_mo).tolist()
+        self.mo_earn_pen_woman_norm = pen_woman_mo.tolist()
+        self.cum_mo_earn_pen_woman_norm = np.cumsum(pen_woman_mo).tolist()
+        # Fold SS and PEN into earn norm series
+        ss_pen_mo = ss_man_mo + ss_woman_mo + pen_man_mo + pen_woman_mo
+        mo_earn_lc_norm_full = np.asarray(mo_earn_lc_norm_base) + ss_pen_mo
+        mo_earn_cc_norm_full = np.asarray(mo_earn_cc_norm_base) + ss_pen_mo
+        self.mo_earn_lc_norm = mo_earn_lc_norm_full.tolist()
+        self.cum_mo_earn_lc_norm = np.cumsum(mo_earn_lc_norm_full).tolist()
+        self.mo_earn_cc_norm = mo_earn_cc_norm_full.tolist()
+        self.cum_mo_earn_cc_norm = np.cumsum(mo_earn_cc_norm_full).tolist()
         self.mo_exp_lc_norm, self.cum_mo_exp_lc_norm = self._monthly_norm(np.asarray(self.exp_lc_history, dtype=float), inflation_cum)
         self.mo_exp_cc_norm, self.cum_mo_exp_cc_norm = self._monthly_norm(np.asarray(self.exp_cc_history, dtype=float), inflation_cum)
         self.mo_exp_al_cc_norm, self.cum_mo_exp_al_cc_norm = self._monthly_norm(np.asarray(self.exp_al_cc_history, dtype=float), inflation_cum)
