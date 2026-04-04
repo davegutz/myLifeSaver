@@ -269,7 +269,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'exp_norm_total_cc': this_life.exp_norm_total_cc,
          'worth_norm_lc': this_life.worth_norm_lc_history,
          'worth_norm_cc': this_life.worth_norm_cc_history,
-         'added_lc_worth_norm': [result.worth_norm_lc - result.worth_norm_cc] * len(this_life.dates),
+         'added_lc_worth_norm': [added_lc_worth_norm] * len(this_life.dates),
         'mo_exp_lc_norm': this_life.mo_exp_lc_norm,
         'cum_mo_exp_lc_norm': this_life.cum_mo_exp_lc_norm,
         'mo_exp_cc_norm': this_life.mo_exp_cc_norm,
@@ -282,6 +282,8 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cum_mo_exp_total_lc_norm': this_life.cum_mo_exp_total_lc_norm,
         'mo_exp_total_cc_norm': this_life.mo_exp_total_cc_norm,
         'cum_mo_exp_total_cc_norm': this_life.cum_mo_exp_total_cc_norm,
+        'final_worth_cc_norm': [final_worth_norm_cc] * len(this_life.dates),
+        'final_worth_lc_norm': [final_worth_norm_lc] * len(this_life.dates),
     })
     df.to_csv('taylor_life_monthly.csv', index=False)
     
@@ -333,10 +335,11 @@ def main() -> None:
 
     # Hand-edit these local overrides as your normal workflow.
     # Precedence is: base defaults -> named default case -> local overrides.
+
     local_run_overrides = {
         "scenario": {
             "man_independent_yrs": 10.,  # google age men enter al - current age
-            "woman_independent_yrs": 15.5,  # google age women enter al - current age
+            "woman_independent_yrs": 8.8,  # google age women enter al - current age
             "man_assisted_yrs": 2.35*P_MAN_AL,  # google men in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 man_goes_to_al = T
             "woman_assisted_yrs": 5.5*P_WOMAN_AL,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
             "roi_seed": 740264,
@@ -351,10 +354,10 @@ def main() -> None:
             "current_date": "2026-03-29",
             # "constant_monthly_roi": None,  # was 10. — None → stochastic
             # "constant_monthly_cpi": None,  # was  5. — None → stochas
-            # "constant_monthly_roi": 8.,  # was 10. — None → stochasticadd
-            # "constant_monthly_cpi": 4.,  # was  5. — None → stochas
-            "constant_monthly_roi": 4.,  # was 10. — None → stochastic
+            "constant_monthly_roi": 8.,  # was 10. — None → stochasticadd
             "constant_monthly_cpi": 4.,  # was  5. — None → stochas
+            # "constant_monthly_roi": 4.,  # was 10. — None → stochastic
+            # "constant_monthly_cpi": 4.,  # was  5. — None → stochas
         },
     }
 

@@ -15,7 +15,7 @@ regions of the scenario space.
 # User inputs
 #  To force the probability both man and woman go to AL instead of dying right away
 force_al = False
-DEFAULT_LHS_POINTS = 1
+DEFAULT_LHS_POINTS = 1000
 
 
 import argparse
@@ -209,6 +209,8 @@ CSV_COLUMNS = [
     "woman_dob",
     "constant_monthly_roi",
     "constant_monthly_cpi",
+    "final_worth_cc_norm",
+    "final_worth_lc_norm",
 ]
 
 SCREEN_MIN_COL_WIDTH = 14
@@ -368,18 +370,10 @@ def format_constant_monthly_output(value: float | None) -> float | str:
 
 
 def normalize_centerpoint_constant_monthly(value: float | None) -> float | None:
-    """
-    Accept either:
-      - monthly fraction (e.g., 0.008 for 0.8%/mo), or
-      - APY percent (e.g., 10.0 for 10% APY)
-    for centerpoint constant ROI/CPI inputs.
-    """
+    """Convert APY percent to monthly fraction. Always treats input as APY percent."""
     if value is None:
         return None
-    numeric = float(value)
-    if abs(numeric) > 1.0:
-        return apy_percent_to_monthly_fraction(numeric)
-    return numeric
+    return apy_percent_to_monthly_fraction(float(value))
 
 
 def summarize_lhs_run(
@@ -442,9 +436,11 @@ def summarize_lhs_run(
         start_pile=float(PILE_AT_START),
         final_worth_norm_cc=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
         final_worth_norm_lc=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
-        worth_norm_lc=result.worth_norm_lc,
-        worth_norm_cc=result.worth_norm_cc,
-        added_lc_worth_norm=result.worth_norm_lc - result.worth_norm_cc,
+        worth_norm_lc=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
+        worth_norm_cc=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
+        added_lc_worth_norm=float(last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)) - float(last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
+        final_worth_cc_norm=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
+        final_worth_lc_norm=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
         yrs_il_double=min(scenario.man_independent_yrs, scenario.woman_independent_yrs),
         yrs_il_single=abs(scenario.man_independent_yrs - scenario.woman_independent_yrs),
         yrs_sum_al=scenario.man_assisted_yrs + scenario.woman_assisted_yrs,

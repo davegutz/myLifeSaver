@@ -147,6 +147,8 @@ class LhsScenarioSummary:
     woman_dob: str
     constant_monthly_roi: float | str | None
     constant_monthly_cpi: float | str | None
+    final_worth_cc_norm: float
+    final_worth_lc_norm: float
 
 
 @dataclass(frozen=True)
