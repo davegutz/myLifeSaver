@@ -110,8 +110,10 @@ class LhsScenarioSummary:
     cum_mo_earn_cc_norm: float
     cum_mo_earn_ss_man_norm: float
     cum_mo_earn_ss_woman_norm: float
+    cum_mo_earn_ss_norm: float
     cum_mo_earn_pen_man_norm: float
     cum_mo_earn_pen_woman_norm: float
+    cum_mo_earn_pen_norm: float
     cum_mo_exp_lc_norm: float
     cum_mo_exp_cc_norm: float
     cum_mo_exp_al_cc_norm: float
@@ -250,10 +252,14 @@ class TaylorLife:
         self.cum_mo_earn_ss_man_norm: list[float] = []
         self.mo_earn_ss_woman_norm: list[float] = []
         self.cum_mo_earn_ss_woman_norm: list[float] = []
+        self.mo_earn_ss_norm: list[float] = []
+        self.cum_mo_earn_ss_norm: list[float] = []
         self.mo_earn_pen_man_norm: list[float] = []
         self.cum_mo_earn_pen_man_norm: list[float] = []
         self.mo_earn_pen_woman_norm: list[float] = []
         self.cum_mo_earn_pen_woman_norm: list[float] = []
+        self.mo_earn_pen_norm: list[float] = []
+        self.cum_mo_earn_pen_norm: list[float] = []
         self.mo_exp_lc_norm: list[float] = []
         self.cum_mo_exp_lc_norm: list[float] = []
         self.mo_exp_cc_norm: list[float] = []
@@ -508,6 +514,9 @@ class TaylorLife:
         self.cum_mo_earn_ss_man_norm = np.cumsum(ss_man_mo).tolist()
         self.mo_earn_ss_woman_norm = ss_woman_mo.tolist()
         self.cum_mo_earn_ss_woman_norm = np.cumsum(ss_woman_mo).tolist()
+        ss_mo = ss_man_mo + ss_woman_mo
+        self.mo_earn_ss_norm = ss_mo.tolist()
+        self.cum_mo_earn_ss_norm = np.cumsum(ss_mo).tolist()
         # Pension is fixed nominal: norm = pen / inflation_cum
         pen_man_mo = self.pen_man / inflation_cum
         pen_woman_mo = self.pen_woman / inflation_cum
@@ -515,6 +524,9 @@ class TaylorLife:
         self.cum_mo_earn_pen_man_norm = np.cumsum(pen_man_mo).tolist()
         self.mo_earn_pen_woman_norm = pen_woman_mo.tolist()
         self.cum_mo_earn_pen_woman_norm = np.cumsum(pen_woman_mo).tolist()
+        pen_mo = pen_man_mo + pen_woman_mo
+        self.mo_earn_pen_norm = pen_mo.tolist()
+        self.cum_mo_earn_pen_norm = np.cumsum(pen_mo).tolist()
         # Fold SS and PEN into earn norm series
         ss_pen_mo = ss_man_mo + ss_woman_mo + pen_man_mo + pen_woman_mo
         mo_earn_lc_norm_full = np.asarray(mo_earn_lc_norm_base) + ss_pen_mo

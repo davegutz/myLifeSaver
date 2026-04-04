@@ -197,10 +197,8 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("entrance_fee", this_life.entrance_fee_cc, this_life.entrance_fee_lc),
         ("net_start_pile", PILE_AT_START - this_life.entrance_fee_cc, PILE_AT_START - this_life.entrance_fee_lc),
         ("cum_mo_earn_norm", _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
-        ("cum_mo_earn_ss_man_norm", _last(this_life.cum_mo_earn_ss_man_norm), _last(this_life.cum_mo_earn_ss_man_norm)),
-        ("cum_mo_earn_ss_woman_norm", _last(this_life.cum_mo_earn_ss_woman_norm), _last(this_life.cum_mo_earn_ss_woman_norm)),
-        ("cum_mo_earn_pen_man_norm", _last(this_life.cum_mo_earn_pen_man_norm), _last(this_life.cum_mo_earn_pen_man_norm)),
-        ("cum_mo_earn_pen_woman_norm", _last(this_life.cum_mo_earn_pen_woman_norm), _last(this_life.cum_mo_earn_pen_woman_norm)),
+        ("cum_mo_earn_ss_norm", _last(this_life.cum_mo_earn_ss_norm), _last(this_life.cum_mo_earn_ss_norm)),
+        ("cum_mo_earn_pen_norm", _last(this_life.cum_mo_earn_pen_norm), _last(this_life.cum_mo_earn_pen_norm)),
         ("cum_mo_exp_norm", _last(this_life.cum_mo_exp_cc_norm), _last(this_life.cum_mo_exp_lc_norm)),
         ("cum_mo_exp_al_norm", _last(this_life.cum_mo_exp_al_cc_norm), 0.0),
         ("cum_mo_exp_non_taylor_norm", _last(this_life.cum_mo_exp_non_taylor_norm), _last(this_life.cum_mo_exp_non_taylor_norm)),
@@ -245,10 +243,14 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cum_mo_earn_ss_man_norm': this_life.cum_mo_earn_ss_man_norm,
         'mo_earn_ss_woman_norm': this_life.mo_earn_ss_woman_norm,
         'cum_mo_earn_ss_woman_norm': this_life.cum_mo_earn_ss_woman_norm,
+        'mo_earn_ss_norm': this_life.mo_earn_ss_norm,
+        'cum_mo_earn_ss_norm': this_life.cum_mo_earn_ss_norm,
         'mo_earn_pen_man_norm': this_life.mo_earn_pen_man_norm,
         'cum_mo_earn_pen_man_norm': this_life.cum_mo_earn_pen_man_norm,
         'mo_earn_pen_woman_norm': this_life.mo_earn_pen_woman_norm,
         'cum_mo_earn_pen_woman_norm': this_life.cum_mo_earn_pen_woman_norm,
+        'mo_earn_pen_norm': this_life.mo_earn_pen_norm,
+        'cum_mo_earn_pen_norm': this_life.cum_mo_earn_pen_norm,
         'exp_norm_total_lc': this_life.exp_norm_total_lc,
         'exp_norm_total_cc': this_life.exp_norm_total_cc,
          'worth_norm_lc': this_life.worth_norm_lc_history,
@@ -336,9 +338,9 @@ def main() -> None:
             # "constant_monthly_roi": None,  # was 10. — None → stochastic
             # "constant_monthly_cpi": None,  # was  5. — None → stochas
             # "constant_monthly_roi": 8.,  # was 10. — None → stochasticadd
-            "constant_monthly_cpi": 4.,  # was  5. — None → stochas
+            # "constant_monthly_cpi": 4.,  # was  5. — None → stochas
             "constant_monthly_roi": 0.,  # was 10. — None → stochastic
-            # "constant_monthly_cpi": 0.,  # was  5. — None → stochas
+            "constant_monthly_cpi": 0.,  # was  5. — None → stochas
         },
     }
 
