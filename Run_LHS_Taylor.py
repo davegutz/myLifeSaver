@@ -32,7 +32,7 @@ from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 # User inputs
 #  To force the probability both man and woman go to AL instead of dying right away
 force_al = False
-DEFAULT_LHS_POINTS = 1  # will change seed values if not the same between runs
+DEFAULT_LHS_POINTS = 1000  # will change seed values if not the same between runs
 
 
 # ============================================================================
