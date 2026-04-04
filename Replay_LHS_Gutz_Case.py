@@ -305,8 +305,8 @@ def main() -> None:
         ("yrs al single",        abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs),
                                  abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs)),
         ("AL_CC_1",              this_life.initial_al_cc_1 * 12.0, 0.0),
-        ("entrance_fee_cc",      this_life.entrance_fee_cc, 0.0),
-        ("entrance_fee_lc",      0.0, this_life.entrance_fee_lc),
+        ("exp_entrance_fee_cc",  this_life.entrance_fee_cc, 0.0),
+        ("exp_entrance_fee_lc",  0.0, this_life.entrance_fee_lc),
         ("SS_MAN mo",            this_life.ss_man, this_life.ss_man),
         ("SS_WOMAN mo",          this_life.ss_woman, this_life.ss_woman),
         ("PEN_MAN mo",           this_life.pen_man, this_life.pen_man),
@@ -320,15 +320,20 @@ def main() -> None:
 
     table_rows = [
         ("start_pile",             PILE_AT_START, PILE_AT_START),
-        ("entrance_fee",           this_life.entrance_fee_cc, this_life.entrance_fee_lc),
-        ("net_start_pile",         PILE_AT_START - this_life.entrance_fee_cc, PILE_AT_START - this_life.entrance_fee_lc),
-        ("cum_mo_earn_norm",       _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
+        ("",                       None, None),
         ("cum_mo_earn_ss_norm",  _last(this_life.cum_mo_earn_ss_norm),  _last(this_life.cum_mo_earn_ss_norm)),
         ("cum_mo_earn_pen_norm", _last(this_life.cum_mo_earn_pen_norm), _last(this_life.cum_mo_earn_pen_norm)),
+        ("cum_mo_earn_inv_norm", _last(this_life.cum_mo_earn_inv_cc_norm), _last(this_life.cum_mo_earn_inv_lc_norm)),
+        ("---",                    None, None),
+        ("cum_mo_earn_norm",       _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
+        ("",                       None, None),
+        ("exp_entrance_fee",       this_life.entrance_fee_cc, this_life.entrance_fee_lc),
         ("cum_mo_exp_norm",        _last(this_life.cum_mo_exp_cc_norm), _last(this_life.cum_mo_exp_lc_norm)),
         ("cum_mo_exp_al_norm",     _last(this_life.cum_mo_exp_al_cc_norm), 0.0),
         ("cum_mo_exp_non_taylor_norm", _last(this_life.cum_mo_exp_non_taylor_norm), _last(this_life.cum_mo_exp_non_taylor_norm)),
+        ("---",                    None, None),
         ("cum_mo_exp_total_norm",  _last(this_life.cum_mo_exp_total_cc_norm), _last(this_life.cum_mo_exp_total_lc_norm)),
+        ("",                       None, None),
         ("final worth norm",
          PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm),
          PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)),
@@ -340,9 +345,17 @@ def main() -> None:
         print(f"{item:<28}{cc_value:>15.1f}{lc_value:>15.1f}")
     print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
     for item, cc_value, lc_value in table_rows:
-        print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
+        if cc_value is None:
+            if item == "---":
+                print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
+            else:
+                print()
+        else:
+            print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
 
-    added_lc_worth_norm = result.worth_norm_lc - result.worth_norm_cc
+    final_worth_norm_cc = PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm)
+    final_worth_norm_lc = PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)
+    added_lc_worth_norm = final_worth_norm_lc - final_worth_norm_cc
     print(f"\nadded worth (norm lc - norm cc): {added_lc_worth_norm:>15,.0f}")
 
     replay_case_path = upsert_replay_case_definition(run_id=run_id, scenario=scenario)
@@ -372,6 +385,10 @@ def main() -> None:
         "cum_mo_earn_lc_norm":        this_life.cum_mo_earn_lc_norm,
         "mo_earn_cc_norm":            this_life.mo_earn_cc_norm,
         "cum_mo_earn_cc_norm":        this_life.cum_mo_earn_cc_norm,
+        "mo_earn_inv_lc_norm":        this_life.mo_earn_inv_lc_norm,
+        "cum_mo_earn_inv_lc_norm":    this_life.cum_mo_earn_inv_lc_norm,
+        "mo_earn_inv_cc_norm":        this_life.mo_earn_inv_cc_norm,
+        "cum_mo_earn_inv_cc_norm":    this_life.cum_mo_earn_inv_cc_norm,
         "mo_earn_ss_man_norm":        this_life.mo_earn_ss_man_norm,
         "cum_mo_earn_ss_man_norm":    this_life.cum_mo_earn_ss_man_norm,
         "mo_earn_ss_woman_norm":      this_life.mo_earn_ss_woman_norm,

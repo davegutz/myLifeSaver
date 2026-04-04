@@ -72,12 +72,9 @@ def normalize_run_one_inputs(run_config: dict[str, dict[str, object]]) -> tuple[
         if raw is None:
             return
         value = float(raw)
-        if abs(value) > 1.0:
-            monthly = apy_percent_to_monthly_fraction(value)
-            print(f"Interpreting {key}={value} as APY percent; using monthly fraction {monthly:.8f}")
-            context_kwargs[key] = monthly
-        else:
-            context_kwargs[key] = value
+        monthly = apy_percent_to_monthly_fraction(value)
+        print(f"Interpreting {key}={value} as APY percent; using monthly fraction {monthly:.8f}")
+        context_kwargs[key] = monthly
 
     normalize_constant_rate("constant_monthly_roi")
     normalize_constant_rate("constant_monthly_cpi")
@@ -171,8 +168,8 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("yrs al single", abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs),
                           abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs)),
         ("AL_CC_1", this_life.initial_al_cc_1 * 12.0, 0.0),
-        ("entrance_fee_cc", this_life.entrance_fee_cc, 0.0),
-        ("entrance_fee_lc", 0.0, this_life.entrance_fee_lc),
+        ("exp_entrance_fee_cc", this_life.entrance_fee_cc, 0.0),
+        ("exp_entrance_fee_lc", 0.0, this_life.entrance_fee_lc),
         ("SS_MAN mo", this_life.ss_man, this_life.ss_man),
         ("SS_WOMAN mo", this_life.ss_woman, this_life.ss_woman),
         ("PEN_MAN mo", this_life.pen_man, this_life.pen_man),
@@ -194,15 +191,20 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
 
     table_rows = [
         ("start_pile", PILE_AT_START, PILE_AT_START),
-        ("entrance_fee", this_life.entrance_fee_cc, this_life.entrance_fee_lc),
-        ("net_start_pile", PILE_AT_START - this_life.entrance_fee_cc, PILE_AT_START - this_life.entrance_fee_lc),
-        ("cum_mo_earn_norm", _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
+        ("", None, None),
         ("cum_mo_earn_ss_norm", _last(this_life.cum_mo_earn_ss_norm), _last(this_life.cum_mo_earn_ss_norm)),
         ("cum_mo_earn_pen_norm", _last(this_life.cum_mo_earn_pen_norm), _last(this_life.cum_mo_earn_pen_norm)),
+        ("cum_mo_earn_inv_norm", _last(this_life.cum_mo_earn_inv_cc_norm), _last(this_life.cum_mo_earn_inv_lc_norm)),
+        ("---", None, None),
+        ("cum_mo_earn_norm", _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
+        ("", None, None),
+        ("exp_entrance_fee", this_life.entrance_fee_cc, this_life.entrance_fee_lc),
         ("cum_mo_exp_norm", _last(this_life.cum_mo_exp_cc_norm), _last(this_life.cum_mo_exp_lc_norm)),
         ("cum_mo_exp_al_norm", _last(this_life.cum_mo_exp_al_cc_norm), 0.0),
         ("cum_mo_exp_non_taylor_norm", _last(this_life.cum_mo_exp_non_taylor_norm), _last(this_life.cum_mo_exp_non_taylor_norm)),
+        ("---", None, None),
         ("cum_mo_exp_total_norm", _last(this_life.cum_mo_exp_total_cc_norm), _last(this_life.cum_mo_exp_total_lc_norm)),
+        ("", None, None),
         ("final worth norm",
          PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm),
          PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)),
@@ -213,9 +215,17 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         print(f"{item:<28}{cc_value:>15.1f}{lc_value:>15.1f}")
     print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
     for item, cc_value, lc_value in table_rows:
-        print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
+        if cc_value is None:
+            if item == "---":
+                print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
+            else:
+                print()
+        else:
+            print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
     
-    added_lc_worth_norm = result.worth_norm_lc - result.worth_norm_cc
+    final_worth_norm_cc = PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm)
+    final_worth_norm_lc = PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)
+    added_lc_worth_norm = final_worth_norm_lc - final_worth_norm_cc
     print(f"\nadded worth (norm lc - norm cc): {added_lc_worth_norm:>15,.0f}")
 
     # Write monthly results to CSV
@@ -239,6 +249,10 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cum_mo_earn_lc_norm': this_life.cum_mo_earn_lc_norm,
         'mo_earn_cc_norm': this_life.mo_earn_cc_norm,
         'cum_mo_earn_cc_norm': this_life.cum_mo_earn_cc_norm,
+        'mo_earn_inv_lc_norm': this_life.mo_earn_inv_lc_norm,
+        'cum_mo_earn_inv_lc_norm': this_life.cum_mo_earn_inv_lc_norm,
+        'mo_earn_inv_cc_norm': this_life.mo_earn_inv_cc_norm,
+        'cum_mo_earn_inv_cc_norm': this_life.cum_mo_earn_inv_cc_norm,
         'mo_earn_ss_man_norm': this_life.mo_earn_ss_man_norm,
         'cum_mo_earn_ss_man_norm': this_life.cum_mo_earn_ss_man_norm,
         'mo_earn_ss_woman_norm': this_life.mo_earn_ss_woman_norm,
@@ -339,8 +353,8 @@ def main() -> None:
             # "constant_monthly_cpi": None,  # was  5. — None → stochas
             # "constant_monthly_roi": 8.,  # was 10. — None → stochasticadd
             # "constant_monthly_cpi": 4.,  # was  5. — None → stochas
-            "constant_monthly_roi": 0.,  # was 10. — None → stochastic
-            "constant_monthly_cpi": 0.,  # was  5. — None → stochas
+            "constant_monthly_roi": 4.,  # was 10. — None → stochastic
+            "constant_monthly_cpi": 4.,  # was  5. — None → stochas
         },
     }
 

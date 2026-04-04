@@ -5,6 +5,7 @@ import pandas as pd
 
 from default_case import (
     AL_INFLATION_FACTOR,
+    CC_INFLATION_FACTOR,
     AL_CC_1,
     AL_CC_2,
     AL_ESC_RUNNING_AVG_YRS,
@@ -26,7 +27,6 @@ from default_case import (
     INFLATION_VOL_MULTIPLIER,
     LC_1,
     LC_2,
-    LC_INFLATION_FACTOR,
     MAN_ASSISTED_YRS,
     MAN_DOB,
     MAN_INDEPENDENT_YRS,
@@ -108,6 +108,8 @@ class LhsScenarioSummary:
     earn_norm_lc: float
     cum_mo_earn_lc_norm: float
     cum_mo_earn_cc_norm: float
+    cum_mo_earn_inv_lc_norm: float
+    cum_mo_earn_inv_cc_norm: float
     cum_mo_earn_ss_man_norm: float
     cum_mo_earn_ss_woman_norm: float
     cum_mo_earn_ss_norm: float
@@ -248,6 +250,10 @@ class TaylorLife:
         self.cum_mo_earn_lc_norm: list[float] = []
         self.mo_earn_cc_norm: list[float] = []
         self.cum_mo_earn_cc_norm: list[float] = []
+        self.mo_earn_inv_lc_norm: list[float] = []
+        self.cum_mo_earn_inv_lc_norm: list[float] = []
+        self.mo_earn_inv_cc_norm: list[float] = []
+        self.cum_mo_earn_inv_cc_norm: list[float] = []
         self.mo_earn_ss_man_norm: list[float] = []
         self.cum_mo_earn_ss_man_norm: list[float] = []
         self.mo_earn_ss_woman_norm: list[float] = []
@@ -462,13 +468,13 @@ class TaylorLife:
             self.initial_cc_1,
             self.num_il_2,
             self.num_il_1,
+            inflation_factor=CC_INFLATION_FACTOR,
         )
         self.exp_lc_history = self.build_expense_history(
             self.initial_lc_2,
             self.initial_lc_1,
             self.num_il_2,
             self.num_il_1,
-            inflation_factor=LC_INFLATION_FACTOR,
         )
         self.exp_non_taylor_history = self.build_expense_history(
             self.initial_non_taylor_2,
@@ -504,8 +510,15 @@ class TaylorLife:
         self.earn_cc_history = earn_cc_history.tolist()
         self.earn_norm_lc_history = (earn_lc_history / inflation_cum).tolist()
         self.earn_norm_cc_history = (earn_cc_history / inflation_cum).tolist()
-        mo_earn_lc_norm_base, _ = self._monthly_norm(earn_lc_history, inflation_cum)
-        mo_earn_cc_norm_base, _ = self._monthly_norm(earn_cc_history, inflation_cum)
+        # Excess earnings (roi - cpi) for inv_norm display only — cancels when roi == cpi
+        excess_earn_lc_history = self.build_excess_earn_history(self.worth_at_start, worth_lc_history)
+        excess_earn_cc_history = self.build_excess_earn_history(self.worth_at_start, worth_cc_history)
+        mo_earn_inv_lc_norm, _ = self._monthly_norm(excess_earn_lc_history, inflation_cum)
+        mo_earn_inv_cc_norm, _ = self._monthly_norm(excess_earn_cc_history, inflation_cum)
+        self.mo_earn_inv_lc_norm = list(mo_earn_inv_lc_norm)
+        self.cum_mo_earn_inv_lc_norm = np.cumsum(mo_earn_inv_lc_norm).tolist()
+        self.mo_earn_inv_cc_norm = list(mo_earn_inv_cc_norm)
+        self.cum_mo_earn_inv_cc_norm = np.cumsum(mo_earn_inv_cc_norm).tolist()
         # SS grows with CPI: nominal = ss * inflation_cum → norm = ss (constant)
         n = inflation_cum.size
         ss_man_mo = np.full(n, self.ss_man)
@@ -527,7 +540,9 @@ class TaylorLife:
         pen_mo = pen_man_mo + pen_woman_mo
         self.mo_earn_pen_norm = pen_mo.tolist()
         self.cum_mo_earn_pen_norm = np.cumsum(pen_mo).tolist()
-        # Fold SS and PEN into earn norm series
+        # Actual earnings norm base (used for worth reconstruction in cum_mo_earn_norm)
+        mo_earn_lc_norm_base, _ = self._monthly_norm(earn_lc_history, inflation_cum)
+        mo_earn_cc_norm_base, _ = self._monthly_norm(earn_cc_history, inflation_cum)
         ss_pen_mo = ss_man_mo + ss_woman_mo + pen_man_mo + pen_woman_mo
         mo_earn_lc_norm_full = np.asarray(mo_earn_lc_norm_base) + ss_pen_mo
         mo_earn_cc_norm_full = np.asarray(mo_earn_cc_norm_base) + ss_pen_mo
@@ -692,6 +707,21 @@ class TaylorLife:
         prior_worth = np.concatenate(([worth_at_start], worth_history[:-1]))
         monthly_earn = prior_worth * np.asarray(self.roi.life_horizon_roi, dtype=float)
         return np.cumsum(monthly_earn)
+
+    def build_excess_earn_history(
+        self,
+        worth_at_start: float,
+        worth_history: np.ndarray,
+    ) -> np.ndarray:
+        """Cumulative earnings above CPI: prior_worth * (roi - cpi) per month.
+        Cancels to zero when roi == cpi, reflecting zero real excess return."""
+        if worth_history.size == 0:
+            return np.array([], dtype=float)
+        prior_worth = np.concatenate(([worth_at_start], worth_history[:-1]))
+        roi = np.asarray(self.roi.life_horizon_roi, dtype=float)
+        cpi = np.asarray(self.cpi.life_horizon_inflation, dtype=float)
+        monthly_excess_earn = prior_worth * (roi - cpi)
+        return np.cumsum(monthly_excess_earn)
 
     def deceased(self, date: str | pd.Timestamp) -> bool:
         date_ts = pd.Timestamp(date)
