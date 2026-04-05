@@ -842,7 +842,7 @@ def plot_taylor_lhs_figure1(results: pd.DataFrame, show: bool = True) -> tuple[p
         add_reference_line=add_lifecare_reference_line,
         annotation_formatter=_format_taylor_figure1_annotation,
         subtitle_y=1.08,
-        color_mode="basic",
+        color_mode="worth_override",
         annotate_centerpoint=False,
         show=show,
     )

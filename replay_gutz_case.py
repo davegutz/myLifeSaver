@@ -2,6 +2,7 @@
 from Center_LHS_Gutz_Taylor import *
 
 REPLAY_CASES_GUTZ: dict[str, dict[str, float | int | None]] = {
+
     "REPLAY_CENTERPOINT": {
         "man_independent_yrs": CENTERPOINT_MAN_INDEPENDENT_YRS,
         "woman_independent_yrs": CENTERPOINT_WOMAN_INDEPENDENT_YRS,
@@ -19,38 +20,6 @@ REPLAY_CASES_GUTZ: dict[str, dict[str, float | int | None]] = {
         "inflation_mean_reversion": 0.0459961806916466,
         "constant_monthly_roi": CENTERPOINT_CONSTANT_MONTHLY_ROI,
         "constant_monthly_cpi": CENTERPOINT_CONSTANT_MONTHLY_CPI,
-    },
-    "REPLAY_GUTZ_1000": {
-        "man_independent_yrs": 5.306884467305709,
-        "woman_independent_yrs": 12.408712456918552,
-        "man_assisted_yrs": 2.1964107432458477,
-        "woman_assisted_yrs": 4.895850739937967,
-        "roi_seed": 324873,
-        "inflation_seed": 943640,
-        "man_goes_to_al_seed": 890953,
-        "woman_goes_to_al_seed": 869299,
-        "roi_mean_shift": -0.0091983000776078,
-        "roi_vol_multiplier": 0.6027639046007233,
-        "roi_mean_reversion": 0.1517062989042333,
-        "inflation_mean_shift": 0.0024895712562442,
-        "inflation_vol_multiplier": 0.791577426233915,
-        "inflation_mean_reversion": 0.2017712301852744,
-    },
-    "REPLAY_GUTZ_1": {
-        "man_independent_yrs": 11.369616873214545,
-        "woman_independent_yrs": 6.77412308112206,
-        "man_assisted_yrs": 0.8899014468750402,
-        "woman_assisted_yrs": 1.9886313967848368,
-        "roi_seed": 813270,
-        "inflation_seed": 912756,
-        "man_goes_to_al_seed": 857404,
-        "woman_goes_to_al_seed": 33586,
-        "roi_mean_shift": 0.0021327155153435,
-        "roi_vol_multiplier": 1.2294965609839985,
-        "roi_mean_reversion": 0.2718124957327114,
-        "inflation_mean_shift": 0.0043507242378776,
-        "inflation_vol_multiplier": 1.3158535541215322,
-        "inflation_mean_reversion": 0.001369250085074,
     },
 
 }
