@@ -63,21 +63,22 @@ def merge_run_config(*configs: dict[str, dict[str, object]] | None) -> dict[str,
     return merged
 
 
-def normalize_run_one_inputs(run_config: dict[str, dict[str, object]]) -> tuple[LhsScenario, ScenarioRunContext]:
+def normalize_run_one_inputs(run_config: dict[str, dict[str, object]], printing=True) -> tuple[LhsScenario, ScenarioRunContext]:
     scenario_kwargs = dict(run_config.get("scenario", {}))
     context_kwargs = dict(run_config.get("context", {}))
 
-    def normalize_constant_rate(key: str) -> None:
+    def normalize_constant_rate(key: str, printing=True) -> None:
         raw = context_kwargs.get(key)
         if raw is None:
             return
         value = float(raw)
         monthly = apy_percent_to_monthly_fraction(value)
-        print(f"Interpreting {key}={value} as APY percent; using monthly fraction {monthly:.8f}")
+        if printing:
+            print(f"Interpreting {key}={value} as APY percent; using monthly fraction {monthly:.8f}")
         context_kwargs[key] = monthly
 
-    normalize_constant_rate("constant_monthly_roi")
-    normalize_constant_rate("constant_monthly_cpi")
+    normalize_constant_rate("constant_monthly_roi", printing=printing)
+    normalize_constant_rate("constant_monthly_cpi", printing=printing)
     if "current_date" in context_kwargs and context_kwargs["current_date"] is not None:
         context_kwargs["current_date"] = pd.Timestamp(context_kwargs["current_date"]).normalize()
     man_goes_to_al_seed = int(scenario_kwargs.pop("man_goes_to_al_seed", DEFAULT_SEED))
@@ -107,14 +108,15 @@ def realized_monthly_rate(path, fallback: float) -> float:
     return float(growth ** (1.0 / months) - 1.0)
 
 
-def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | None = None) -> None:
-    scenario, context = normalize_run_one_inputs(run_config)
+def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | None = None, plot=True, printing=True) -> None:
+    scenario, context = normalize_run_one_inputs(run_config, printing=printing)
     current_date = pd.Timestamp(context.current_date).normalize()
-    if active_case_name is not None:
-        print(f"Using default case '{active_case_name}' from default_case.py")
-    print("Resolved run_one inputs:")
-    print(f"  scenario: {asdict(scenario)}")
-    print(f"  context:  {asdict(context)}")
+    if printing:
+        if active_case_name is not None:
+            print(f"Using default case '{active_case_name}' from default_case.py")
+        print("Resolved run_one inputs:")
+        print(f"  scenario: {asdict(scenario)}")
+        print(f"  context:  {asdict(context)}")
     this_life, result = evaluate_lhs_scenario(scenario=scenario, context=context)
     roi = this_life.roi
     cpi = this_life.cpi
@@ -126,18 +128,19 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
     effective_monthly_cpi = realized_monthly_rate(cpi.life_horizon_inflation, cpi.monthly_mean_inflation)
     annualized_mean = monthly_rate_to_apy(effective_monthly_roi)
     annualized_mean_cpi = monthly_rate_to_apy(effective_monthly_cpi)
-    print(
-        f"Ticker: {context.ticker}\n"
-        f"Effective APY return: {annualized_mean:.2%}\n"
-        f"Monthly volatility: {roi.monthly_volatility:.2%}\n"
-        f"ROI seed: {scenario.roi_seed}\n"
-        f"Inflation seed: {scenario.inflation_seed}\n"
-        f"Man goes to AL: {this_life.man_goes_to_al}\n"
-        f"Woman goes to AL: {this_life.woman_goes_to_al}\n"
-        f"CPI current date: {current_date.date()}\n"
-        f"Effective annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
-        f"Cumulative inflation growth of $1 since {START_CLOCK}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
-    )
+    if printing:
+        print(
+            f"Ticker: {context.ticker}\n"
+            f"Effective APY return: {annualized_mean:.2%}\n"
+            f"Monthly volatility: {roi.monthly_volatility:.2%}\n"
+            f"ROI seed: {scenario.roi_seed}\n"
+            f"Inflation seed: {scenario.inflation_seed}\n"
+            f"Man goes to AL: {this_life.man_goes_to_al}\n"
+            f"Woman goes to AL: {this_life.woman_goes_to_al}\n"
+            f"CPI current date: {current_date.date()}\n"
+            f"Effective annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
+            f"Cumulative inflation growth of $1 since {START_CLOCK}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
+        )
     # print(roi)
     # print(cpi)
     header_rows = [
@@ -209,24 +212,26 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
          PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm),
          PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)),
     ]
-    print(f"{'item':<28}{'cc':>15}{'lc':>15}")
-    print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
-    for item, cc_value, lc_value in header_rows:
-        print(f"{item:<28}{cc_value:>15.1f}{lc_value:>15.1f}")
-    print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
-    for item, cc_value, lc_value in table_rows:
-        if cc_value is None:
-            if item == "---":
-                print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
+    if printing:
+        print(f"{'item':<28}{'cc':>15}{'lc':>15}")
+        print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
+        for item, cc_value, lc_value in header_rows:
+            print(f"{item:<28}{cc_value:>15.1f}{lc_value:>15.1f}")
+        print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
+        for item, cc_value, lc_value in table_rows:
+            if cc_value is None:
+                if item == "---":
+                    print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
+                else:
+                    print()
             else:
-                print()
-        else:
-            print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
+                print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
     
-    final_worth_norm_cc = PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm)
-    final_worth_norm_lc = PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)
+    final_worth_norm_cc = PILE_AT_START - this_life.entrance_fee_cc + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm)
+    final_worth_norm_lc = PILE_AT_START - this_life.entrance_fee_lc + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)
     added_lc_worth_norm = final_worth_norm_lc - final_worth_norm_cc
-    print(f"\nadded worth (norm lc - norm cc): {added_lc_worth_norm:>15,.0f}")
+    if printing:
+        print(f"\nadded worth (norm lc - norm cc): {added_lc_worth_norm:>15,.0f}")
 
     # Write monthly results to CSV
     df = pd.DataFrame({
@@ -289,15 +294,26 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
     
     if roi.return_frame is None:
         raise ValueError("ROI history was not loaded during projection.")
-    plot_projection_views(roi.return_frame, roi, show=False)
-    plot_inflation_views(inflation_frame, cpi, show=False)
-    plot_taylor_life_exp_non_taylor(this_life, show=False)
-    plt.show()
+    if plot:
+        plot_projection_views(roi.return_frame, roi, show=False)
+        plot_inflation_views(inflation_frame, cpi, show=False)
+        plot_taylor_life_exp_non_taylor(this_life, show=False)
+        plt.show()
 
+    return {
+        "start_pile": PILE_AT_START,
+        "entrance_fee_cc": this_life.entrance_fee_cc,
+        "entrance_fee_lc": this_life.entrance_fee_lc,
+        "yrs_al_total_cc_norm": _last(this_life.woman_assisted_yrs) + _last(this_life.man_assisted_yrs),
+        "cum_mo_earn_total_cc_norm": _last(this_life.cum_mo_earn_cc_norm),
+        "cum_mo_exp_total_cc_norm": _last(this_life.cum_mo_exp_total_cc_norm),
+        "final_worth_cc_norm": final_worth_norm_cc,
+        "cum_mo_earn_total_lc_norm": _last(this_life.cum_mo_earn_lc_norm),
+        "cum_mo_exp_total_lc_norm": _last(this_life.cum_mo_exp_total_lc_norm),
+        "final_worth_lc_norm": final_worth_norm_lc,
+    }
 
-def main() -> None:
-    args = parse_args()
-    active_case_name = RUN_ONE_CASE_NAME
+def configurate_base_run(args):
     base_run_config = {
         "scenario": {
             "man_independent_yrs": MAN_INDEPENDENT_YRS,
@@ -325,25 +341,16 @@ def main() -> None:
             "constant_monthly_cpi": CONSTANT_MONTHLY_CPI,
         },
     }
-    case_run_config = None
-    if active_case_name is not None:
-        case_scenario_kwargs, case_context_kwargs = load_default_case(active_case_name)
-        case_run_config = {
-            "scenario": case_scenario_kwargs,
-            "context": case_context_kwargs,
-        }
+    return base_run_config
 
-    # Hand-edit these local overrides as your normal workflow.
-    # Precedence is: base defaults -> named default case -> local overrides.
 
+def configurate_local_run(yrs_al_total=0., roi_fixed=4., cpi_fixed=4., yrs_il_man=10., yrs_il_woman=8.8):
     local_run_overrides = {
         "scenario": {
-            "man_independent_yrs": 10.,  # google age men enter al - current age
-            "woman_independent_yrs": 8.8,  # google age women enter al - current age
-            # "man_independent_yrs": 5.,  # google age men enter al - current age
-            # "woman_independent_yrs": 4.4,  # google age women enter al - current age
-            "man_assisted_yrs": 2.35*P_MAN_AL*0+4,  # google men in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 man_goes_to_al = T
-            "woman_assisted_yrs": 5.5*P_WOMAN_AL*0+4,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
+            "man_independent_yrs": yrs_il_man,  # google age men enter al - current age
+            "woman_independent_yrs": yrs_il_woman,  # google age women enter al - current age
+            "man_assisted_yrs": yrs_al_total/2,  # google men in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 man_goes_to_al = T
+            "woman_assisted_yrs": yrs_al_total/2,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
             "roi_seed": 740264,
             "inflation_seed": 898910,
             "man_goes_to_al": True,  # Uncomment this to force True
@@ -354,13 +361,29 @@ def main() -> None:
         "context": {
             "ticker": "SPY",
             "current_date": "2026-03-29",
-            # "constant_monthly_roi": None,  # was 10. — None → stochastic
-            # "constant_monthly_cpi": None,  # was  5. — None → stochas
-            # "constant_monthly_roi": 8.,  # was 10. — None → stochastic
-            "constant_monthly_roi": 4.,  # was 10. — None → stochastic
-            "constant_monthly_cpi": 4.,  # was  5. — None → stochas
+            "constant_monthly_roi": roi_fixed,  # None → stochastic
+            "constant_monthly_cpi": cpi_fixed,  # None → stochas
         },
     }
+    return local_run_overrides
+
+
+def main() -> None:
+    args = parse_args()
+    active_case_name = RUN_ONE_CASE_NAME
+    base_run_config = configurate_base_run(args)
+
+    case_run_config = None
+    if active_case_name is not None:
+        case_scenario_kwargs, case_context_kwargs = load_default_case(active_case_name)
+        case_run_config = {
+            "scenario": case_scenario_kwargs,
+            "context": case_context_kwargs,
+        }
+
+    # Hand-edit these local overrides as your normal workflow.
+    # Precedence is: base defaults -> named default case -> local overrides.
+    local_run_overrides = configurate_local_run(yrs_al_total=0., roi_fixed=4., cpi_fixed=4., yrs_il_man=10., yrs_il_woman=8.8)
 
     run_config = merge_run_config(base_run_config, case_run_config, local_run_overrides)
     run_one(run_config=run_config, active_case_name=active_case_name)
