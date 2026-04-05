@@ -54,14 +54,21 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def plot_run_many(results: list[dict]) -> None:
+def plot_run_many(results: list[dict], titl='') -> None:
     groups = {}
     for row in results:
         key = f"{row['roi_fixed']}_{row['cpi_fixed']}"
         groups.setdefault(key, []).append(row)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-    fig.suptitle("LC benefit and Worth")
+    fig.suptitle("LC benefit and Worth" + titl)
+    plt.text(0.2, 1.2, titl,
+             horizontalalignment='left',
+             verticalalignment='top',
+             fontsize=14,
+             bbox=dict(facecolor='lightblue', alpha=0.5, pad=5))
+            # bbox = dict(facecolor='yellow', alpha=0.5, pad=5))
+
 
     for label, rows in groups.items():
         rows_al = sorted(rows, key=lambda r: r["yrs_al_total"])
@@ -81,7 +88,14 @@ def plot_run_many(results: list[dict]) -> None:
         ax.set_ylabel("worth norm ($M)")
         ax.legend()
         ax.grid(True)
-
+        plt.text(0.2, 0.9, "Key:  ROI_CPI ",
+                 horizontalalignment='left',
+                 verticalalignment='top',
+                 transform=plt.gca().transAxes,
+                 fontsize=12,
+                 color='lightblue',
+                 bbox=dict(alpha=0.5, pad=5))
+                # bbox = dict(facecolor='yellow', alpha=0.5, pad=5))
     plt.tight_layout()
     plt.show()
 
@@ -99,56 +113,59 @@ def main() -> None:
             "context": case_context_kwargs,
         }
 
+    yrs_il_w, yrs_il_m = [15, 13.]
+    # yrs_il_w, yrs_il_m = [10, 8.8]
+    # yrs_il_w, yrs_il_m = [5, 4.4]
     ins = [
-        [0, 8, 4, 10, 8.8],
-        [1, 8, 4, 10, 8.8],
-        [2, 8, 4, 10, 8.8],
-        [4, 8, 4, 10, 8.8],
-        [8, 8, 4, 10, 8.8],
-        [16, 8, 4, 10, 8.8],
-        [0, 4, 4, 10, 8.8],
-        [1, 4, 4, 10, 8.8],
-        [2, 4, 4, 10, 8.8],
-        [4, 4, 4, 10, 8.8],
-        [8, 4, 4, 10, 8.8],
-        [16, 4, 4, 10, 8.8],
-        [0, 2, 4, 10, 8.8],
-        [1, 2, 4, 10, 8.8],
-        [2, 2, 4, 10, 8.8],
-        [4, 2, 4, 10, 8.8],
-        [8, 2, 4, 10, 8.8],
-        [16, 2, 4, 10, 8.8],
-        [0, 0, 4, 10, 8.8],
-        [1, 0, 4, 10, 8.8],
-        [2, 0, 4, 10, 8.8],
-        [4, 0, 4, 10, 8.8],
-        [8, 0, 4, 10, 8.8],
-        [16, 0, 4, 10, 8.8],
-        [0, 0, 0, 10, 8.8],
-        [1, 0, 0, 10, 8.8],
-        [2, 0, 0, 10, 8.8],
-        [0, 0, 0, 10, 8.8],
-        [8, 0, 0, 10, 8.8],
-        [16, 0, 0, 10, 8.8],
-        [0, 4, 0, 10, 8.8],
-        [1, 4, 0, 10, 8.8],
-        [2, 4, 0, 10, 8.8],
-        [4, 4, 0, 10, 8.8],
-        [8, 4, 0, 10, 8.8],
-        [16, 4, 0, 10, 8.8],
-        [0, 4, 8, 10, 8.8],
-        [1, 4, 8, 10, 8.8],
-        [2, 4, 8, 10, 8.8],
-        [4, 8, 4, 10, 8.8],
-        [8, 4, 8, 10, 8.8],
-        [16, 4, 8, 10, 8.8],
-        [0, 4, 2, 10, 8.8],
-        [1, 4, 2, 10, 8.8],
-        [2, 4, 2, 10, 8.8],
-        [4, 2, 4, 10, 8.8],
-        [8, 4, 2, 10, 8.8],
-        [16, 4, 2, 10, 8.8],
-        # [0, 0, 0, 10, 8.8],
+        [0, 8, 4, yrs_il_w, yrs_il_m],
+        [1, 8, 4, yrs_il_w, yrs_il_m],
+        [2, 8, 4, yrs_il_w, yrs_il_m],
+        [4, 8, 4, yrs_il_w, yrs_il_m],
+        [8, 8, 4, yrs_il_w, yrs_il_m],
+        [16, 8, 4, yrs_il_w, yrs_il_m],
+        [0, 4, 4, yrs_il_w, yrs_il_m],
+        [1, 4, 4, yrs_il_w, yrs_il_m],
+        [2, 4, 4, yrs_il_w, yrs_il_m],
+        [4, 4, 4, yrs_il_w, yrs_il_m],
+        [8, 4, 4, yrs_il_w, yrs_il_m],
+        [16, 4, 4, yrs_il_w, yrs_il_m],
+        [0, 2, 4, yrs_il_w, yrs_il_m],
+        [1, 2, 4, yrs_il_w, yrs_il_m],
+        [2, 2, 4, yrs_il_w, yrs_il_m],
+        [4, 2, 4, yrs_il_w, yrs_il_m],
+        [8, 2, 4, yrs_il_w, yrs_il_m],
+        [16, 2, 4, yrs_il_w, yrs_il_m],
+        [0, 0, 4, yrs_il_w, yrs_il_m],
+        [1, 0, 4, yrs_il_w, yrs_il_m],
+        [2, 0, 4, yrs_il_w, yrs_il_m],
+        [4, 0, 4, yrs_il_w, yrs_il_m],
+        [8, 0, 4, yrs_il_w, yrs_il_m],
+        [16, 0, 4, yrs_il_w, yrs_il_m],
+        [0, 0, 0, yrs_il_w, yrs_il_m],
+        [1, 0, 0, yrs_il_w, yrs_il_m],
+        [2, 0, 0, yrs_il_w, yrs_il_m],
+        [0, 0, 0, yrs_il_w, yrs_il_m],
+        [8, 0, 0, yrs_il_w, yrs_il_m],
+        [16, 0, 0, yrs_il_w, yrs_il_m],
+        [0, 4, 0, yrs_il_w, yrs_il_m],
+        [1, 4, 0, yrs_il_w, yrs_il_m],
+        [2, 4, 0, yrs_il_w, yrs_il_m],
+        [4, 4, 0, yrs_il_w, yrs_il_m],
+        [8, 4, 0, yrs_il_w, yrs_il_m],
+        [16, 4, 0, yrs_il_w, yrs_il_m],
+        [0, 4, 8, yrs_il_w, yrs_il_m],
+        [1, 4, 8, yrs_il_w, yrs_il_m],
+        [2, 4, 8, yrs_il_w, yrs_il_m],
+        [4, 8, 4, yrs_il_w, yrs_il_m],
+        [8, 4, 8, yrs_il_w, yrs_il_m],
+        [16, 4, 8, yrs_il_w, yrs_il_m],
+        [0, 4, 2, yrs_il_w, yrs_il_m],
+        [1, 4, 2, yrs_il_w, yrs_il_m],
+        [2, 4, 2, yrs_il_w, yrs_il_m],
+        [4, 2, 4, yrs_il_w, yrs_il_m],
+        [8, 4, 2, yrs_il_w, yrs_il_m],
+        [16, 4, 2, yrs_il_w, yrs_il_m],
+        # [0, 0, 0, yrs_il_w, yrs_il_m],
     ]
 
     cc_worth_norm = []
@@ -204,7 +221,7 @@ def main() -> None:
     )
     print(header)
     csv_file.write(header + "\n")
-    for [yrs_al_total, roi_fixed, cpi_fixed, yrs_il_man, yrs_il_woman] in ins:
+    for [yrs_al_total, roi_fixed, cpi_fixed, yrs_il_woman, yrs_il_man] in ins:
         local_run_overrides = configurate_local_run(yrs_al_total=yrs_al_total, roi_fixed=roi_fixed, cpi_fixed=cpi_fixed,
                                                     yrs_il_man=yrs_il_man, yrs_il_woman=yrs_il_woman)
         run_config = merge_run_config(base_run_config, case_run_config, local_run_overrides)
@@ -271,7 +288,7 @@ def main() -> None:
         })
     csv_file.close()
     print(f"\nResults written to run_many_taylor.csv")
-    plot_run_many(results)
+    plot_run_many(results, titl=f"   {max(yrs_il_woman, yrs_il_man)} yrs Independent Living" + f" ${PILE_AT_START/1e6}M start")
 
 if __name__ == "__main__":
     main()

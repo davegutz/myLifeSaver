@@ -272,7 +272,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cum_mo_earn_pen_norm': this_life.cum_mo_earn_pen_norm,
         'exp_norm_total_lc': this_life.exp_norm_total_lc,
         'exp_norm_total_cc': this_life.exp_norm_total_cc,
-         'worth_norm_lc': this_life.worth_norm_lc_history,
+        'worth_norm_lc': this_life.worth_norm_lc_history,
          'worth_norm_cc': this_life.worth_norm_cc_history,
          'added_lc_worth_norm': [added_lc_worth_norm] * len(this_life.dates),
         'mo_exp_lc_norm': this_life.mo_exp_lc_norm,
@@ -393,7 +393,7 @@ def main() -> None:
 
     # Hand-edit these local overrides as your normal workflow.
     # Precedence is: base defaults -> named default case -> local overrides.
-    local_run_overrides = configurate_local_run(yrs_al_total=0., roi_fixed=4., cpi_fixed=4., yrs_il_man=10., yrs_il_woman=8.8)
+    local_run_overrides = configurate_local_run(yrs_al_total=0., roi_fixed=4., cpi_fixed=4., yrs_il_man=8., yrs_il_woman=10.)
 
     run_config = merge_run_config(base_run_config, case_run_config, local_run_overrides)
     run_one(run_config=run_config, active_case_name=active_case_name)
