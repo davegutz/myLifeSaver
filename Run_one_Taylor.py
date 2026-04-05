@@ -338,12 +338,12 @@ def main() -> None:
 
     local_run_overrides = {
         "scenario": {
-            # "man_independent_yrs": 10.,  # google age men enter al - current age
-            # "woman_independent_yrs": 8.8,  # google age women enter al - current age
-            "man_independent_yrs": 5.,  # google age men enter al - current age
-            "woman_independent_yrs": 4.4,  # google age women enter al - current age
-            "man_assisted_yrs": 2.35*P_MAN_AL,  # google men in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 man_goes_to_al = T
-            "woman_assisted_yrs": 5.5*P_WOMAN_AL,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
+            "man_independent_yrs": 10.,  # google age men enter al - current age
+            "woman_independent_yrs": 8.8,  # google age women enter al - current age
+            # "man_independent_yrs": 5.,  # google age men enter al - current age
+            # "woman_independent_yrs": 4.4,  # google age women enter al - current age
+            "man_assisted_yrs": 2.35*P_MAN_AL*0+4,  # google men in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 man_goes_to_al = T
+            "woman_assisted_yrs": 5.5*P_WOMAN_AL*0+4,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
             "roi_seed": 740264,
             "inflation_seed": 898910,
             "man_goes_to_al": True,  # Uncomment this to force True
@@ -356,10 +356,9 @@ def main() -> None:
             "current_date": "2026-03-29",
             # "constant_monthly_roi": None,  # was 10. — None → stochastic
             # "constant_monthly_cpi": None,  # was  5. — None → stochas
-            "constant_monthly_roi": 8.,  # was 10. — None → stochasticadd
+            # "constant_monthly_roi": 8.,  # was 10. — None → stochastic
+            "constant_monthly_roi": 4.,  # was 10. — None → stochastic
             "constant_monthly_cpi": 4.,  # was  5. — None → stochas
-            # "constant_monthly_roi": 4.,  # was 10. — None → stochastic
-            # "constant_monthly_cpi": 4.,  # was  5. — None → stochas
         },
     }
 
