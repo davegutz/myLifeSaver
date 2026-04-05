@@ -358,8 +358,8 @@ def main() -> None:
         else:
             print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
     
-    final_worth_norm_cc = PILE_AT_START - this_life.entrance_fee_cc + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm)
-    final_worth_norm_lc = PILE_AT_START - this_life.entrance_fee_lc + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)
+    final_worth_norm_cc = PILE_AT_START + _last(this_life.cum_mo_earn_cc_norm) - _last(this_life.cum_mo_exp_total_cc_norm)
+    final_worth_norm_lc = PILE_AT_START + _last(this_life.cum_mo_earn_lc_norm) - _last(this_life.cum_mo_exp_total_lc_norm)
     added_lc_worth_norm = final_worth_norm_lc - final_worth_norm_cc
     print(f"\nadded worth (norm lc - norm cc): {added_lc_worth_norm:>15,.0f}")
 

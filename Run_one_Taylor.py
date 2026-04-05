@@ -301,16 +301,28 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         plt.show()
 
     return {
-        "start_pile": PILE_AT_START,
-        "entrance_fee_cc": this_life.entrance_fee_cc,
-        "entrance_fee_lc": this_life.entrance_fee_lc,
-        "yrs_al_total_cc_norm": _last(this_life.woman_assisted_yrs) + _last(this_life.man_assisted_yrs),
-        "cum_mo_earn_total_cc_norm": _last(this_life.cum_mo_earn_cc_norm),
-        "cum_mo_exp_total_cc_norm": _last(this_life.cum_mo_exp_total_cc_norm),
-        "final_worth_cc_norm": final_worth_norm_cc,
-        "cum_mo_earn_total_lc_norm": _last(this_life.cum_mo_earn_lc_norm),
-        "cum_mo_exp_total_lc_norm": _last(this_life.cum_mo_exp_total_lc_norm),
-        "final_worth_lc_norm": final_worth_norm_lc,
+        "start_pile": PILE_AT_START/1e6,
+        "entrance_fee_cc": this_life.entrance_fee_cc/1e6,
+        "yrs_al_total_cc_norm": this_life.woman_assisted_yrs + this_life.man_assisted_yrs,
+        "cum_mo_earn_ss_norm": _last(this_life.cum_mo_earn_ss_norm)/1e6,
+        "cum_mo_earn_pen_norm": _last(this_life.cum_mo_earn_pen_norm)/1e6,
+        "cum_mo_earn_inv_cc_norm": _last(this_life.cum_mo_earn_inv_cc_norm)/1e6,
+        "cum_mo_earn_cc_norm": _last(this_life.cum_mo_earn_cc_norm)/1e6,
+        "cum_mo_earn_total_cc_norm": _last(this_life.cum_mo_earn_cc_norm)/1e6,
+        "cum_mo_exp_non_taylor_norm": _last(this_life.cum_mo_exp_non_taylor_norm)/1e6,
+        "cum_mo_exp_cc_norm": _last(this_life.cum_mo_exp_cc_norm)/1e6,
+        "cum_mo_exp_al_cc_norm": _last(this_life.cum_mo_exp_al_cc_norm)/1e6,
+        "cum_mo_exp_total_cc_norm": _last(this_life.cum_mo_exp_total_cc_norm)/1e6,
+        "worth_norm_cc": this_life.worth_norm_cc/1e6,
+        "final_worth_cc_norm": final_worth_norm_cc/1e6,
+        "entrance_fee_lc": this_life.entrance_fee_lc/1e6,
+        "cum_mo_earn_inv_lc_norm": _last(this_life.cum_mo_earn_inv_lc_norm)/1e6,
+        "cum_mo_earn_lc_norm": _last(this_life.cum_mo_earn_lc_norm)/1e6,
+        "cum_mo_earn_total_lc_norm": _last(this_life.cum_mo_earn_lc_norm)/1e6,
+        "cum_mo_exp_lc_norm": _last(this_life.cum_mo_exp_lc_norm)/1e6,
+        "cum_mo_exp_total_lc_norm": _last(this_life.cum_mo_exp_total_lc_norm)/1e6,
+        "worth_norm_lc": this_life.worth_norm_lc/1e6,
+        "final_worth_lc_norm": final_worth_norm_lc/1e6,
     }
 
 def configurate_base_run(args):
