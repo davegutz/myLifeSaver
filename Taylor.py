@@ -123,8 +123,6 @@ class LhsScenarioSummary:
     cum_mo_exp_total_lc_norm: float
     cum_mo_exp_total_cc_norm: float
     start_pile: float
-    final_worth_norm_cc: float
-    final_worth_norm_lc: float
     worth_norm_lc: int
     worth_norm_cc: int
     added_lc_worth_norm: int
@@ -147,8 +145,6 @@ class LhsScenarioSummary:
     woman_dob: str
     constant_monthly_roi: float | str | None
     constant_monthly_cpi: float | str | None
-    final_worth_cc_norm: float
-    final_worth_lc_norm: float
 
 
 @dataclass(frozen=True)

@@ -194,8 +194,6 @@ CSV_COLUMNS = [
     "cum_mo_exp_total_lc_norm",
     "cum_mo_exp_total_cc_norm",
     "start_pile",
-    "final_worth_norm_cc",
-    "final_worth_norm_lc",
     "worth_norm_lc",
     "worth_norm_cc",
     "man_age_at_start",
@@ -210,8 +208,6 @@ CSV_COLUMNS = [
     "woman_dob",
     "constant_monthly_roi",
     "constant_monthly_cpi",
-    "final_worth_cc_norm",
-    "final_worth_lc_norm",
 ]
 
 SCREEN_MIN_COL_WIDTH = 14
