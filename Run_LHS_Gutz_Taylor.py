@@ -48,7 +48,7 @@ from default_case import (
     MAN_DOB,
     P_MAN_AL,
     P_WOMAN_AL,
-    PILE_AT_START,
+
     START_CLOCK,
     WOMAN_DOB,
     apy_percent_to_monthly_fraction,
@@ -56,8 +56,9 @@ from default_case import (
 from edges import build_replay_case_scenarios_gutz, format_apy_suffix
 from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
 from Roi import TICKER
-from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
-from utils import age, evaluate_lhs_scenario
+from Taylor import LhsScenario, ScenarioRunContext
+from utils import evaluate_lhs_scenario
+from Run_LHS_Taylor import summarize_lhs_run
 
 
 
@@ -374,101 +375,6 @@ def normalize_centerpoint_constant_monthly(value: float | None) -> float | None:
     if value is None:
         return None
     return apy_percent_to_monthly_fraction(float(value))
-
-
-def summarize_lhs_run(
-    run_id: int | str,
-    scenario: LhsScenario,
-    model: TaylorLife,
-    result: TaylorLifeResult,
-    context: ScenarioRunContext,
-) -> LhsScenarioSummary:
-    roi_effective_apy = effective_apy_from_cumulative(model.roi.life_horizon_roi_cum, model.roi.monthly_mean_return)
-    cpi_effective_apy = effective_apy_from_cumulative(
-        model.cpi.life_horizon_inflation_cum,
-        model.cpi.monthly_mean_inflation,
-    )
-    return LhsScenarioSummary(
-        run_id=run_id,
-        man_independent_yrs=scenario.man_independent_yrs,
-        woman_independent_yrs=scenario.woman_independent_yrs,
-        man_assisted_yrs=scenario.man_assisted_yrs,
-        woman_assisted_yrs=scenario.woman_assisted_yrs,
-        roi_seed=scenario.roi_seed,
-        inflation_seed=scenario.inflation_seed,
-        apy_roi=roi_effective_apy,
-        apy_cpi=cpi_effective_apy,
-        roi_one_dollar_at_end=float(model.roi.life_horizon_roi_cum[-1]),
-        cpi_one_dollar_at_end=float(model.cpi.life_horizon_inflation_cum[-1]),
-        norm_one_dollar_at_end=float(model.cpi.life_horizon_inflation_cum[-1]),
-        roi_mean_shift=scenario.roi_mean_shift,
-        roi_vol_multiplier=scenario.roi_vol_multiplier,
-        roi_mean_reversion=scenario.roi_mean_reversion,
-        inflation_mean_shift=scenario.inflation_mean_shift,
-        inflation_vol_multiplier=scenario.inflation_vol_multiplier,
-        inflation_mean_reversion=scenario.inflation_mean_reversion,
-        exp_norm_al_cc=last_value(model.exp_norm_al_cc),
-        exp_norm_cc=last_value(model.exp_norm_cc),
-        exp_norm_lc=last_value(model.exp_norm_lc),
-        exp_norm_non_taylor=last_value(model.exp_norm_non_taylor),
-        exp_norm_total_cc=last_value(model.exp_norm_total_cc),
-        exp_norm_total_lc=last_value(model.exp_norm_total_lc),
-        entrance_fee_cc=model.entrance_fee_cc,
-        entrance_fee_lc=model.entrance_fee_lc,
-        earn_norm_cc=last_value(model.earn_norm_cc_history),
-        earn_norm_lc=last_value(model.earn_norm_lc_history),
-        cum_mo_earn_lc_norm=last_value(model.cum_mo_earn_lc_norm),
-        cum_mo_earn_cc_norm=last_value(model.cum_mo_earn_cc_norm),
-        cum_mo_earn_inv_lc_norm=last_value(model.cum_mo_earn_inv_lc_norm),
-        cum_mo_earn_inv_cc_norm=last_value(model.cum_mo_earn_inv_cc_norm),
-        cum_mo_earn_ss_man_norm=last_value(model.cum_mo_earn_ss_man_norm),
-        cum_mo_earn_ss_woman_norm=last_value(model.cum_mo_earn_ss_woman_norm),
-        cum_mo_earn_ss_norm=last_value(model.cum_mo_earn_ss_norm),
-        cum_mo_earn_pen_man_norm=last_value(model.cum_mo_earn_pen_man_norm),
-        cum_mo_earn_pen_woman_norm=last_value(model.cum_mo_earn_pen_woman_norm),
-        cum_mo_earn_pen_norm=last_value(model.cum_mo_earn_pen_norm),
-        cum_mo_exp_lc_norm=last_value(model.cum_mo_exp_lc_norm),
-        cum_mo_exp_cc_norm=last_value(model.cum_mo_exp_cc_norm),
-        cum_mo_exp_al_cc_norm=last_value(model.cum_mo_exp_al_cc_norm),
-        cum_mo_exp_non_taylor_norm=last_value(model.cum_mo_exp_non_taylor_norm),
-        cum_mo_exp_total_lc_norm=last_value(model.cum_mo_exp_total_lc_norm),
-        cum_mo_exp_total_cc_norm=last_value(model.cum_mo_exp_total_cc_norm),
-        start_pile=float(PILE_AT_START),
-        final_worth_norm_cc=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
-        final_worth_norm_lc=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
-        worth_norm_lc=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
-        worth_norm_cc=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
-        added_lc_worth_norm=float(last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)) - float(last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
-        final_worth_cc_norm=float(PILE_AT_START + last_value(model.cum_mo_earn_cc_norm) - last_value(model.cum_mo_exp_total_cc_norm)),
-        final_worth_lc_norm=float(PILE_AT_START + last_value(model.cum_mo_earn_lc_norm) - last_value(model.cum_mo_exp_total_lc_norm)),
-        yrs_il_double=min(scenario.man_independent_yrs, scenario.woman_independent_yrs),
-        yrs_il_single=abs(scenario.man_independent_yrs - scenario.woman_independent_yrs),
-        yrs_sum_al=scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
-        total_living_yrs=scenario.man_independent_yrs + scenario.woman_independent_yrs + scenario.man_assisted_yrs + scenario.woman_assisted_yrs,
-        elapsed_time_yrs=float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425),
-        earning_potential=float((PILE_AT_START - model.entrance_fee_lc) * (model.roi.life_horizon_roi_cum[-1] / model.cpi.life_horizon_inflation_cum[-1]) * float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425)),
-        earning_potential_cc=float((PILE_AT_START - model.entrance_fee_cc) * (model.roi.life_horizon_roi_cum[-1] / model.cpi.life_horizon_inflation_cum[-1]) * float((pd.Timestamp(model.dates[-1]) - model.start_clock).days / 365.2425)),
-        man_goes_to_al_seed=scenario.man_goes_to_al_seed,
-        woman_goes_to_al_seed=scenario.woman_goes_to_al_seed,
-        man_goes_to_al=model.man_goes_to_al,
-        woman_goes_to_al=model.woman_goes_to_al,
-        man_age_to_al=model.man_age_to_al if model.man_goes_to_al else '',
-        woman_age_to_al=model.woman_age_to_al if model.woman_goes_to_al else '',
-        man_age_at_death=model.man_age_at_death,
-        woman_age_at_death=model.woman_age_at_death,
-        man_age_at_start=age(context.start_clock, context.man_dob),
-        woman_age_at_start=age(context.start_clock, context.woman_dob),
-        # Context constants
-        ticker=context.ticker,
-        current_date=str(context.current_date),
-        history_years=context.history_years,
-        al_cum_running_avg_yrs=context.al_cum_running_avg_yrs,
-        start_clock=context.start_clock,
-        man_dob=context.man_dob,
-        woman_dob=context.woman_dob,
-        constant_monthly_roi=format_constant_monthly_output(context.constant_monthly_roi),
-        constant_monthly_cpi=format_constant_monthly_output(context.constant_monthly_cpi),
-    )
 
 
 def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Path, seed: int) -> pd.DataFrame:

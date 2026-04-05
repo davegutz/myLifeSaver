@@ -68,18 +68,20 @@ def main() -> None:
         }
 
     ins = [
-        [0, 8, 4, 10, 8.8],
-        [1, 8, 4, 10, 8.8],
-        [2, 8, 4, 10, 8.8],
-        [4, 8, 4, 10, 8.8],
-        [8, 8, 4, 10, 8.8],
-        [16, 8, 4, 10, 8.8],
+        # [0, 8, 4, 10, 8.8],
+        # [1, 8, 4, 10, 8.8],
+        # [2, 8, 4, 10, 8.8],
+        # [4, 8, 4, 10, 8.8],
+        # [8, 8, 4, 10, 8.8],
+        # [16, 8, 4, 10, 8.8],
+        [0, 4, 4, 10, 8.8],
     ]
 
     cc_worth_norm = []
     lc_worth_norm = []
     added_lc_benefit =[]
-    print(
+    csv_file = open('run_many_taylor.csv', 'w')
+    header = (
         f"yrs_al_total,"
         f"roi_fixed,"
         f"cpi_fixed,"
@@ -89,6 +91,7 @@ def main() -> None:
 
         f" |*|,"
         f"start_pile,"
+        f" |,"
         f"cum_mo_earn_ss_norm,"
         f"cum_mo_earn_pen_norm,"
         f"cum_mo_earn_inv_cc_norm,"
@@ -108,6 +111,7 @@ def main() -> None:
 
         f" |*|,"
         f"start_pile,"
+        f" |,"
         f"cum_mo_earn_ss_norm,"
         f"cum_mo_earn_pen_norm,"
         f"cum_mo_earn_inv_lc_norm,"
@@ -125,14 +129,16 @@ def main() -> None:
         f"worth_norm_lc,"
         f"final_worth_lc_norm,"
     )
+    print(header)
+    csv_file.write(header + "\n")
     for [yrs_al_total, roi_fixed, cpi_fixed, yrs_il_man, yrs_il_woman] in ins:
         local_run_overrides = configurate_local_run(yrs_al_total=yrs_al_total, roi_fixed=roi_fixed, cpi_fixed=cpi_fixed,
                                                     yrs_il_man=yrs_il_man, yrs_il_woman=yrs_il_woman)
         run_config = merge_run_config(base_run_config, case_run_config, local_run_overrides)
-        r = run_one(run_config=run_config, active_case_name=active_case_name, plot=False, printing=False)
+        r = run_one(run_config=run_config, active_case_name=active_case_name, plot=False, printing=True)
 
 
-        print(
+        row = (
             f" {yrs_al_total:2d},"
             f" {roi_fixed:6.3f},"
             f" {cpi_fixed:6.3f},"
@@ -142,6 +148,7 @@ def main() -> None:
 
             f" |*|,"
             f" {r['start_pile']:6.3f},"
+            f" |,"
             f" {r['cum_mo_earn_ss_norm']:6.3f},"
             f" {r['cum_mo_earn_pen_norm']:6.3f},"
             f" {r['cum_mo_earn_inv_cc_norm']:6.3f},"
@@ -161,6 +168,7 @@ def main() -> None:
 
             f" |*|,"
             f" {r['start_pile']:6.3f},"
+            f" |,"
             f" {r['cum_mo_earn_ss_norm']:6.3f},"
             f" {r['cum_mo_earn_pen_norm']:6.3f},"
             f" {r['cum_mo_earn_inv_lc_norm']:6.3f},"
@@ -178,7 +186,10 @@ def main() -> None:
             f" {r['worth_norm_lc']:6.3f},"
             f" {r['final_worth_lc_norm']:6.3f},"
         )
+        print(row)
+        csv_file.write(row + "\n")
         cc_worth_norm.append(0)
+    csv_file.close()
 
 if __name__ == "__main__":
     main()
