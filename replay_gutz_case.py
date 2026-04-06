@@ -21,6 +21,22 @@ REPLAY_CASES_GUTZ: dict[str, dict[str, float | int | None]] = {
         "constant_monthly_roi": CENTERPOINT_CONSTANT_MONTHLY_ROI,
         "constant_monthly_cpi": CENTERPOINT_CONSTANT_MONTHLY_CPI,
     },
+    "REPLAY_GUTZ_1": {
+        "man_independent_yrs": 11.369616873214545,
+        "woman_independent_yrs": 6.77412308112206,
+        "man_assisted_yrs": 0.8899014468750402,
+        "woman_assisted_yrs": 1.9886313967848368,
+        "roi_seed": 813270,
+        "inflation_seed": 912756,
+        "man_goes_to_al_seed": 857404,
+        "woman_goes_to_al_seed": 33586,
+        "roi_mean_shift": 0.0021327155153435,
+        "roi_vol_multiplier": 1.2294965609839985,
+        "roi_mean_reversion": 0.2718124957327114,
+        "inflation_mean_shift": 0.0043507242378776,
+        "inflation_vol_multiplier": 1.3158535541215322,
+        "inflation_mean_reversion": 0.001369250085074,
+    },
 
 }
 

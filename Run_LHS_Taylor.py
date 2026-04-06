@@ -1,11 +1,23 @@
+"""
+Run_LHS_Taylor.py
+
+Latin Hypercube Sampling (LHS) Monte Carlo analysis centered around case inputs
+from Run_one_Taylor.py local_run_overrides. Includes edge cases, replay cases, and all
+plotting features.
+
+Output: lhs_taylor_results.csv
+"""
+
+
 import argparse
 from dataclasses import asdict
 import math
 import matplotlib.pyplot as plt
+from matplotlib.cm import ScalarMappable
+from typing import cast as typing_cast
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import cast
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
     CONSTANT_MONTHLY_CPI,
@@ -25,14 +37,15 @@ from edges import build_edge_case_scenarios, build_replay_case_scenarios, format
 from Inflation import plot_inflation_views
 from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
 from Roi import TICKER, plot_projection_views
-from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife, TaylorLifeResult
+from Taylor import LhsScenario, LhsScenarioSummary, ScenarioRunContext, TaylorLife
 from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
 
 # User inputs
 #  To force the probability both man and woman go to AL instead of dying right away
 force_al = False
-DEFAULT_LHS_POINTS = 1000  # will change seed values if not the same between runs
+plotting = False
+DEFAULT_LHS_POINTS = 1  # will change seed values if not the same between runs
 
 
 # ============================================================================
@@ -161,7 +174,7 @@ CSV_COLUMNS = [
 SCREEN_MIN_COL_WIDTH = 14
 
 
-def format_screen_number(value: int | float, width: int) -> str:
+def format_screen_number(value: int | float | np.integer | np.floating, width: int) -> str:
     if isinstance(value, (np.integer, int)):
         text = f"{int(value):.3g}"
     else:
@@ -186,7 +199,7 @@ def format_screen_number(value: int | float, width: int) -> str:
 
 def format_screen_cell(value: object, width: int) -> str:
     if isinstance(value, (int, float, np.integer, np.floating)):
-        return format_screen_number(value=value, width=width)
+        return format_screen_number(value=typing_cast(float, value), width=width)
     return str(value).rjust(width)
 
 
@@ -234,32 +247,46 @@ def scale_lhs_column(values: np.ndarray, bounds: tuple[float, float]) -> np.ndar
     return low + values * (high - low)
 
 
-def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
+def build_lhs_scenarios(
+    num_points: int,
+    seed: int,
+    man_independent_yrs_range: tuple[float, float] = MAN_INDEPENDENT_YRS_RANGE,
+    woman_independent_yrs_range: tuple[float, float] = WOMAN_INDEPENDENT_YRS_RANGE,
+    man_assisted_yrs_range: tuple[float, float] = MAN_ASSISTED_YRS_RANGE,
+    woman_assisted_yrs_range: tuple[float, float] = WOMAN_ASSISTED_YRS_RANGE,
+    roi_mean_shift_range: tuple[float, float] = ROI_MEAN_SHIFT_RANGE,
+    roi_vol_multiplier_range: tuple[float, float] = ROI_VOL_MULTIPLIER_RANGE,
+    roi_mean_reversion_range: tuple[float, float] = ROI_MEAN_REVERSION_RANGE,
+    inflation_mean_shift_range: tuple[float, float] = INFLATION_MEAN_SHIFT_RANGE,
+    inflation_vol_multiplier_range: tuple[float, float] = INFLATION_VOL_MULTIPLIER_RANGE,
+    inflation_mean_reversion_range: tuple[float, float] = INFLATION_MEAN_REVERSION_RANGE,
+    p_man_al: float = P_MAN_AL,
+    p_woman_al: float = P_WOMAN_AL,
+    lhs_man_goes_to_al: bool | None = LHS_MAN_GOES_TO_AL,
+    lhs_woman_goes_to_al: bool | None = LHS_WOMAN_GOES_TO_AL,
+) -> list[LhsScenario]:
     sampled = sample_lhs_points(num_points, dimensions=14, seed=seed)
     scenarios: list[LhsScenario] = []
     for idx in range(num_points):
         man_goes_to_al_seed = int(round(scale_lhs_column(sampled[:, 12], SEED_RANGE)[idx]))
         woman_goes_to_al_seed = int(round(scale_lhs_column(sampled[:, 13], SEED_RANGE)[idx]))
-        scenario = cast(
-            LhsScenario,
-            LhsScenario(
-                man_independent_yrs=float(scale_lhs_column(sampled[:, 0], MAN_INDEPENDENT_YRS_RANGE)[idx]),
-                woman_independent_yrs=float(scale_lhs_column(sampled[:, 1], WOMAN_INDEPENDENT_YRS_RANGE)[idx]),
-                man_assisted_yrs=float(scale_lhs_column(sampled[:, 2], MAN_ASSISTED_YRS_RANGE)[idx]),
-                woman_assisted_yrs=float(scale_lhs_column(sampled[:, 3], WOMAN_ASSISTED_YRS_RANGE)[idx]),
-                roi_seed=int(round(scale_lhs_column(sampled[:, 4], SEED_RANGE)[idx])),
-                inflation_seed=int(round(scale_lhs_column(sampled[:, 5], SEED_RANGE)[idx])),
-                roi_mean_shift=float(scale_lhs_column(sampled[:, 6], ROI_MEAN_SHIFT_RANGE)[idx]),
-                roi_vol_multiplier=float(scale_lhs_column(sampled[:, 7], ROI_VOL_MULTIPLIER_RANGE)[idx]),
-                roi_mean_reversion=float(scale_lhs_column(sampled[:, 8], ROI_MEAN_REVERSION_RANGE)[idx]),
-                inflation_mean_shift=float(scale_lhs_column(sampled[:, 9], INFLATION_MEAN_SHIFT_RANGE)[idx]),
-                inflation_vol_multiplier=float(scale_lhs_column(sampled[:, 10], INFLATION_VOL_MULTIPLIER_RANGE)[idx]),
-                inflation_mean_reversion=float(scale_lhs_column(sampled[:, 11], INFLATION_MEAN_REVERSION_RANGE)[idx]),
-                man_goes_to_al_seed=man_goes_to_al_seed,
-                woman_goes_to_al_seed=woman_goes_to_al_seed,
-                man_goes_to_al=LHS_MAN_GOES_TO_AL if LHS_MAN_GOES_TO_AL is not None else bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)),
-                woman_goes_to_al=LHS_WOMAN_GOES_TO_AL if LHS_WOMAN_GOES_TO_AL is not None else bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)),
-            ),
+        scenario = LhsScenario(
+            man_independent_yrs=float(scale_lhs_column(sampled[:, 0], man_independent_yrs_range)[idx]),
+            woman_independent_yrs=float(scale_lhs_column(sampled[:, 1], woman_independent_yrs_range)[idx]),
+            man_assisted_yrs=float(scale_lhs_column(sampled[:, 2], man_assisted_yrs_range)[idx]),
+            woman_assisted_yrs=float(scale_lhs_column(sampled[:, 3], woman_assisted_yrs_range)[idx]),
+            roi_seed=int(round(scale_lhs_column(sampled[:, 4], SEED_RANGE)[idx])),
+            inflation_seed=int(round(scale_lhs_column(sampled[:, 5], SEED_RANGE)[idx])),
+            roi_mean_shift=float(scale_lhs_column(sampled[:, 6], roi_mean_shift_range)[idx]),
+            roi_vol_multiplier=float(scale_lhs_column(sampled[:, 7], roi_vol_multiplier_range)[idx]),
+            roi_mean_reversion=float(scale_lhs_column(sampled[:, 8], roi_mean_reversion_range)[idx]),
+            inflation_mean_shift=float(scale_lhs_column(sampled[:, 9], inflation_mean_shift_range)[idx]),
+            inflation_vol_multiplier=float(scale_lhs_column(sampled[:, 10], inflation_vol_multiplier_range)[idx]),
+            inflation_mean_reversion=float(scale_lhs_column(sampled[:, 11], inflation_mean_reversion_range)[idx]),
+            man_goes_to_al_seed=man_goes_to_al_seed,
+            woman_goes_to_al_seed=woman_goes_to_al_seed,
+            man_goes_to_al=lhs_man_goes_to_al if lhs_man_goes_to_al is not None else bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, p_man_al)),
+            woman_goes_to_al=lhs_woman_goes_to_al if lhs_woman_goes_to_al is not None else bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, p_woman_al)),
         )
         scenarios.append(scenario)
     return scenarios
@@ -274,14 +301,14 @@ def monthly_rate_to_apy(monthly_rate: float) -> float:
     return (1.0 + monthly_rate) ** 12 - 1.0
 
 
-def realized_monthly_rate(path: np.ndarray, fallback: float) -> float:
-    if path.size == 0:
+def realized_monthly_rate(path: np.ndarray | list[float], fallback: float) -> float:
+    if len(path) == 0:
         return fallback
-    growth = np.cumprod(1.0 + np.asarray(path, dtype=float))
-    if growth.size == 0 or growth[-1] <= 0.0:
+    growth = (1.0 + np.asarray(path)).prod()
+    if growth <= 0.0:
         return fallback
-    months = float(path.size)
-    return float(growth[-1] ** (1.0 / months) - 1.0)
+    months = float(len(path))
+    return float(growth ** (1.0 / months) - 1.0)
 
 
 def effective_apy_from_cumulative(cumulative_path: np.ndarray, monthly_fallback: float) -> float:
@@ -297,7 +324,6 @@ def summarize_lhs_run(
     run_id: int | str,
     scenario: LhsScenario,
     model: TaylorLife,
-    result: TaylorLifeResult,
     context: ScenarioRunContext,
 ) -> LhsScenarioSummary:
     roi_effective_apy = effective_apy_from_cumulative(model.roi.life_horizon_roi_cum, model.roi.monthly_mean_return)
@@ -399,7 +425,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
     # Process random LHS scenarios
     for run_id, scenario in enumerate(scenarios, start=1):
         model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
-        row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, result=result, context=context))
+        row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, context=context))
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
@@ -423,7 +449,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
             both_edge_cases = build_edge_case_scenarios(roi_apy_percent=roi_apy, cpi_apy_percent=cpi_apy)
             for case_name, scenario in both_edge_cases:
                 model, result = evaluate_lhs_scenario(scenario=scenario, context=both_context)
-                row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, result=result, context=both_context))
+                row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, context=both_context))
                 ordered_row = {column: row[column] for column in CSV_COLUMNS}
                 print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
                 rows.append(ordered_row)
@@ -432,15 +458,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
     replay_cases = build_replay_case_scenarios()
     for case_name, scenario in replay_cases:
         model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
-        row = asdict(
-            summarize_lhs_run(
-                run_id=case_name,
-                scenario=scenario,
-                model=model,
-                result=result,
-                context=context,
-            )
-        )
+        row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, context=context))
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
@@ -457,6 +475,7 @@ def plot_edge_case_subplots(
     cpi_apy_percents: list[float],
     shared_y_scale: bool = True,
     show: bool = True,
+    main_title: str = PLOT_MAIN_TITLE,
 ) -> None:
     from matplotlib.colors import LinearSegmentedColormap, Normalize
 
@@ -480,7 +499,7 @@ def plot_edge_case_subplots(
     )
     suffix = "(Shared Y-Scale)" if shared_y_scale else "(Free Axis Scale)"
     figure.suptitle(
-        f"{PLOT_MAIN_TITLE}\nEdge Cases: Added Worth (normalized) {suffix}",
+        f"{main_title}\nEdge Cases: Added Worth (normalized) {suffix}",
         fontsize=14,
     )
 
@@ -530,7 +549,7 @@ def plot_edge_case_subplots(
             add_lifecare_reference_line(ax)
 
     if mappable is not None:
-        figure.colorbar(mappable, ax=axes.ravel().tolist(), label="combined independent years")
+        figure.colorbar(typing_cast(ScalarMappable, mappable), ax=axes.ravel().tolist(), label="combined independent years")
 
     if show:
         plt.show()
@@ -540,9 +559,8 @@ def plot_edge_case_subplots(
 def plot_lhs_summary(
     results: pd.DataFrame,
     include_edge_cases: bool = True,
-    roi_apy_percents: list[float] | None = None,
-    cpi_apy_percents: list[float] | None = None,
     show: bool = True,
+    main_title: str = PLOT_MAIN_TITLE,
 ) -> None:
     from matplotlib.colors import LinearSegmentedColormap, Normalize
 
@@ -561,7 +579,7 @@ def plot_lhs_summary(
 
     figure, axes = plt.subplots(3, 1, figsize=(12, 18), constrained_layout=True)
     figure.suptitle(
-        f"{PLOT_MAIN_TITLE}\nAdded Worth (normalized) vs Life Structure Parameters",
+        f"{main_title}\nAdded Worth (normalized) vs Life Structure Parameters",
         fontsize=14,
     )
 
@@ -616,7 +634,7 @@ def plot_lhs_summary(
         add_lifecare_reference_line(ax)
 
     if mappable is not None:
-        figure.colorbar(mappable, ax=axes.tolist(), label="combined independent years")
+        figure.colorbar(typing_cast(ScalarMappable, mappable), ax=axes.tolist(), label="combined independent years")
 
     if show:
         plt.show()
@@ -631,12 +649,12 @@ def _lc_norm_total(df: pd.DataFrame) -> pd.Series:
     return df["exp_norm_lc"] + fee
 
 
-def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
+def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True, main_title: str = "Worth vs Earnings (normalized)") -> plt.Figure:
     lhs = results[pd.to_numeric(results["run_id"], errors="coerce").notna()]
     cp = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
 
     figure, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(28, 6), constrained_layout=True)
-    figure.suptitle("Worth vs Earnings (normalized)", fontsize=14)
+    figure.suptitle(main_title, fontsize=14)
 
     # Subplot 1: worth_norm vs earn_norm
     ax1.scatter(lhs["earn_norm_lc"], lhs["worth_norm_lc"],
@@ -721,9 +739,9 @@ def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
     return figure
 
 
-def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figure:
-    MAN_COLOR = "lightblue"
-    WOMAN_COLOR = "fuchsia"
+def plot_demographic_stats(results: pd.DataFrame, show: bool = True, main_title: str = "Demographic Stats") -> plt.Figure:
+    man_color = "lightblue"
+    woman_color = "fuchsia"
 
     results = results[pd.to_numeric(results["run_id"], errors="coerce").notna()]
     man_al = results[results["man_goes_to_al"] == True]
@@ -735,7 +753,7 @@ def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figu
         [["death_cdf", "al_cdf"], ["man_al", "woman_al"], ["pdf", "pdf"], ["age_start", "age_start"]],
         figsize=(13, 18), constrained_layout=True,
     )
-    figure.suptitle("Demographic Stats", fontsize=14)
+    figure.suptitle(main_title, fontsize=14)
 
     def _plot_cdf(ax, data, color, label):
         sorted_data = np.sort(data)
@@ -744,8 +762,8 @@ def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figu
         ax.fill_between(sorted_data, cdf, alpha=0.2, color=color)
 
     # age at death CDF, both genders
-    _plot_cdf(axes["death_cdf"], results["man_age_at_death"].values, MAN_COLOR, "Man")
-    _plot_cdf(axes["death_cdf"], results["woman_age_at_death"].values, WOMAN_COLOR, "Woman")
+    _plot_cdf(axes["death_cdf"], results["man_age_at_death"].values, man_color, "Man")
+    _plot_cdf(axes["death_cdf"], results["woman_age_at_death"].values, woman_color, "Woman")
     axes["death_cdf"].set_title("Age at death")
     axes["death_cdf"].set_xlabel("Age")
     axes["death_cdf"].set_ylabel("Cumulative probability")
@@ -754,9 +772,9 @@ def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figu
 
     # age to AL CDF, both genders
     if len(man_age_to_al):
-        _plot_cdf(axes["al_cdf"], man_age_to_al.values, MAN_COLOR, f"Man (n={len(man_age_to_al)})")
+        _plot_cdf(axes["al_cdf"], man_age_to_al.values, man_color, f"Man (n={len(man_age_to_al)})")
     if len(woman_age_to_al):
-        _plot_cdf(axes["al_cdf"], woman_age_to_al.values, WOMAN_COLOR, f"Woman (n={len(woman_age_to_al)})")
+        _plot_cdf(axes["al_cdf"], woman_age_to_al.values, woman_color, f"Woman (n={len(woman_age_to_al)})")
     axes["al_cdf"].set_title(f"Age to AL  (of {len(results)} runs)")
     axes["al_cdf"].set_xlabel("Age")
     axes["al_cdf"].set_ylabel("Cumulative probability")
@@ -766,7 +784,7 @@ def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figu
     # man time in AL dot plot
     axes["man_al"].scatter(
         range(len(man_al)), man_al["man_assisted_yrs"],
-        marker="x", color=MAN_COLOR, linewidths=1.2, s=40,
+        marker="x", color=man_color, linewidths=1.2, s=40,
     )
     axes["man_al"].set_title("Man time in AL")
     axes["man_al"].set_xlabel("Run index")
@@ -775,7 +793,7 @@ def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figu
     # woman time in AL dot plot
     axes["woman_al"].scatter(
         range(len(woman_al)), woman_al["woman_assisted_yrs"],
-        marker="x", color=WOMAN_COLOR, linewidths=1.2, s=40,
+        marker="x", color=woman_color, linewidths=1.2, s=40,
     )
     axes["woman_al"].set_title("Woman time in AL")
     axes["woman_al"].set_xlabel("Run index")
@@ -783,9 +801,9 @@ def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figu
 
     # age at death PDF, both genders (full-width)
     axes["pdf"].hist(results["man_age_at_death"], bins=20, density=True,
-                     color=MAN_COLOR, edgecolor="green", alpha=0.6, label="Man")
+                     color=man_color, edgecolor="green", alpha=0.6, label="Man")
     axes["pdf"].hist(results["woman_age_at_death"], bins=20, density=True,
-                     color=WOMAN_COLOR, edgecolor="deeppink", alpha=0.6, label="Woman")
+                     color=woman_color, edgecolor="deeppink", alpha=0.6, label="Woman")
     axes["pdf"].set_title("Age at Death — Probability Density")
     axes["pdf"].set_xlabel("Age")
     axes["pdf"].set_ylabel("Density")
@@ -794,11 +812,11 @@ def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figu
     # age at start dot plot, both genders (full-width)
     axes["age_start"].scatter(
         range(len(results)), results["man_age_at_start"],
-        marker="x", color=MAN_COLOR, linewidths=1.2, s=40, label="Man",
+        marker="x", color=man_color, linewidths=1.2, s=40, label="Man",
     )
     axes["age_start"].scatter(
         range(len(results)), results["woman_age_at_start"],
-        marker="x", color=WOMAN_COLOR, linewidths=1.2, s=40, label="Woman",
+        marker="x", color=woman_color, linewidths=1.2, s=40, label="Woman",
     )
     axes["age_start"].set_title("Age at Start")
     axes["age_start"].set_xlabel("Run index")
@@ -872,34 +890,41 @@ def _select_nearest_ep_lhs(results: pd.DataFrame, n: int = 100) -> pd.DataFrame:
     return selected.reset_index(drop=True)
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Monte Carlo monthly ROI projection anchored to historical long-run growth."
-    )
-    parser.add_argument("--ticker", default=TICKER, help="Ticker symbol to download, default: SPY")
-    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help=f"RNG seed, default: {DEFAULT_SEED}")
+def parse_args(
+    description: str = "Monte Carlo monthly ROI projection anchored to historical long-run growth.",
+    default_ticker: str = TICKER,
+    default_seed: int = DEFAULT_SEED,
+    default_current_date: str = DEFAULT_CURRENT_DATE,
+    default_lhs_points: int = DEFAULT_LHS_POINTS,
+    default_lhs_output: str = "lhs_taylor_results.csv",
+) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--ticker", default=default_ticker, help=f"Ticker symbol to download, default: {default_ticker}")
+    parser.add_argument("--seed", type=int, default=default_seed, help=f"RNG seed, default: {default_seed}")
     parser.add_argument(
         "--current-date",
-        default=DEFAULT_CURRENT_DATE,
-        help=f"Historical data cutoff date in YYYY-MM-DD, default: {DEFAULT_CURRENT_DATE}",
+        default=default_current_date,
+        help=f"Historical data cutoff date in YYYY-MM-DD, default: {default_current_date}",
     )
     parser.add_argument(
         "--lhs-points",
         type=int,
-        default=DEFAULT_LHS_POINTS,
-        help=f"Run a Latin hypercube sample with this many points. Default: {DEFAULT_LHS_POINTS}",
+        default=default_lhs_points,
+        help=f"Run a Latin hypercube sample with this many points. Default: {default_lhs_points}",
     )
     parser.add_argument(
         "--lhs-output",
-        default="lhs_taylor_results.csv",
-        help="CSV output path for LHS runs.",
+        default=default_lhs_output,
+        help=f"CSV output path for LHS runs. Default: {default_lhs_output}",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    current_date = pd.Timestamp(args.current_date).normalize()
+    current_date = pd.Timestamp(args.current_date)
+    assert isinstance(current_date, pd.Timestamp), f"Invalid current_date: {args.current_date}"
+    current_date = current_date.normalize()
     context = ScenarioRunContext(
         ticker=args.ticker,
         current_date=current_date,
@@ -937,29 +962,27 @@ def main() -> None:
         plot_worth_vs_earn(nearest_results, show=False)
 
         plot_demographic_stats(results, show=False)
-
-        plot_lhs_summary(                                  # Figure 7 – 3×1 overview
-            results,
-            include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
-            roi_apy_percents=EDGE_CASE_ROI_APY_PERCENTS,
-            cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
-            show=False,
-        )
-        plot_edge_case_subplots(                           # Figure 4 – edge cases, shared y
-            results,
-            EDGE_CASE_ROI_APY_PERCENTS,
-            EDGE_CASE_CPI_APY_PERCENTS,
-            shared_y_scale=True,
-            show=False,
-        )
-        plot_edge_case_subplots(                           # Figure 5 – edge cases, free y
-            results,
-            EDGE_CASE_ROI_APY_PERCENTS,
-            EDGE_CASE_CPI_APY_PERCENTS,
-            shared_y_scale=False,
-            show=False,
-        )
-        plt.show()
+        if plotting:
+            plot_lhs_summary(                                  # Figure 7 – 3×1 overview
+                results,
+                include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
+                show=False,
+            )
+            plot_edge_case_subplots(                           # Figure 4 – edge cases, shared y
+                results,
+                EDGE_CASE_ROI_APY_PERCENTS,
+                EDGE_CASE_CPI_APY_PERCENTS,
+                shared_y_scale=True,
+                show=False,
+            )
+            plot_edge_case_subplots(                           # Figure 5 – edge cases, free y
+                results,
+                EDGE_CASE_ROI_APY_PERCENTS,
+                EDGE_CASE_CPI_APY_PERCENTS,
+                shared_y_scale=False,
+                show=False,
+            )
+            plt.show()
         return
 
     scenario = LhsScenario(
@@ -986,8 +1009,6 @@ def main() -> None:
         f"Effective annualized CPI inflation: {annualized_mean_cpi:.2%}\n"
         f"Cumulative inflation growth of $1 since {START_CLOCK}: ${cpi.life_horizon_inflation_cum[-1]:.4f}"
     )
-    # print(roi)
-    # print(cpi)
     total_expenses_cc = this_life.exp_cc_history[-1] if this_life.exp_cc_history else 0.0
     total_expenses_lc = this_life.exp_lc_history[-1] if this_life.exp_lc_history else 0.0
     total_al_expenses_cc = this_life.exp_al_cc_history[-1] if this_life.exp_al_cc_history else 0.0
@@ -1029,10 +1050,11 @@ def main() -> None:
         print(f"{item:<28}{cc_value:>15,.0f}{lc_value:>15,.0f}")
     if roi.return_frame is None:
         raise ValueError("ROI history was not loaded during projection.")
-    plot_projection_views(roi.return_frame, roi, show=False)
-    plot_inflation_views(inflation_frame, cpi, show=False)
-    plot_taylor_life_exp_non_taylor(this_life, show=False)
-    plt.show()
+    if plotting:
+        plot_projection_views(roi.return_frame, roi, show=False)
+        plot_inflation_views(inflation_frame, cpi, show=False)
+        plot_taylor_life_exp_non_taylor(this_life, show=False)
+        plt.show()
 
 
 if __name__ == "__main__":

@@ -15,17 +15,34 @@ regions of the scenario space.
 # User inputs
 #  To force the probability both man and woman go to AL instead of dying right away
 force_al = False
-DEFAULT_LHS_POINTS = 1000
+plotting = False
+DEFAULT_LHS_POINTS = 1
 
-
-import argparse
+from Run_LHS_Taylor import (
+    _lc_norm_total,
+    add_lifecare_reference_line,
+    parse_args,
+    print_screen_row,
+    sample_lhs_points,
+    scale_lhs_column,
+    summarize_lhs_run,
+    _select_nearest_ep_lhs,
+    CSV_COLUMNS,
+    SCREEN_MIN_COL_WIDTH,
+    build_lhs_scenarios,
+    plot_edge_case_subplots,
+    plot_lhs_summary,
+    plot_worth_vs_earn,
+    plot_demographic_stats,
+)
 from dataclasses import asdict
 import math
 import matplotlib.pyplot as plt
+from matplotlib.cm import ScalarMappable
 import numpy as np
 import pandas as pd
+from typing import cast as typing_cast
 from pathlib import Path
-from typing import cast
 from Center_LHS_Gutz_Taylor import (
     CENTERPOINT_CONSTANT_MONTHLY_CPI,
     CENTERPOINT_CONSTANT_MONTHLY_ROI,
@@ -43,7 +60,6 @@ from Center_LHS_Gutz_Taylor import (
 )
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
-    DEFAULT_SEED,
     HISTORY_YEARS,
     MAN_DOB,
     P_MAN_AL,
@@ -55,10 +71,8 @@ from default_case import (
 )
 from edges import build_replay_case_scenarios_gutz, format_apy_suffix
 from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
-from Roi import TICKER
 from Taylor import LhsScenario, ScenarioRunContext
 from utils import evaluate_lhs_scenario
-from Run_LHS_Taylor import summarize_lhs_run
 
 
 
@@ -132,186 +146,6 @@ EDGE_CASE_CPI_APY_PERCENTS = sorted({pair[1] for pair in EDGE_CASE_ROI_CPI_APY_P
 PLOT_MAIN_TITLE = "Taylor Community Lifecare / Continuing Care Decision,  2026 for Katherine and David Gutz"
 
 
-CSV_COLUMNS = [
-    "run_id",
-    "yrs_il_single",
-    "yrs_il_double",
-    "yrs_sum_al",
-    "total_living_yrs",
-    "elapsed_time_yrs",
-    "earning_potential",      # (PILE_AT_START - entrance_fee_lc) * (roi_cum[-1] / cpi_cum[-1]) * elapsed_time_yrs
-    "earning_potential_cc",   # (PILE_AT_START - entrance_fee_cc) * (roi_cum[-1] / cpi_cum[-1]) * elapsed_time_yrs
-    "added_lc_worth_norm",
-    "man_independent_yrs",
-    "woman_independent_yrs",
-    "man_assisted_yrs",
-    "woman_assisted_yrs",
-    "roi_seed",
-    "inflation_seed",
-    "apy_roi",
-    "apy_cpi",
-    "roi_one_dollar_at_end",
-    "cpi_one_dollar_at_end",
-    "norm_one_dollar_at_end",
-    "roi_mean_shift",
-    "roi_vol_multiplier",
-    "roi_mean_reversion",
-    "inflation_mean_shift",
-    "inflation_vol_multiplier",
-    "inflation_mean_reversion",
-    "man_goes_to_al_seed",
-    "woman_goes_to_al_seed",
-    "man_goes_to_al",
-    "woman_goes_to_al",
-    "man_age_to_al",
-    "woman_age_to_al",
-    "man_age_at_death",
-    "woman_age_at_death",
-    "exp_norm_al_cc",
-    "exp_norm_cc",
-    "exp_norm_lc",
-    "exp_norm_non_taylor",
-    "exp_norm_total_cc",
-    "exp_norm_total_lc",
-    "entrance_fee_cc",
-    "entrance_fee_lc",
-    "earn_norm_cc",
-    "earn_norm_lc",
-    "cum_mo_earn_lc_norm",
-    "cum_mo_earn_cc_norm",
-    "cum_mo_earn_inv_lc_norm",
-    "cum_mo_earn_inv_cc_norm",
-    "cum_mo_earn_ss_man_norm",
-    "cum_mo_earn_ss_woman_norm",
-    "cum_mo_earn_ss_norm",
-    "cum_mo_earn_pen_man_norm",
-    "cum_mo_earn_pen_woman_norm",
-    "cum_mo_earn_pen_norm",
-    "cum_mo_exp_lc_norm",
-    "cum_mo_exp_cc_norm",
-    "cum_mo_exp_al_cc_norm",
-    "cum_mo_exp_non_taylor_norm",
-    "cum_mo_exp_total_lc_norm",
-    "cum_mo_exp_total_cc_norm",
-    "start_pile",
-    "worth_norm_lc",
-    "worth_norm_cc",
-    "man_age_at_start",
-    "woman_age_at_start",
-    # Context constants from this run
-    "ticker",
-    "current_date",
-    "history_years",
-    "al_cum_running_avg_yrs",
-    "start_clock",
-    "man_dob",
-    "woman_dob",
-    "constant_monthly_roi",
-    "constant_monthly_cpi",
-]
-
-SCREEN_MIN_COL_WIDTH = 14
-
-
-def format_screen_number(value: int | float, width: int) -> str:
-    if isinstance(value, (np.integer, int)):
-        text = f"{int(value):.3g}"
-    else:
-        numeric = float(value)
-        if math.isnan(numeric):
-            return " " * width
-        text = f"{numeric:.3g}"
-    if "e" in text or "E" in text:
-        mantissa, exponent = text.lower().split("e", maxsplit=1)
-        exponent_text = f"e{int(exponent):+03d}"
-    else:
-        mantissa = text
-        exponent_text = ""
-    if "." not in mantissa:
-        mantissa = f"{mantissa}."
-    left, right = mantissa.split(".", maxsplit=1)
-    decimal_target = max(2, width - max(len(exponent_text), 4) - 1)
-    left_padding = max(decimal_target - len(left), 0)
-    aligned = f"{' ' * left_padding}{left}.{right}{exponent_text}"
-    return aligned.rjust(width)
-
-
-def format_screen_cell(value: object, width: int) -> str:
-    if isinstance(value, (int, float, np.integer, np.floating)):
-        return format_screen_number(value=value, width=width)
-    return str(value).rjust(width)
-
-
-def print_screen_row(row: dict[str, object], columns: list[str], widths: dict[str, int]) -> None:
-    print(" ".join(format_screen_cell(row[column], widths[column]) for column in columns))
-
-
-def add_lifecare_reference_line(axis: plt.Axes) -> None:
-    """Add a bold y=0 reference line and a label just above it."""
-    axis.axhline(0.0, color="black", linewidth=3.0, alpha=0.95, zorder=0)
-    x_min, x_max = axis.get_xlim()
-    y_min, y_max = axis.get_ylim()
-    x_text = x_min + 0.02 * (x_max - x_min)
-    y_text = 0.0 + 0.02 * (y_max - y_min)
-    axis.text(
-        x_text,
-        y_text,
-        "Lifecare better",
-        color="black",
-        fontsize=10,
-        fontweight="bold",
-        va="bottom",
-        ha="left",
-    )
-
-
-def sample_lhs_points(num_points: int, dimensions: int, seed: int) -> np.ndarray:
-    if num_points <= 0:
-        raise ValueError("num_points must be positive for LHS sampling.")
-    rng = np.random.default_rng(seed)
-    lhs = np.zeros((num_points, dimensions), dtype=float)
-    for dim in range(dimensions):
-        cut_points = (np.arange(num_points, dtype=float) + rng.random(num_points)) / num_points
-        lhs[:, dim] = cut_points[rng.permutation(num_points)]
-    return lhs
-
-
-def scale_lhs_column(values: np.ndarray, bounds: tuple[float, float]) -> np.ndarray:
-    low, high = bounds
-    return low + values * (high - low)
-
-
-def build_lhs_scenarios(num_points: int, seed: int) -> list[LhsScenario]:
-    sampled = sample_lhs_points(num_points, dimensions=14, seed=seed)
-    scenarios: list[LhsScenario] = []
-    for idx in range(num_points):
-        man_goes_to_al_seed = int(round(scale_lhs_column(sampled[:, 12], SEED_RANGE)[idx]))
-        woman_goes_to_al_seed = int(round(scale_lhs_column(sampled[:, 13], SEED_RANGE)[idx]))
-        scenario = cast(
-            LhsScenario,
-            LhsScenario(
-                man_independent_yrs=float(scale_lhs_column(sampled[:, 0], MAN_INDEPENDENT_YRS_RANGE)[idx]),
-                woman_independent_yrs=float(scale_lhs_column(sampled[:, 1], WOMAN_INDEPENDENT_YRS_RANGE)[idx]),
-                man_assisted_yrs=float(scale_lhs_column(sampled[:, 2], MAN_ASSISTED_YRS_RANGE)[idx]),
-                woman_assisted_yrs=float(scale_lhs_column(sampled[:, 3], WOMAN_ASSISTED_YRS_RANGE)[idx]),
-                roi_seed=int(round(scale_lhs_column(sampled[:, 4], SEED_RANGE)[idx])),
-                inflation_seed=int(round(scale_lhs_column(sampled[:, 5], SEED_RANGE)[idx])),
-                roi_mean_shift=float(scale_lhs_column(sampled[:, 6], ROI_MEAN_SHIFT_RANGE)[idx]),
-                roi_vol_multiplier=float(scale_lhs_column(sampled[:, 7], ROI_VOL_MULTIPLIER_RANGE)[idx]),
-                roi_mean_reversion=float(scale_lhs_column(sampled[:, 8], ROI_MEAN_REVERSION_RANGE)[idx]),
-                inflation_mean_shift=float(scale_lhs_column(sampled[:, 9], INFLATION_MEAN_SHIFT_RANGE)[idx]),
-                inflation_vol_multiplier=float(scale_lhs_column(sampled[:, 10], INFLATION_VOL_MULTIPLIER_RANGE)[idx]),
-                inflation_mean_reversion=float(scale_lhs_column(sampled[:, 11], INFLATION_MEAN_REVERSION_RANGE)[idx]),
-                man_goes_to_al_seed=man_goes_to_al_seed,
-                woman_goes_to_al_seed=woman_goes_to_al_seed,
-                man_goes_to_al=LHS_MAN_GOES_TO_AL if LHS_MAN_GOES_TO_AL is not None else bool(np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)),
-                woman_goes_to_al=LHS_WOMAN_GOES_TO_AL if LHS_WOMAN_GOES_TO_AL is not None else bool(np.random.default_rng(woman_goes_to_al_seed).binomial(1, P_WOMAN_AL)),
-            ),
-        )
-        scenarios.append(scenario)
-    return scenarios
-
-
 def build_centerpoint_scenario() -> LhsScenario:
     """Build the explicit centerpoint scenario for the Gutz LHS run."""
     return LhsScenario(
@@ -334,38 +168,6 @@ def build_centerpoint_scenario() -> LhsScenario:
     )
 
 
-def last_value(values: list[float]) -> float:
-    return float(values[-1]) if values else 0.0
-
-
-
-def monthly_rate_to_apy(monthly_rate: float) -> float:
-    return (1.0 + monthly_rate) ** 12 - 1.0
-
-
-def realized_monthly_rate(path, fallback: float) -> float:
-    if len(path) == 0:
-        return fallback
-    growth = (1.0 + path).prod()
-    if growth <= 0.0:
-        return fallback
-    months = float(len(path))
-    return float(growth ** (1.0 / months) - 1.0)
-
-
-def effective_apy_from_cumulative(cumulative_path: np.ndarray, monthly_fallback: float) -> float:
-    if cumulative_path.size > 0:
-        final_growth = float(cumulative_path[-1])
-        if final_growth > 0.0:
-            months = float(cumulative_path.size)
-            return (final_growth ** (12.0 / months) - 1.0) * 100.0
-    return monthly_rate_to_apy(monthly_fallback) * 100.0
-
-
-def format_constant_monthly_output(value: float | None) -> float | str:
-    return "stochastic" if value is None else value
-
-
 def normalize_centerpoint_constant_monthly(value: float | None) -> float | None:
     """Convert APY percent to monthly fraction. Always treats input as APY percent."""
     if value is None:
@@ -380,7 +182,24 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
             "apy_roi and apy_cpi reflect effective APY from final growth of $1 "
             "under those configured constants."
         )
-    scenarios = build_lhs_scenarios(num_points=num_points, seed=seed)
+    scenarios = build_lhs_scenarios(
+        num_points=num_points,
+        seed=seed,
+        man_independent_yrs_range=MAN_INDEPENDENT_YRS_RANGE,
+        woman_independent_yrs_range=WOMAN_INDEPENDENT_YRS_RANGE,
+        man_assisted_yrs_range=MAN_ASSISTED_YRS_RANGE,
+        woman_assisted_yrs_range=WOMAN_ASSISTED_YRS_RANGE,
+        roi_mean_shift_range=ROI_MEAN_SHIFT_RANGE,
+        roi_vol_multiplier_range=ROI_VOL_MULTIPLIER_RANGE,
+        roi_mean_reversion_range=ROI_MEAN_REVERSION_RANGE,
+        inflation_mean_shift_range=INFLATION_MEAN_SHIFT_RANGE,
+        inflation_vol_multiplier_range=INFLATION_VOL_MULTIPLIER_RANGE,
+        inflation_mean_reversion_range=INFLATION_MEAN_REVERSION_RANGE,
+        p_man_al=P_MAN_AL,
+        p_woman_al=P_WOMAN_AL,
+        lhs_man_goes_to_al=LHS_MAN_GOES_TO_AL,
+        lhs_woman_goes_to_al=LHS_WOMAN_GOES_TO_AL,
+    )
     rows = []
     column_widths = {column: max(len(column), SCREEN_MIN_COL_WIDTH) for column in CSV_COLUMNS}
     print(" ".join(column.rjust(column_widths[column]) for column in CSV_COLUMNS))
@@ -388,7 +207,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
     # Process random LHS scenarios
     for run_id, scenario in enumerate(scenarios, start=1):
         model, result = evaluate_lhs_scenario(scenario=scenario, context=context)
-        row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, result=result, context=context))
+        row = asdict(summarize_lhs_run(run_id=run_id, scenario=scenario, model=model, context=context))
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
@@ -411,15 +230,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
         edge_scenario = build_centerpoint_scenario()
         case_name = f"EC_CENTERPOINT_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
         model, result = evaluate_lhs_scenario(scenario=edge_scenario, context=edge_context)
-        row = asdict(
-            summarize_lhs_run(
-                run_id=case_name,
-                scenario=edge_scenario,
-                model=model,
-                result=result,
-                context=edge_context,
-            )
-        )
+        row = asdict(summarize_lhs_run(run_id=case_name, scenario=edge_scenario, model=model, context=edge_context))
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
@@ -439,15 +250,7 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
             constant_monthly_cpi=normalize_centerpoint_constant_monthly(replay_constant_cpi),
         )
         model, result = evaluate_lhs_scenario(scenario=scenario, context=replay_context)
-        row = asdict(
-            summarize_lhs_run(
-                run_id=case_name,
-                scenario=scenario,
-                model=model,
-                result=result,
-                context=replay_context,
-            )
-        )
+        row = asdict(summarize_lhs_run(run_id=case_name, scenario=scenario, model=model, context=replay_context))
         ordered_row = {column: row[column] for column in CSV_COLUMNS}
         print_screen_row(row=ordered_row, columns=CSV_COLUMNS, widths=column_widths)
         rows.append(ordered_row)
@@ -468,15 +271,8 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
         )
     centerpoint_scenario = build_centerpoint_scenario()
     model, result = evaluate_lhs_scenario(scenario=centerpoint_scenario, context=centerpoint_context)
-    centerpoint_row = asdict(
-        summarize_lhs_run(
-            run_id="CENTERPOINT",
-            scenario=centerpoint_scenario,
-            model=model,
-            result=result,
-            context=centerpoint_context,
-        )
-    )
+    centerpoint_row = asdict(summarize_lhs_run(run_id="CENTERPOINT", scenario=centerpoint_scenario, model=model,
+                                               context=centerpoint_context))
     ordered_centerpoint_row = {column: centerpoint_row[column] for column in CSV_COLUMNS}
     print_screen_row(row=ordered_centerpoint_row, columns=CSV_COLUMNS, widths=column_widths)
     rows.append(ordered_centerpoint_row)
@@ -484,176 +280,6 @@ def run_lhs_driver(num_points: int, context: ScenarioRunContext, output_path: Pa
     frame = pd.DataFrame(rows, columns=CSV_COLUMNS)
     frame.to_csv(output_path, index=False)
     return frame
-
-
-def plot_edge_case_subplots(
-    results: pd.DataFrame,
-    roi_apy_percents: list[float],
-    cpi_apy_percents: list[float],
-    shared_y_scale: bool = True,
-    show: bool = True,
-) -> None:
-    from matplotlib.colors import LinearSegmentedColormap, Normalize
-
-    # Only use generated edge-case rows for Figures 2/3 (exclude replay string run_ids).
-    edge_results = results[
-        results["run_id"].apply(lambda v: isinstance(v, str) and v.startswith("EC_"))
-    ]
-    if edge_results.empty:
-        return
-
-    n_roi = len(roi_apy_percents)
-    n_cpi = len(cpi_apy_percents)
-    if n_roi == 0 or n_cpi == 0:
-        return
-    figure, axes = plt.subplots(
-        n_roi,
-        n_cpi,
-        figsize=(6 * n_cpi, 5 * n_roi),
-        squeeze=False,
-        constrained_layout=True,
-    )
-    suffix = "(Shared Y-Scale)" if shared_y_scale else "(Free Axis Scale)"
-    figure.suptitle(
-        f"{PLOT_MAIN_TITLE}\nEdge Cases: Added Worth (normalized) {suffix}",
-        fontsize=14,
-    )
-
-    cmap = LinearSegmentedColormap.from_list("bright_rg", ["#ff0000", "#00ff00"])
-    independent_all = edge_results["man_independent_yrs"] + edge_results["woman_independent_yrs"]
-    norm = Normalize(vmin=float(independent_all.min()), vmax=float(independent_all.max()))
-
-    y_min = 0.0
-    y_max = 0.0
-    if shared_y_scale:
-        # Use the full results range so Figure 2's y-scale matches Figure 1.
-        y_all = results["added_lc_worth_norm"].to_numpy(dtype=float)
-        y_min = float(np.nanmin(y_all))
-        y_max = float(np.nanmax(y_all))
-        if math.isclose(y_min, y_max):
-            pad = abs(y_min) * 0.01 + 1e-6
-            y_min -= pad
-            y_max += pad
-
-    mappable = None
-    for row_idx, roi_apy in enumerate(roi_apy_percents):
-        for col_idx, cpi_apy in enumerate(cpi_apy_percents):
-            ax = axes[row_idx, col_idx]
-            ec_suffix = f"_{format_apy_suffix(roi_apy)}_{format_apy_suffix(cpi_apy)}"
-            combo_rows = edge_results[
-                edge_results["run_id"].apply(lambda v, s=ec_suffix: isinstance(v, str) and v.endswith(s))
-            ]
-            if not combo_rows.empty:
-                assisted_total = combo_rows["man_assisted_yrs"] + combo_rows["woman_assisted_yrs"]
-                independent_total = combo_rows["man_independent_yrs"] + combo_rows["woman_independent_yrs"]
-                mappable = ax.scatter(
-                    assisted_total,
-                    combo_rows["added_lc_worth_norm"],
-                    c=independent_total,
-                    cmap=cmap,
-                    norm=norm,
-                    marker="o",
-                    alpha=0.85,
-                    s=50,
-                )
-            ax.set_xlabel("Sum of Assisted Living Years: yrs_sum_al (Years)")
-            ax.set_ylabel("Added Worth (normalized to 2026 dollars)")
-            ax.set_title(f"ROI={roi_apy:.3g}%  CPI={cpi_apy:.3g}%")
-            if shared_y_scale:
-                ax.set_ylim(y_min, y_max)
-            ax.grid(True, alpha=0.3)
-            add_lifecare_reference_line(ax)
-
-    if mappable is not None:
-        figure.colorbar(mappable, ax=axes.ravel().tolist(), label="combined independent years")
-
-    if show:
-        plt.show()
-
-
-def plot_lhs_summary(
-    results: pd.DataFrame,
-    include_edge_cases: bool = True,
-    roi_apy_percents: list[float] | None = None,
-    cpi_apy_percents: list[float] | None = None,
-    show: bool = True,
-) -> None:
-    from matplotlib.colors import LinearSegmentedColormap, Normalize
-
-    centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
-    lhs_rows = results[results["run_id"].apply(lambda v: not isinstance(v, str))]
-    edge_rows = results[
-        results["run_id"].apply(lambda v: isinstance(v, str) and str(v) != "CENTERPOINT")
-    ]
-
-    # Three subplots (3×1): each uses a different x-axis variable.
-    x_configs = [
-        ("yrs_sum_al",    "Sum of Assisted Living Years: yrs_sum_al (Years)",       "Added Worth (normalized) vs Sum of AL Years"),
-        ("yrs_il_single", "yrs_il_single (years exactly one in IL)", "Added Worth (normalized) vs Years Single in IL"),
-        ("yrs_il_double", "yrs_il_double (years both in IL)",        "Added Worth (normalized) vs Years Both in IL"),
-    ]
-
-    figure, axes = plt.subplots(3, 1, figsize=(12, 18), constrained_layout=True)
-    figure.suptitle(
-        f"{PLOT_MAIN_TITLE}\nAdded Worth (normalized) vs Life Structure Parameters",
-        fontsize=14,
-    )
-
-    cmap = LinearSegmentedColormap.from_list("bright_rg", ["#ff0000", "#00ff00"])
-    norm = None
-    mappable = None
-    if include_edge_cases and not edge_rows.empty:
-        independent_total_all = edge_rows["man_independent_yrs"] + edge_rows["woman_independent_yrs"]
-        norm = Normalize(vmin=float(independent_total_all.min()), vmax=float(independent_total_all.max()))
-
-    for ax, (x_col, x_label, title) in zip(axes, x_configs):
-        if not lhs_rows.empty:
-            lhs_x = lhs_rows[x_col].to_numpy(dtype=float)
-            ax.scatter(lhs_x, lhs_rows["added_lc_worth_norm"], alpha=0.25, color="lightgray", marker="o", label="LHS")
-
-        if include_edge_cases and not edge_rows.empty and norm is not None:
-            independent_total = edge_rows["man_independent_yrs"] + edge_rows["woman_independent_yrs"]
-            x_vals = edge_rows[x_col].to_numpy(dtype=float)
-            mappable = ax.scatter(
-                x_vals,
-                edge_rows["added_lc_worth_norm"],
-                c=independent_total,
-                cmap=cmap,
-                norm=norm,
-                marker="o",
-                alpha=0.9,
-                s=55,
-                label="edge cases",
-            )
-
-        if not centerpoint_rows.empty:
-            cx = centerpoint_rows[x_col].to_numpy(dtype=float)
-            cy = centerpoint_rows["added_lc_worth_norm"].to_numpy(dtype=float)
-            ax.scatter(
-                cx,
-                cy,
-                color="blue",
-                marker="*",
-                s=300,
-                edgecolors="black",
-                linewidths=0.8,
-                zorder=5,
-                label="CENTERPOINT",
-            )
-
-        handles, _ = ax.get_legend_handles_labels()
-        ax.legend(handles=handles, loc="best", fontsize=9)
-        ax.set_xlabel(x_label)
-        ax.set_ylabel("Added Worth (normalized to 2026 dollars)")
-        ax.set_title(title)
-        ax.grid(True, alpha=0.3)
-        add_lifecare_reference_line(ax)
-
-    if mappable is not None:
-        figure.colorbar(mappable, ax=axes.tolist(), label="combined independent years")
-
-    if show:
-        plt.show()
 
 
 def _format_gutz_figure1_annotation(row: pd.Series) -> str:
@@ -667,194 +293,6 @@ def _format_gutz_figure1_annotation(row: pd.Series) -> str:
     worth_norm_lc = f"worth_norm_lc=${float(row['worth_norm_lc']):,.0f}"
     worth_norm_cc = f"worth_norm_cc=${float(row['worth_norm_cc']):,.0f}"
     return f"{life_params}\n{apy_params}\n{worth_norm_lc}\n{worth_norm_cc}"
-
-
-def _lc_norm_total(df: pd.DataFrame) -> pd.Series:
-    """Return normalized total LC expenses, always >= entrance_fee_lc.
-    Works with both new CSVs (exp_norm_total_lc column) and old CSVs (fallback)."""
-    if "exp_norm_total_lc" in df.columns:
-        return df["exp_norm_total_lc"]
-    fee = df["entrance_fee_lc"] if "entrance_fee_lc" in df.columns else pd.Series(0.0, index=df.index)
-    return df["exp_norm_lc"] + fee
-
-
-def plot_worth_vs_earn(results: pd.DataFrame, show: bool = True) -> plt.Figure:
-    lhs = results[pd.to_numeric(results["run_id"], errors="coerce").notna()]
-    cp = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
-
-    figure, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(28, 6), constrained_layout=True)
-    figure.suptitle("Worth vs Earnings (normalized)", fontsize=14)
-
-    # Subplot 1: worth_norm vs earn_norm
-    ax1.scatter(lhs["earn_norm_lc"], lhs["worth_norm_lc"],
-                marker="o", s=18, alpha=0.6, label="LC")
-    ax1.scatter(lhs["earn_norm_cc"], lhs["worth_norm_cc"],
-                marker="x", s=18, alpha=0.6, label="CC")
-
-    # Subplot 2: earn_norm vs total_living_yrs
-    ax2.scatter(lhs["total_living_yrs"], lhs["earn_norm_lc"],
-                marker="o", s=18, alpha=0.6, label="LC")
-    ax2.scatter(lhs["total_living_yrs"], lhs["earn_norm_cc"],
-                marker="x", s=18, alpha=0.6, label="CC")
-
-    # Subplot 3: worth_norm vs earning_potential (entrance-fee-adjusted principal)
-    ep_lc_col = "earning_potential"
-    ep_cc_col = "earning_potential_cc" if "earning_potential_cc" in lhs.columns else "earning_potential"
-    ax3.scatter(lhs[ep_lc_col], lhs["worth_norm_lc"],
-                marker="o", s=18, alpha=0.6, label="LC")
-    ax3.scatter(lhs[ep_cc_col], lhs["worth_norm_cc"],
-                marker="x", s=18, alpha=0.6, label="CC")
-
-    # Subplot 4: normalized total expenses (entrance fee in present-value dollars) vs total_living_yrs
-    ax4.scatter(lhs["total_living_yrs"], _lc_norm_total(lhs),
-                marker="o", s=18, alpha=0.6, label="LC total")
-    ax4.scatter(lhs["total_living_yrs"], lhs["exp_norm_total_cc"],
-                marker="x", s=18, alpha=0.6, label="CC total")
-
-    if not cp.empty:
-        row = cp.iloc[0]
-        earn_lc  = float(row["earn_norm_lc"])
-        worth_lc = float(row["worth_norm_lc"])
-        earn_cc  = float(row["earn_norm_cc"])
-        worth_cc = float(row["worth_norm_cc"])
-        cp_total_living = float(row["total_living_yrs"])
-        cp_ep_lc = float(row["earning_potential"])
-        cp_ep_cc = float(row["earning_potential_cc"]) if "earning_potential_cc" in results.columns else cp_ep_lc
-        cp_exp_lc = float(_lc_norm_total(cp).iloc[0])
-        cp_exp_cc = float(row["exp_norm_total_cc"])
-
-        ax1.scatter([earn_lc], [worth_lc], marker="*", s=260, alpha=0.4,
-                    color="green", edgecolors="green", zorder=5, label="CP LC")
-        ax1.scatter([earn_cc], [worth_cc], marker="*", s=260, alpha=0.4,
-                    color="red", edgecolors="red", zorder=5, label="CP CC")
-
-        ax2.scatter([cp_total_living], [earn_lc], marker="*", s=260, alpha=0.4,
-                    color="green", edgecolors="green", zorder=5, label="CP LC")
-        ax2.scatter([cp_total_living], [earn_cc], marker="*", s=260, alpha=0.4,
-                    color="red", edgecolors="red", zorder=5, label="CP CC")
-
-        ax3.scatter([cp_ep_lc], [worth_lc], marker="*", s=260, alpha=0.4,
-                    color="green", edgecolors="green", zorder=5, label="CP LC")
-        ax3.scatter([cp_ep_cc], [worth_cc], marker="*", s=260, alpha=0.4,
-                    color="red", edgecolors="red", zorder=5, label="CP CC")
-
-        ax4.scatter([cp_total_living], [cp_exp_lc], marker="*", s=260, alpha=0.4,
-                    color="green", edgecolors="green", zorder=5, label="CP LC")
-        ax4.scatter([cp_total_living], [cp_exp_cc], marker="*", s=260, alpha=0.4,
-                    color="red", edgecolors="red", zorder=5, label="CP CC")
-
-    ax1.set_xlabel("Normalized Earnings")
-    ax1.set_ylabel("Normalized Worth")
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-
-    ax2.set_xlabel("total_living_yrs (years)")
-    ax2.set_ylabel("Normalized Earnings")
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-
-    ax3.set_xlabel("earning_potential")
-    ax3.set_ylabel("Normalized Worth")
-    ax3.legend()
-    ax3.grid(True, alpha=0.3)
-
-    ax4.set_xlabel("total_living_yrs (years)")
-    ax4.set_ylabel("Normalized Expenses")
-    ax4.legend()
-    ax4.grid(True, alpha=0.3)
-
-    if show:
-        plt.show()
-    return figure
-
-
-def plot_demographic_stats(results: pd.DataFrame, show: bool = True) -> plt.Figure:
-    MAN_COLOR = "lightblue"
-    WOMAN_COLOR = "fuchsia"
-
-    results = results[pd.to_numeric(results["run_id"], errors="coerce").notna()]
-    man_al = results[results["man_goes_to_al"] == True]
-    woman_al = results[results["woman_goes_to_al"] == True]
-    man_age_to_al = pd.to_numeric(man_al["man_age_to_al"], errors="coerce").dropna()
-    woman_age_to_al = pd.to_numeric(woman_al["woman_age_to_al"], errors="coerce").dropna()
-
-    figure, axes = plt.subplot_mosaic(
-        [["death_cdf", "al_cdf"], ["man_al", "woman_al"], ["pdf", "pdf"], ["age_start", "age_start"]],
-        figsize=(13, 18), constrained_layout=True,
-    )
-    figure.suptitle("Demographic Stats", fontsize=14)
-
-    def _plot_cdf(ax, data, color, label):
-        sorted_data = np.sort(data)
-        cdf = np.arange(1, len(sorted_data) + 1) / len(sorted_data)
-        ax.plot(sorted_data, cdf, color=color, linewidth=2, label=label)
-        ax.fill_between(sorted_data, cdf, alpha=0.2, color=color)
-
-    # age at death CDF, both genders
-    _plot_cdf(axes["death_cdf"], results["man_age_at_death"].values, MAN_COLOR, "Man")
-    _plot_cdf(axes["death_cdf"], results["woman_age_at_death"].values, WOMAN_COLOR, "Woman")
-    axes["death_cdf"].set_title("Age at death")
-    axes["death_cdf"].set_xlabel("Age")
-    axes["death_cdf"].set_ylabel("Cumulative probability")
-    axes["death_cdf"].set_ylim(0, 1)
-    axes["death_cdf"].legend()
-
-    # age to AL CDF, both genders
-    if len(man_age_to_al):
-        _plot_cdf(axes["al_cdf"], man_age_to_al.values, MAN_COLOR, f"Man (n={len(man_age_to_al)})")
-    if len(woman_age_to_al):
-        _plot_cdf(axes["al_cdf"], woman_age_to_al.values, WOMAN_COLOR, f"Woman (n={len(woman_age_to_al)})")
-    axes["al_cdf"].set_title(f"Age to AL  (of {len(results)} runs)")
-    axes["al_cdf"].set_xlabel("Age")
-    axes["al_cdf"].set_ylabel("Cumulative probability")
-    axes["al_cdf"].set_ylim(0, 1)
-    axes["al_cdf"].legend()
-
-    # man time in AL dot plot
-    axes["man_al"].scatter(
-        range(len(man_al)), man_al["man_assisted_yrs"],
-        marker="x", color=MAN_COLOR, linewidths=1.2, s=40,
-    )
-    axes["man_al"].set_title("Man time in AL")
-    axes["man_al"].set_xlabel("Run index")
-    axes["man_al"].set_ylabel("Years")
-
-    # woman time in AL dot plot
-    axes["woman_al"].scatter(
-        range(len(woman_al)), woman_al["woman_assisted_yrs"],
-        marker="x", color=WOMAN_COLOR, linewidths=1.2, s=40,
-    )
-    axes["woman_al"].set_title("Woman time in AL")
-    axes["woman_al"].set_xlabel("Run index")
-    axes["woman_al"].set_ylabel("Years")
-
-    # age at death PDF, both genders (full-width)
-    axes["pdf"].hist(results["man_age_at_death"], bins=20, density=True,
-                     color=MAN_COLOR, edgecolor="green", alpha=0.6, label="Man")
-    axes["pdf"].hist(results["woman_age_at_death"], bins=20, density=True,
-                     color=WOMAN_COLOR, edgecolor="deeppink", alpha=0.6, label="Woman")
-    axes["pdf"].set_title("Age at Death — Probability Density")
-    axes["pdf"].set_xlabel("Age")
-    axes["pdf"].set_ylabel("Density")
-    axes["pdf"].legend()
-
-    # age at start dot plot, both genders (full-width)
-    axes["age_start"].scatter(
-        range(len(results)), results["man_age_at_start"],
-        marker="x", color=MAN_COLOR, linewidths=1.2, s=40, label="Man",
-    )
-    axes["age_start"].scatter(
-        range(len(results)), results["woman_age_at_start"],
-        marker="x", color=WOMAN_COLOR, linewidths=1.2, s=40, label="Woman",
-    )
-    axes["age_start"].set_title("Age at Start")
-    axes["age_start"].set_xlabel("Run index")
-    axes["age_start"].set_ylabel("Age")
-    axes["age_start"].legend()
-
-    if show:
-        plt.show()
-    return figure
 
 
 def plot_gutz_lhs_figure1(results: pd.DataFrame, show: bool = True) -> tuple[plt.Figure, plt.Axes]:
@@ -885,55 +323,15 @@ def plot_gutz_lhs_worth_subplots(results: pd.DataFrame, show: bool = True) -> tu
     )
 
 
-def _select_nearest_ep_lhs(results: pd.DataFrame, n: int = 100) -> pd.DataFrame:
-    """Return the n LHS rows nearest to the centerpoint earning_potential (symmetric
-    above/below) plus the centerpoint row itself.  If one side has fewer than n//2
-    points, the count is clamped symmetrically (e.g. 45 below and 45 above)."""
-    centerpoint_rows = results[results["run_id"].apply(lambda v: str(v) == "CENTERPOINT")]
-    lhs_rows = results[results["run_id"].apply(lambda v: not isinstance(v, str))].copy()
-
-    if centerpoint_rows.empty or lhs_rows.empty:
-        return results
-
-    cp_ep = float(centerpoint_rows.iloc[0]["earning_potential"])
-    ep = lhs_rows["earning_potential"].astype(float)
-
-    below = lhs_rows[ep < cp_ep].sort_values("earning_potential", ascending=False)
-    above = lhs_rows[ep >= cp_ep].sort_values("earning_potential", ascending=True)
-
-    n_sym = min(n // 2, len(below), len(above))
-    selected = pd.concat([below.head(n_sym), above.head(n_sym), centerpoint_rows])
-    return selected.reset_index(drop=True)
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="LHS Monte Carlo anchored to Gutz case centerpoint from Run_one_Taylor.py"
-    )
-    parser.add_argument("--ticker", default=TICKER, help="Ticker symbol to download, default: SPY")
-    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help=f"RNG seed, default: {DEFAULT_SEED}")
-    parser.add_argument(
-        "--current-date",
-        default="2026-03-29",
-        help=f"Historical data cutoff date in YYYY-MM-DD, default: 2026-03-29",
-    )
-    parser.add_argument(
-        "--lhs-points",
-        type=int,
-        default=DEFAULT_LHS_POINTS,
-        help=f"Run a Latin hypercube sample with this many points. Default: {DEFAULT_LHS_POINTS}",
-    )
-    parser.add_argument(
-        "--lhs-output",
-        default="lhs_gutz_taylor_results.csv",
-        help="CSV output path for LHS runs.",
-    )
-    return parser.parse_args()
-
-
 def main() -> None:
-    args = parse_args()
-    current_date = pd.Timestamp(args.current_date).normalize()
+    args = parse_args(
+        description="LHS Monte Carlo anchored to Gutz case centerpoint from Run_one_Taylor.py",
+        default_current_date="2026-03-29",
+        default_lhs_output="lhs_gutz_taylor_results.csv",
+    )
+    current_date = pd.Timestamp(args.current_date)
+    assert isinstance(current_date, pd.Timestamp), f"Invalid current_date: {args.current_date}"
+    current_date = current_date.normalize()
     context = ScenarioRunContext(
         ticker=args.ticker,
         current_date=current_date,
@@ -961,43 +359,45 @@ def main() -> None:
             f"Worth LC range: {results['worth_norm_lc'].min():,.0f} to {results['worth_norm_lc'].max():,.0f}\n"
             f"Worth CC range: {results['worth_norm_cc'].min():,.0f} to {results['worth_norm_cc'].max():,.0f}"
         )
-        
-        plot_gutz_lhs_figure1(results, show=False)
-        plot_gutz_lhs_worth_subplots(results, show=False)
-        plot_worth_vs_earn(results, show=False)
 
-        # Figures 4-6: figures 1-3 filtered to the 100 LHS points
-        # with earning_potential nearest to the centerpoint (symmetric above/below).
-        nearest_results = _select_nearest_ep_lhs(results, n=100)
-        plot_gutz_lhs_figure1(nearest_results, show=False)
-        plot_gutz_lhs_worth_subplots(nearest_results, show=False)
-        plot_worth_vs_earn(nearest_results, show=False)
+        if plotting:
+            plot_gutz_lhs_figure1(results, show=False)
+            plot_gutz_lhs_worth_subplots(results, show=False)
+            plot_worth_vs_earn(results, show=False, main_title="Gutz Worth vs Earnings (normalized)")
 
-        plot_demographic_stats(results, show=False)
+            # Figures 4-6: figures 1-3 filtered to the 100 LHS points
+            # with earning_potential nearest to the centerpoint (symmetric above/below).
+            nearest_results = _select_nearest_ep_lhs(results, n=100)
+            plot_gutz_lhs_figure1(nearest_results, show=False)
+            plot_gutz_lhs_worth_subplots(nearest_results, show=False)
+            plot_worth_vs_earn(nearest_results, show=False, main_title="Gutz Worth vs Earnings (normalized) - Nearest EP")
 
-        plot_lhs_summary(
-            results,
-            include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
-            roi_apy_percents=EDGE_CASE_ROI_APY_PERCENTS,
-            cpi_apy_percents=EDGE_CASE_CPI_APY_PERCENTS,
-            show=False,
-        )
-        plot_edge_case_subplots(
-            results,
-            EDGE_CASE_ROI_APY_PERCENTS,
-            EDGE_CASE_CPI_APY_PERCENTS,
-            shared_y_scale=True,
-            show=False,
-        )
-        plot_edge_case_subplots(
-            results,
-            EDGE_CASE_ROI_APY_PERCENTS,
-            EDGE_CASE_CPI_APY_PERCENTS,
-            shared_y_scale=False,
-            show=False,
-        )
+            plot_demographic_stats(results, show=False, main_title="Gutz Demographic Stats")
 
-        plt.show()
+            plot_lhs_summary(
+                results,
+                include_edge_cases=PLOT_EDGE_CASES_IN_LHS_PLOT,
+                show=False,
+                main_title=PLOT_MAIN_TITLE,
+            )
+            plot_edge_case_subplots(
+                results,
+                EDGE_CASE_ROI_APY_PERCENTS,
+                EDGE_CASE_CPI_APY_PERCENTS,
+                shared_y_scale=True,
+                show=False,
+                main_title=PLOT_MAIN_TITLE,
+            )
+            plot_edge_case_subplots(
+                results,
+                EDGE_CASE_ROI_APY_PERCENTS,
+                EDGE_CASE_CPI_APY_PERCENTS,
+                shared_y_scale=False,
+                show=False,
+                main_title=PLOT_MAIN_TITLE,
+            )
+
+            plt.show()
         return
 
 

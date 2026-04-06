@@ -108,7 +108,7 @@ def realized_monthly_rate(path, fallback: float) -> float:
     return float(growth ** (1.0 / months) - 1.0)
 
 
-def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | None = None, plot=True, printing=True) -> None:
+def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | None = None, plot=True, printing=True) -> dict:
     scenario, context = normalize_run_one_inputs(run_config, printing=printing)
     current_date = pd.Timestamp(context.current_date).normalize()
     if printing:

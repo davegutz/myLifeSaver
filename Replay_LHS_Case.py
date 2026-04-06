@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
 
 def list_stochastic_run_ids(csv_path: str) -> list[int]:
     """Return the sorted list of integer run_ids from the LHS CSV."""
-    df = pd.read_csv(csv_path)
+    df: pd.DataFrame = pd.read_csv(csv_path)  # type: ignore[assignment]
     df["run_id"] = df["run_id"].astype(str)
     stochastic = df[df["run_id"].apply(lambda v: str(v).isdigit())]
     return sorted(stochastic["run_id"].apply(int).tolist())
@@ -116,7 +116,7 @@ def load_scenario_from_csv(csv_path: str, run_id: int) -> tuple[LhsScenario, dic
     Returns (scenario, context_dict) where context_dict has all context fields.
     """
     # Force run_id column to string so mixed int/str CSV column is handled uniformly.
-    df = pd.read_csv(csv_path)
+    df: pd.DataFrame = pd.read_csv(csv_path)  # type: ignore[assignment]
     df["run_id"] = df["run_id"].astype(str)
 
     # Stochastic rows have purely numeric run_ids; edge-case rows start with letters.
@@ -195,10 +195,9 @@ def _format_replay_case_block(case_name: str, scenario: LhsScenario) -> str:
     return "\n".join(lines)
 
 
-def upsert_replay_case_definition(run_id: int, scenario: LhsScenario) -> Path:
-    """Insert REPLAY_CASES['REPLAY_<run_id>'] at the bottom of replay_case.py."""
-    case_name = f"REPLAY_{run_id}"
-    file_path = REPLAY_CASE_FILE
+def upsert_replay_case_definition(run_id: int, scenario: LhsScenario, file_path: Path = REPLAY_CASE_FILE, dict_name: str = "REPLAY_CASES", case_prefix: str = "REPLAY") -> Path:
+    """Insert dict_name['case_prefix_<run_id>'] at the bottom of file_path."""
+    case_name = f"{case_prefix}_{run_id}"
     if not file_path.exists():
         raise FileNotFoundError(f"Expected replay case file not found: '{file_path}'")
 
@@ -206,18 +205,18 @@ def upsert_replay_case_definition(run_id: int, scenario: LhsScenario) -> Path:
     block = _format_replay_case_block(case_name, scenario)
 
     entry_pattern = re.compile(
-        rf'(^\s*"{re.escape(case_name)}"\s*:\s*\{{\n(?:.*\n)*?^\s*\}},\n?)',
+        r'(^\s*"' + re.escape(case_name) + r'"\s*:\s*{\n(?:.*\n)*?^\s*},\n?)',
         flags=re.MULTILINE,
     )
     # Remove existing entry (if any), then always append the refreshed block at the end.
     content_wo_entry = entry_pattern.sub("", content)
-    marker = "REPLAY_CASES: dict[str, dict[str, float | int]] = {"
+    marker = f"{dict_name}: dict[str, dict[str, float | int"
     marker_index = content_wo_entry.find(marker)
     if marker_index == -1:
-        raise ValueError("Could not find REPLAY_CASES dictionary in replay_case.py")
+        raise ValueError(f"Could not find {dict_name} dictionary in {file_path}")
     close_index = content_wo_entry.find("\n}", marker_index)
     if close_index == -1:
-        raise ValueError("Could not find REPLAY_CASES closing brace in replay_case.py")
+        raise ValueError(f"Could not find {dict_name} closing brace in {file_path}")
     insertion = ("\n" if content_wo_entry[close_index - 1] != "\n" else "") + block + "\n"
     updated = content_wo_entry[:close_index] + insertion + content_wo_entry[close_index:]
 
@@ -242,7 +241,9 @@ def main() -> None:
     if args.current_date is not None:
         context_dict["current_date"] = args.current_date
 
-    current_date = pd.Timestamp(context_dict["current_date"]).normalize()
+    current_date = pd.Timestamp(context_dict["current_date"])
+    assert isinstance(current_date, pd.Timestamp), f"Invalid current_date: {args.current_date}"
+    current_date = current_date.normalize()
     context = ScenarioRunContext(
         ticker=context_dict["ticker"],
         current_date=current_date,

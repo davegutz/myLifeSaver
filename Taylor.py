@@ -123,9 +123,9 @@ class LhsScenarioSummary:
     cum_mo_exp_total_lc_norm: float
     cum_mo_exp_total_cc_norm: float
     start_pile: float
-    worth_norm_lc: int
-    worth_norm_cc: int
-    added_lc_worth_norm: int
+    worth_norm_lc: float
+    worth_norm_cc: float
+    added_lc_worth_norm: float
     yrs_il_single: float
     yrs_il_double: float
     yrs_sum_al: float

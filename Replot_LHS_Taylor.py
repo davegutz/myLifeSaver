@@ -46,35 +46,38 @@ def _fix_run_id_types(results: pd.DataFrame) -> pd.DataFrame:
     return results
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Regenerate all Run_LHS_Taylor plots from an existing CSV."
-    )
+def parse_args(
+    description: str = "Regenerate all Run_LHS_Taylor plots from an existing CSV.",
+    default_lhs_csv: str = DEFAULT_LHS_CSV,
+    default_roi_apys: list[float] = EDGE_CASE_ROI_APY_PERCENTS,
+    default_cpi_apys: list[float] = EDGE_CASE_CPI_APY_PERCENTS,
+) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "--lhs-csv",
-        default=DEFAULT_LHS_CSV,
-        help=f"Path to the LHS results CSV produced by Run_LHS_Taylor.py. Default: {DEFAULT_LHS_CSV}",
+        default=default_lhs_csv,
+        help=f"Path to the LHS results CSV. Default: {default_lhs_csv}",
     )
     parser.add_argument(
         "--roi-apys",
         nargs="+",
         type=float,
-        default=EDGE_CASE_ROI_APY_PERCENTS,
+        default=default_roi_apys,
         metavar="PCT",
         help=(
             "ROI APY %% values that identify edge-case subplots. "
-            f"Default (from Run_LHS_Taylor): {EDGE_CASE_ROI_APY_PERCENTS}"
+            f"Default: {default_roi_apys}"
         ),
     )
     parser.add_argument(
         "--cpi-apys",
         nargs="+",
         type=float,
-        default=EDGE_CASE_CPI_APY_PERCENTS,
+        default=default_cpi_apys,
         metavar="PCT",
         help=(
             "CPI APY %% values that identify edge-case subplots. "
-            f"Default (from Run_LHS_Taylor): {EDGE_CASE_CPI_APY_PERCENTS}"
+            f"Default: {default_cpi_apys}"
         ),
     )
     parser.add_argument(
@@ -92,7 +95,7 @@ def main() -> None:
     cpi_apys: list[float] = args.cpi_apys
 
     print(f"Loading '{args.lhs_csv}' ...")
-    results = pd.read_csv(args.lhs_csv)
+    results: pd.DataFrame = pd.read_csv(args.lhs_csv)  # type: ignore[assignment]
     results = _fix_run_id_types(results)
     n_lhs = results["run_id"].apply(lambda v: isinstance(v, int)).sum()
     n_edge = results["run_id"].apply(lambda v: isinstance(v, str)).sum()
@@ -118,8 +121,6 @@ def main() -> None:
     plot_lhs_summary(
         results,
         include_edge_cases=include_edge,
-        roi_apy_percents=roi_apys,
-        cpi_apy_percents=cpi_apys,
         show=False,
     )
 
