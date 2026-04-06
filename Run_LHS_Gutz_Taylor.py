@@ -11,17 +11,18 @@ The centerpoint scenario and ranges are defined below; modify them to explore di
 regions of the scenario space.
 """
 
-
 # User inputs
 #  To force the probability both man and woman go to AL instead of dying right away
 force_al = False
-plotting = False
-DEFAULT_LHS_POINTS = 1
+plotting = True
+LIFE_PARAM_VARIATION = 0.5 # For life parameters, use ±50% range around centerpoint (0.5)
+DEFAULT_LHS_POINTS = 200
 
+
+import argparse
 from Run_LHS_Taylor import (
     _lc_norm_total,
     add_lifecare_reference_line,
-    parse_args,
     print_screen_row,
     sample_lhs_points,
     scale_lhs_column,
@@ -60,11 +61,12 @@ from Center_LHS_Gutz_Taylor import (
 )
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
+    DEFAULT_SEED,
+    DEFAULT_CURRENT_DATE,
     HISTORY_YEARS,
     MAN_DOB,
     P_MAN_AL,
     P_WOMAN_AL,
-
     START_CLOCK,
     WOMAN_DOB,
     apy_percent_to_monthly_fraction,
@@ -73,7 +75,7 @@ from edges import build_replay_case_scenarios_gutz, format_apy_suffix
 from lhs_plotting import plot_lhs_figure1, plot_lhs_figure2_worth_subplots
 from Taylor import LhsScenario, ScenarioRunContext
 from utils import evaluate_lhs_scenario
-
+from Roi import TICKER
 
 
 # ============================================================================
@@ -95,7 +97,6 @@ from utils import evaluate_lhs_scenario
 # LHS VARIATION RANGES (±% around centerpoint for life parameters)
 # ============================================================================
 # For life parameters, use ±50% range around centerpoint
-LIFE_PARAM_VARIATION = 0.50
 MAN_INDEPENDENT_YRS_RANGE = (
     CENTERPOINT_MAN_INDEPENDENT_YRS * (1.0 - LIFE_PARAM_VARIATION),
     CENTERPOINT_MAN_INDEPENDENT_YRS * (1.0 + LIFE_PARAM_VARIATION),
@@ -321,6 +322,36 @@ def plot_gutz_lhs_worth_subplots(results: pd.DataFrame, show: bool = True) -> tu
         annotation_formatter=_format_gutz_figure1_annotation,
         show=show,
     )
+
+
+def parse_args(
+    description: str = "Monte Carlo monthly ROI projection anchored to historical long-run growth.",
+    default_ticker: str = TICKER,
+    default_seed: int = DEFAULT_SEED,
+    default_current_date: str = DEFAULT_CURRENT_DATE,
+    default_lhs_points: int = DEFAULT_LHS_POINTS,
+    default_lhs_output: str = "lhs_taylor_results.csv",
+) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--ticker", default=default_ticker, help=f"Ticker symbol to download, default: {default_ticker}")
+    parser.add_argument("--seed", type=int, default=default_seed, help=f"RNG seed, default: {default_seed}")
+    parser.add_argument(
+        "--current-date",
+        default=default_current_date,
+        help=f"Historical data cutoff date in YYYY-MM-DD, default: {default_current_date}",
+    )
+    parser.add_argument(
+        "--lhs-points",
+        type=int,
+        default=default_lhs_points,
+        help=f"Run a Latin hypercube sample with this many points. Default: {default_lhs_points}",
+    )
+    parser.add_argument(
+        "--lhs-output",
+        default=default_lhs_output,
+        help=f"CSV output path for LHS runs. Default: {default_lhs_output}",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
