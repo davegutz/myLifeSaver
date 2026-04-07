@@ -18,7 +18,8 @@ MAN_DOB = "1957-07-26"
 WOMAN_DOB = "1956-04-11"
 PILE_AT_START = 6300000.0
 NON_TAYLOR_2 = 9612.0 / 2.0
-NON_TAYLOR_1 = 5492.0
+NON_TAYLOR_1_1 = 5492.0
+NON_TAYLOR_1_2 = 5492.0
 ENTRANCE_FEE_CC = 481000.
 ENTRANCE_FEE_LC = 900000.
 SS_MAN = 3445.       # monthly Social Security income (grows with CPI)
@@ -26,14 +27,22 @@ SS_WOMAN = 2667.     # monthly Social Security income (grows with CPI)
 PEN_MAN = 5705.      # monthly pension income (fixed nominal)
 PEN_WOMAN = 1552.    # monthly pension income (fixed nominal)
 
-AL_CC_1 = 9200.
-AL_CC_2 = 13500. / 2.
-CC_1 = 3550.
+CC_1_1 = 3550.
+CC_1_2 = 0.
 CC_2 = 3750. / 2.
-LC_1 = 9600.
-LC_2 = LC_1 / 2.
-AL_LC_1 = 9600.0
-AL_LC_2 = AL_LC_1 / 2.0
+
+AL_CC_1_1 = 10000.
+AL_CC_1_2 = 0.
+AL_CC_2 = 13500. / 2.
+
+LC_1_1 = 8100.
+LC_1_2 = 0.
+LC_2 = 9600. / 2.
+
+AL_LC_1_1 = 8100.
+AL_LC_1_2 = 0.
+AL_LC_2 = 9600. / 2.
+
 # CONSTANT_ROI_APY_PERCENT = 10.0
 # CONSTANT_CPI_APY_PERCENT = 5.0
 # CONSTANT_MONTHLY_ROI: float | None = apy_percent_to_monthly_fraction(CONSTANT_ROI_APY_PERCENT)

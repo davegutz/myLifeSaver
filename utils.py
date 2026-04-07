@@ -46,10 +46,10 @@ def plot_taylor_life_exp_non_taylor(this_life: "TaylorLife", show: bool = True) 
         this_life.calc_result()
 
     dates = pd.DatetimeIndex(this_life.dates)
-    num_il = np.asarray(this_life.num_il_1, dtype=float) + np.asarray(this_life.num_il_2, dtype=float)
-    num_al = np.asarray(this_life.num_al_1, dtype=float) + np.asarray(this_life.num_al_2, dtype=float)
+    num_il = np.asarray(this_life.num_il_1_2, dtype=float) + np.asarray(this_life.num_il_2, dtype=float)
+    num_al = np.asarray(this_life.num_al_1_2, dtype=float) + np.asarray(this_life.num_al_1_2, dtype=float) + np.asarray(this_life.num_al_2, dtype=float)
     num_non_taylor = (
-        np.asarray(this_life.num_non_taylor_1, dtype=float) + np.asarray(this_life.num_non_taylor_2, dtype=float)
+        np.asarray(this_life.num_non_taylor_1_1, dtype=float) + np.asarray(this_life.num_non_taylor_2, dtype=float)
     )
 
     figure, axes = plt.subplots(
