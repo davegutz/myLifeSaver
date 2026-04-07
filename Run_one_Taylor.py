@@ -3,6 +3,14 @@ from dataclasses import asdict
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from Center_LHS_Gutz_Taylor import (
+    CENTERPOINT_MAN_ASSISTED_YRS,
+    CENTERPOINT_WOMAN_ASSISTED_YRS,
+    CENTERPOINT_MAN_INDEPENDENT_YRS,
+    CENTERPOINT_WOMAN_INDEPENDENT_YRS,
+    CENTERPOINT_CONSTANT_MONTHLY_ROI,
+    CENTERPOINT_CONSTANT_MONTHLY_CPI,
+)
 from Inflation import plot_inflation_views
 from Roi import TICKER, plot_projection_views
 from Taylor import LhsScenario, ScenarioRunContext
@@ -34,6 +42,9 @@ from default_case import (
 )
 from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
+# User inputs
+plot = False
+FORCE_AL_CERTAINTY = True
 
 RUN_ONE_CASE_NAME: str | None = None  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 # RUN_ONE_CASE_NAME: str | None = 'RUN_ONE_PRESENT'  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
@@ -168,9 +179,11 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("yrs al double", min(this_life.man_assisted_yrs, this_life.woman_assisted_yrs),
                           min(this_life.man_assisted_yrs, this_life.woman_assisted_yrs)),
         ("AL_CC_2", this_life.initial_al_cc_2 * 12.0, 0.0),
+        ("AL_LC_2", 0.0, this_life.initial_al_lc_2 * 12.0),
         ("yrs al single", abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs),
                           abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs)),
         ("AL_CC_1", this_life.initial_al_cc_1 * 12.0, 0.0),
+        ("AL_LC_1", 0.0, this_life.initial_al_lc_1 * 12.0),
         ("exp_entrance_fee_cc", this_life.entrance_fee_cc, 0.0),
         ("exp_entrance_fee_lc", 0.0, this_life.entrance_fee_lc),
         ("SS_MAN mo", this_life.ss_man, this_life.ss_man),
@@ -281,6 +294,8 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cum_mo_exp_cc_norm': this_life.cum_mo_exp_cc_norm,
         'mo_exp_al_cc_norm': this_life.mo_exp_al_cc_norm,
         'cum_mo_exp_al_cc_norm': this_life.cum_mo_exp_al_cc_norm,
+        'mo_exp_al_lc_norm': this_life.mo_exp_al_lc_norm,
+        'cum_mo_exp_al_lc_norm': this_life.cum_mo_exp_al_lc_norm,
         'mo_exp_non_taylor_norm': this_life.mo_exp_non_taylor_norm,
         'cum_mo_exp_non_taylor_norm': this_life.cum_mo_exp_non_taylor_norm,
         'mo_exp_total_lc_norm': this_life.mo_exp_total_lc_norm,
@@ -290,7 +305,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'worth_norm_cc': [worth_norm_cc] * len(this_life.dates),
         'worth_norm_lc': [worth_norm_lc] * len(this_life.dates),
     })
-    df.to_csv('taylor_life_monthly.csv', index=False)
+    df.to_csv('one_taylor_results.csv', index=False)
     
     if roi.return_frame is None:
         raise ValueError("ROI history was not loaded during projection.")
@@ -319,6 +334,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         "cum_mo_earn_lc_norm": _last(this_life.cum_mo_earn_lc_norm)/1e6,
         "cum_mo_earn_total_lc_norm": _last(this_life.cum_mo_earn_lc_norm)/1e6,
         "cum_mo_exp_lc_norm": _last(this_life.cum_mo_exp_lc_norm)/1e6,
+        "cum_mo_exp_al_lc_norm": _last(this_life.cum_mo_exp_al_lc_norm)/1e6,
         "cum_mo_exp_total_lc_norm": _last(this_life.cum_mo_exp_total_lc_norm)/1e6,
         "worth_norm_lc": worth_norm_lc/1e6,
     }
@@ -354,17 +370,24 @@ def configurate_base_run(args):
     return base_run_config
 
 
-def configurate_local_run(yrs_al_total=0., roi_fixed=4., cpi_fixed=4., yrs_il_man=10., yrs_il_woman=8.8):
+def configurate_local_run(roi_fixed=CENTERPOINT_CONSTANT_MONTHLY_ROI, cpi_fixed=CENTERPOINT_CONSTANT_MONTHLY_CPI,
+                          yrs_il_man=CENTERPOINT_MAN_INDEPENDENT_YRS, yrs_il_woman=CENTERPOINT_WOMAN_INDEPENDENT_YRS,
+                          yrs_al_man=CENTERPOINT_MAN_ASSISTED_YRS,  yrs_al_woman=CENTERPOINT_WOMAN_ASSISTED_YRS,
+                          force_al_certainty=None):
+    if force_al_certainty:  # forcing P=1 and compensating here
+        yrs_al_man *= P_MAN_AL
+        yrs_al_woman *= P_WOMAN_AL
+
     local_run_overrides = {
         "scenario": {
             "man_independent_yrs": yrs_il_man,  # google age men enter al - current age
             "woman_independent_yrs": yrs_il_woman,  # google age women enter al - current age
-            "man_assisted_yrs": yrs_al_total/2,  # google men in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 man_goes_to_al = T
-            "woman_assisted_yrs": yrs_al_total/2,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
+            "man_assisted_yrs": yrs_al_man,  # google men in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 man_goes_to_al = T
+            "woman_assisted_yrs": yrs_al_woman,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
             "roi_seed": 740264,
             "inflation_seed": 898910,
-            "man_goes_to_al": True,  # Uncomment this to force True
-            "woman_goes_to_al": True,  # Uncomment this to force True
+            "man_goes_to_al": force_al_certainty,
+            "woman_goes_to_al": force_al_certainty,
             "roi_mean_shift": 0.0080464851559136,
             "inflation_mean_shift": -0.00459579542225717,
         },
@@ -393,10 +416,10 @@ def main() -> None:
 
     # Hand-edit these local overrides as your normal workflow.
     # Precedence is: base defaults -> named default case -> local overrides.
-    local_run_overrides = configurate_local_run(yrs_al_total=0., roi_fixed=4., cpi_fixed=4., yrs_il_man=8., yrs_il_woman=10.)
+    local_run_overrides = configurate_local_run(force_al_certainty=FORCE_AL_CERTAINTY)
 
     run_config = merge_run_config(base_run_config, case_run_config, local_run_overrides)
-    run_one(run_config=run_config, active_case_name=active_case_name)
+    run_one(run_config=run_config, active_case_name=active_case_name, plot=plot)
 
 
 if __name__ == "__main__":

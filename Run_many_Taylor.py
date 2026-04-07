@@ -239,7 +239,7 @@ def main() -> None:
             f" |,"
             f" {r['entrance_fee_lc']:6.3f},"
             f" {r['cum_mo_exp_lc_norm']:6.3f},"
-            f" 0.,"  # al_lc
+            f" {r['cum_mo_exp_al_lc_norm']:6.3f},"
             f" {r['cum_mo_exp_non_taylor_norm']:6.3f},"
             f" |,"
             f" {r['cum_mo_exp_total_lc_norm']:6.3f},"

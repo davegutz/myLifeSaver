@@ -8,6 +8,8 @@ from default_case import (
     CC_INFLATION_FACTOR,
     AL_CC_1,
     AL_CC_2,
+    AL_LC_1,
+    AL_LC_2,
     AL_ESC_RUNNING_AVG_YRS,
     CC_1,
     CC_2,
@@ -97,6 +99,7 @@ class LhsScenarioSummary:
     man_age_at_death: float
     woman_age_at_death: float
     exp_norm_al_cc: float
+    exp_norm_al_lc: float
     exp_norm_cc: float
     exp_norm_lc: float
     exp_norm_non_taylor: float
@@ -119,6 +122,7 @@ class LhsScenarioSummary:
     cum_mo_exp_lc_norm: float
     cum_mo_exp_cc_norm: float
     cum_mo_exp_al_cc_norm: float
+    cum_mo_exp_al_lc_norm: float
     cum_mo_exp_non_taylor_norm: float
     cum_mo_exp_total_lc_norm: float
     cum_mo_exp_total_cc_norm: float
@@ -174,6 +178,8 @@ class TaylorLife:
         worth_at_start: float = PILE_AT_START,
         al_cc_2: float = AL_CC_2,
         al_cc_1: float = AL_CC_1,
+        al_lc_2: float = AL_LC_2,
+        al_lc_1: float = AL_LC_1,
         cc_2: float = CC_2,
         cc_1: float = CC_1,
         lc_2: float = LC_2,
@@ -220,6 +226,8 @@ class TaylorLife:
         self.woman_goes_to_al = woman_goes_to_al
         self.initial_al_cc_2 = al_cc_2
         self.initial_al_cc_1 = al_cc_1
+        self.initial_al_lc_2 = al_lc_2
+        self.initial_al_lc_1 = al_lc_1
         self.initial_cc_2 = cc_2
         self.initial_cc_1 = cc_1
         self.initial_lc_2 = lc_2
@@ -270,6 +278,8 @@ class TaylorLife:
         self.cum_mo_exp_cc_norm: list[float] = []
         self.mo_exp_al_cc_norm: list[float] = []
         self.cum_mo_exp_al_cc_norm: list[float] = []
+        self.mo_exp_al_lc_norm: list[float] = []
+        self.cum_mo_exp_al_lc_norm: list[float] = []
         self.mo_exp_non_taylor_norm: list[float] = []
         self.cum_mo_exp_non_taylor_norm: list[float] = []
         self.mo_exp_total_lc_norm: list[float] = []
@@ -296,6 +306,12 @@ class TaylorLife:
         self.exp_al_cc = 0.0
         self.exp_al_cc_history: list[float] = []
         self.exp_norm_al_cc: list[float] = []
+        self.al_lc_2 = al_lc_2
+        self.al_lc_1 = al_lc_1
+        self.mo_al_lc_del_2 = 0.0
+        self.mo_al_lc_del_1 = 0.0
+        self.mo_al_lc = 0.0
+        self.exp_al_lc = 0.0
         self.exp_al_lc_history: list[float] = []
         self.exp_norm_al_lc: list[float] = []
         self.cc_2 = cc_2
@@ -486,8 +502,13 @@ class TaylorLife:
         non_taylor_active = (
             np.array(self.num_non_taylor_1, dtype=float) + np.array(self.num_non_taylor_2, dtype=float) > 0.0
         )
-        self.exp_al_lc_history = np.zeros(len(inflation_cum), dtype=float).tolist()
-        self.exp_norm_al_lc = np.zeros(len(inflation_cum), dtype=float).tolist()
+        self.exp_al_lc_history = self.build_expense_history(
+            self.initial_al_lc_2,
+            self.initial_al_lc_1,
+            self.num_al_2,
+            self.num_al_1,
+            inflation_factor=AL_INFLATION_FACTOR,
+        )
         self.exp_total_cc_history = (
             np.asarray(self.exp_cc_history, dtype=float)
             + np.asarray(self.exp_non_taylor_history, dtype=float)
@@ -551,6 +572,7 @@ class TaylorLife:
         self.mo_exp_lc_norm, self.cum_mo_exp_lc_norm = self._monthly_norm(np.asarray(self.exp_lc_history, dtype=float), inflation_cum)
         self.mo_exp_cc_norm, self.cum_mo_exp_cc_norm = self._monthly_norm(np.asarray(self.exp_cc_history, dtype=float), inflation_cum)
         self.mo_exp_al_cc_norm, self.cum_mo_exp_al_cc_norm = self._monthly_norm(np.asarray(self.exp_al_cc_history, dtype=float), inflation_cum)
+        self.mo_exp_al_lc_norm, self.cum_mo_exp_al_lc_norm = self._monthly_norm(np.asarray(self.exp_al_lc_history, dtype=float), inflation_cum)
         self.mo_exp_non_taylor_norm, self.cum_mo_exp_non_taylor_norm = self._monthly_norm(np.asarray(self.exp_non_taylor_history, dtype=float), inflation_cum)
         self.mo_exp_total_lc_norm, self.cum_mo_exp_total_lc_norm = self._monthly_norm(np.asarray(self.exp_total_lc_history, dtype=float), inflation_cum)
         self.mo_exp_total_cc_norm, self.cum_mo_exp_total_cc_norm = self._monthly_norm(np.asarray(self.exp_total_cc_history, dtype=float), inflation_cum)
@@ -576,6 +598,7 @@ class TaylorLife:
             self.worth_norm_cc = float(self.worth_norm_cc_history[-1])
 
         self.exp_norm_al_cc = self.normalize_history(self.exp_al_cc_history, al_active, inflation_cum)
+        self.exp_norm_al_lc = self.normalize_history(self.exp_al_lc_history, al_active, inflation_cum)
         self.exp_norm_cc = self.normalize_history(self.exp_cc_history, il_active, inflation_cum)
         self.exp_norm_lc = self.normalize_history(self.exp_lc_history, il_active, inflation_cum)
         self.exp_norm_non_taylor = self.normalize_history(
@@ -601,7 +624,7 @@ class TaylorLife:
         ]
         self.exp_norm_total_lc = [
             v + self.entrance_fee_lc
-            for v in self.normalize_history(exp_ongoing_lc.tolist(), il_active | non_taylor_active, inflation_cum)
+            for v in self.normalize_history(exp_ongoing_lc.tolist(), il_active | al_active | non_taylor_active, inflation_cum)
         ]
 
         result = int(self.worth_lc), int(self.worth_norm_lc), int(self.worth_cc), int(self.worth_norm_cc)

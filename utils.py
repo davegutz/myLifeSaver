@@ -62,6 +62,7 @@ def plot_taylor_life_exp_non_taylor(this_life: "TaylorLife", show: bool = True) 
     axis_top, axis_bottom = axes
     axis_top.plot(dates, this_life.exp_norm_non_taylor, linewidth=2.0, label="exp_norm_non_taylor")
     axis_top.plot(dates, this_life.exp_norm_al_cc, linewidth=2.0, label="exp_norm_al_cc")
+    axis_top.plot(dates, this_life.exp_norm_al_lc, linewidth=2.0, label="exp_norm_al_lc")
     axis_top.plot(dates, this_life.exp_norm_cc, linewidth=2.0, label="exp_norm_cc")
     axis_top.plot(dates, this_life.exp_norm_lc, linewidth=2.0, label="exp_norm_lc")
     axis_top.plot(dates, this_life.exp_norm_total_cc, linewidth=4.0, label="exp_norm_total_cc")

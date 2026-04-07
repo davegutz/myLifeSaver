@@ -26,12 +26,14 @@ SS_WOMAN = 2667.     # monthly Social Security income (grows with CPI)
 PEN_MAN = 5705.      # monthly pension income (fixed nominal)
 PEN_WOMAN = 1552.    # monthly pension income (fixed nominal)
 
-AL_CC_1 = 9200.0
-AL_CC_2 = AL_CC_1 * 2.0
-CC_1 = 3150.0
-CC_2 = 3750.0 / 2.0
-LC_1 = 8100.0
-LC_2 = 9600.0 / 2.0
+AL_CC_1 = 9200.
+AL_CC_2 = 13500. / 2.
+CC_1 = 3550.
+CC_2 = 3750. / 2.
+LC_1 = 9600.
+LC_2 = LC_1 / 2.
+AL_LC_1 = 9600.0
+AL_LC_2 = AL_LC_1 / 2.0
 # CONSTANT_ROI_APY_PERCENT = 10.0
 # CONSTANT_CPI_APY_PERCENT = 5.0
 # CONSTANT_MONTHLY_ROI: float | None = apy_percent_to_monthly_fraction(CONSTANT_ROI_APY_PERCENT)
@@ -42,8 +44,8 @@ AL_INFLATION_FACTOR = 2.0   # AL escalates at 2x inflation
 CC_INFLATION_FACTOR = 1.5   # CC escalates at 1.5x inflation
 P_MAN_AL = 0.7
 P_WOMAN_AL = 0.7
-# P_MAN_AL = 1.  # disable the Pal logic
-# P_WOMAN_AL = 1.  # disable the Pal logic
+# P_MAN_AL = 1.  # disable the Pal logic and force to go according to dod
+# P_WOMAN_AL = 1.  # disable the Pal logic and force to go according to dod
 
 # To be varied
 MAN_INDEPENDENT_YRS = 10.
