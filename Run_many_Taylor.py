@@ -1,5 +1,7 @@
 import argparse
 import matplotlib.pyplot as plt
+
+from Center_LHS_Gutz_Taylor import CENTERPOINT_MAN_ASSISTED_YRS, CENTERPOINT_WOMAN_ASSISTED_YRS
 from Roi import TICKER
 from Run_one_Taylor import configurate_local_run, configurate_base_run, run_one, merge_run_config
 from default_case import (
@@ -9,7 +11,8 @@ from default_case import (
     load_default_case,
 )
 
-
+# User inputs
+plots = True
 RUN_ONE_CASE_NAME: str | None = None  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 # RUN_ONE_CASE_NAME: str | None = 'RUN_ONE_PRESENT'  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 
@@ -87,70 +90,71 @@ def main() -> None:
             "context": case_context_kwargs,
         }
 
-    # yrs_il_w, yrs_il_m = [15, 13.]
-    yrs_il_woman, yrs_il_man = [10, 8.8]
-    # yrs_il_w, yrs_il_m = [5, 4.4]
+    # yrs_il_man, yrs_il_woman = [15, 13.]
+    yrs_il_man, yrs_il_woman = [10, 8.8]
+    # yrs_il_man, yrs_il_woman = [5, 4.4]
     ins = [
-        [0, 8, 4],
-        [1, 8, 4],
-        [2, 8, 4],
-        [4, 8, 4],
-        [8, 8, 4],
-        [16, 8, 4],
-        [0, 4, 4],
-        [1, 4, 4],
-        [2, 4, 4],
-        [4, 4, 4],
-        [8, 4, 4],
-        [16, 4, 4],
-        [0, 2, 4],
-        [1, 2, 4],
-        [2, 2, 4],
-        [4, 2, 4],
-        [8, 2, 4],
-        [16, 2, 4],
-        [0, 0, 4],
-        [1, 0, 4],
-        [2, 0, 4],
-        [4, 0, 4],
-        [8, 0, 4],
-        [16, 0, 4],
-        [0, 0, 0],
-        [1, 0, 0],
-        [2, 0, 0],
-        [0, 0, 0],
-        [8, 0, 0],
-        [16, 0, 0],
-        [0, 4, 0],
-        [1, 4, 0],
-        [2, 4, 0],
-        [4, 4, 0],
-        [8, 4, 0],
-        [16, 4, 0],
-        [0, 4, 8],
-        [1, 4, 8],
-        [2, 4, 8],
-        [4, 8, 4],
-        [8, 4, 8],
-        [16, 4, 8],
-        [0, 4, 2],
-        [1, 4, 2],
-        [2, 4, 2],
-        [4, 2, 4],
-        [8, 4, 2],
-        [16, 4, 2],
+        # [0, 0, 8, 4],
+        # [0.5, 0.5, 8, 4],
+        # [1, 1, 8, 4],
+        # [2, 2, 8, 4],
+        # [4, 4, 8, 4],
+        # [8, 8, 8, 4],
+        # [0, 4, 4],
+        # [0.5, 0.5, 4, 4],
+        # [1, 1, 4, 4],
+        # [2, 2, 4, 4],
+        # [4, 4, 4, 4],
+        # [8, 8, 4, 4],
+        # [0, 2, 4],
+        # [0.5, 0.5, 2, 4],
+        # [1, 1, 2, 4],
+        # [2, 2, 2, 4],
+        # [4, 4, 2, 4],
+        # [8, 8, 2, 4],
+        # [0, 0, 4],
+        # [0.5, 0.5, 0, 4],
+        # [1, 1, 0, 4],
+        # [2, 2, 0, 4],
+        # [4, 4, 0, 4],
+        # [8, 8, 0, 4],
         # [0, 0, 0],
+        # [0.5, 0.5, 0, 0],
+        # [1, 1, 0, 0],
+        # [0, 0, 0],
+        # [4, 4, 0, 0],
+        # [8, 8, 0, 0],
+        # [0, 4, 0],
+        # [0.5, 0.5, 4, 0],
+        # [1, 1, 4, 0],
+        # [2, 2, 4, 0],
+        # [4, 4, 4, 0],
+        # [8, 8, 4, 0],
+        # [0, 4, 8],
+        # [0.5, 0.5, 4, 8],
+        # [1, 1, 4, 8],
+        # [2, 2, 8, 4],
+        # [4, 4, 4, 8],
+        # [8, 8, 4, 8],
+        # [0, 4, 2],
+        # [0.5, 0.5, 4, 2],
+        # [1, 1, 4, 2],
+        # [2, 2, 2, 4],
+        # [4, 4, 4, 2],
+        # [8, 8, 4, 2],
+        [CENTERPOINT_MAN_ASSISTED_YRS, CENTERPOINT_WOMAN_ASSISTED_YRS, 4, 4],
     ]
 
     cc_worth_norm = []
     results = []
     csv_file = open('run_many_taylor.csv', 'w')
     header = (
-        f"yrs_al_total,"
         f"roi_fixed,"
         f"cpi_fixed,"
         f"yrs_il_man,"
         f"yrs_il_woman,"
+        f"yrs_al_man,"
+        f"yrs_al_woman,"
         f"yrs_al_total,"
 
         f" |*|,"
@@ -193,20 +197,22 @@ def main() -> None:
     )
     print(header)
     csv_file.write(header + "\n")
-    for [yrs_al_total, roi_fixed, cpi_fixed] in ins:
-        local_run_overrides = configurate_local_run(yrs_al_total=yrs_al_total, roi_fixed=roi_fixed, cpi_fixed=cpi_fixed,
-                                                    yrs_il_man=yrs_il_man, yrs_il_woman=yrs_il_woman)
+    for [yrs_al_man, yrs_al_woman, roi_fixed, cpi_fixed] in ins:
+        local_run_overrides = configurate_local_run(roi_fixed=roi_fixed, cpi_fixed=cpi_fixed,
+                                                    yrs_il_man=yrs_il_man, yrs_il_woman=yrs_il_woman,
+                                                    yrs_al_man=yrs_al_man, yrs_al_woman=yrs_al_woman)
         run_config = merge_run_config(base_run_config, case_run_config, local_run_overrides)
-        r = run_one(run_config=run_config, active_case_name=active_case_name, plot=False, printing=False)
+        r = run_one(run_config=run_config, active_case_name=active_case_name, plot=False, printing=True)
 
 
         row = (
-            f" {yrs_al_total:2d},"
             f" {roi_fixed:6.3f},"
             f" {cpi_fixed:6.3f},"
             f" {yrs_il_man:5.2f},"
             f" {yrs_il_woman:5.2f},"
-            f" {yrs_al_total:5.2f},"
+            f" {yrs_al_man:5.2f},"
+            f" {yrs_al_woman:5.2f},"
+            f" {yrs_al_man+yrs_al_woman:5.2f},"
 
             f" |*|,"
             f" {r['start_pile']:6.3f},"
@@ -250,9 +256,11 @@ def main() -> None:
         csv_file.write(row + "\n")
         cc_worth_norm.append(0)
         results.append({
-            "yrs_al_total": yrs_al_total,
             "roi_fixed": roi_fixed,
             "cpi_fixed": cpi_fixed,
+            "yrs_al_man": yrs_al_man,
+            "yrs_al_woman": yrs_al_woman,
+            "yrs_al_total": yrs_al_man + yrs_al_woman,
             "yrs_il_man": yrs_il_man,
             "yrs_il_woman": yrs_il_woman,
             "worth_norm_cc": r["worth_norm_cc"],
@@ -260,7 +268,8 @@ def main() -> None:
         })
     csv_file.close()
     print(f"\nResults written to run_many_taylor.csv")
-    plot_run_many(results, titl=f"   {max(yrs_il_woman, yrs_il_man)} yrs Independent Living" + f" ${PILE_AT_START/1e6}M start")
+    if plots:
+        plot_run_many(results, titl=f"   {max(yrs_il_woman, yrs_il_man)} yrs Independent Living" + f" ${PILE_AT_START/1e6}M start")
 
 if __name__ == "__main__":
     main()

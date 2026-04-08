@@ -388,9 +388,9 @@ def configurate_local_run(roi_fixed: float | None = CENTERPOINT_CONSTANT_MONTHLY
         roi_fixed = CENTERPOINT_CONSTANT_MONTHLY_ROI
     if cpi_fixed is None:
         cpi_fixed = CENTERPOINT_CONSTANT_MONTHLY_ROI
-    if force_al_certainty:  # forcing P=1 and compensating here
-        yrs_al_man *= P_MAN_AL
-        yrs_al_woman *= P_WOMAN_AL
+    # if force_al_certainty:  # forcing P=1 and compensating here
+    #     yrs_al_man *= P_MAN_AL
+    #     yrs_al_woman *= P_WOMAN_AL
 
     local_run_overrides = {
         "scenario": {
