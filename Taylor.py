@@ -6,6 +6,12 @@ import pandas as pd
 from default_case import (
     AL_INFLATION_FACTOR,
     CC_INFLATION_FACTOR,
+    CONSTANT_MONTHLY_SURCHARGES_CC,
+    CONSTANT_MONTHLY_SURCHARGES_LC,
+    ENTRANCE_FEE_CC_REFUND_INITIAL_FRACTION,
+    ENTRANCE_FEE_CC_REFUND_DECAY_RATE,
+    ENTRANCE_FEE_LC_REFUND_INITIAL_FRACTION,
+    ENTRANCE_FEE_LC_REFUND_DECAY_RATE,
     AL_CC_1_1,
     AL_CC_1_2,
     AL_CC_2,
@@ -118,6 +124,8 @@ class LhsScenarioSummary:
     cum_mo_earn_cc_norm: float
     cum_mo_earn_inv_lc_norm: float
     cum_mo_earn_inv_cc_norm: float
+    earn_refund_cc_norm: float
+    earn_refund_lc_norm: float
     cum_mo_earn_ss_man_norm: float
     cum_mo_earn_ss_woman_norm: float
     cum_mo_earn_ss_norm: float
@@ -198,6 +206,8 @@ class TaylorLife:
         non_taylor_1_2: float = NON_TAYLOR_1_2,
         entrance_fee_cc: float = ENTRANCE_FEE_CC,
         entrance_fee_lc: float = ENTRANCE_FEE_LC,
+        surcharges_cc: float = CONSTANT_MONTHLY_SURCHARGES_CC,
+        surcharges_lc: float = CONSTANT_MONTHLY_SURCHARGES_LC,
         ss_man: float = SS_MAN,
         ss_woman: float = SS_WOMAN,
         pen_man: float = PEN_MAN,
@@ -251,6 +261,8 @@ class TaylorLife:
         self.initial_non_taylor_1_2 = non_taylor_1_2
         self.entrance_fee_cc = entrance_fee_cc
         self.entrance_fee_lc = entrance_fee_lc
+        self.surcharges_cc = surcharges_cc
+        self.surcharges_lc = surcharges_lc
         self.ss_man = ss_man
         self.ss_woman = ss_woman
         self.pen_man = pen_man
@@ -287,6 +299,12 @@ class TaylorLife:
         self.cum_mo_earn_pen_woman_norm: list[float] = []
         self.mo_earn_pen_norm: list[float] = []
         self.cum_mo_earn_pen_norm: list[float] = []
+        self.earn_refund_cc_norm: float = 0.0
+        self.earn_refund_lc_norm: float = 0.0
+        self.mo_earn_refund_cc_norm: list[float] = []
+        self.cum_mo_earn_refund_cc_norm: list[float] = []
+        self.mo_earn_refund_lc_norm: list[float] = []
+        self.cum_mo_earn_refund_lc_norm: list[float] = []
         self.mo_exp_lc_norm: list[float] = []
         self.cum_mo_exp_lc_norm: list[float] = []
         self.mo_exp_cc_norm: list[float] = []
@@ -605,12 +623,26 @@ class TaylorLife:
         pen_mo = pen_man_mo + pen_woman_mo
         self.mo_earn_pen_norm = pen_mo.tolist()
         self.cum_mo_earn_pen_norm = np.cumsum(pen_mo).tolist()
+        # Entrance fee refund: lump sum at final time step, normalized by terminal inflation
+        elapsed_time_yrs = float((pd.Timestamp(self.dates[-1]) - self.start_clock).days / 365.2425)
+        earn_refund_cc = max(0.0, self.entrance_fee_cc * (ENTRANCE_FEE_CC_REFUND_INITIAL_FRACTION - ENTRANCE_FEE_CC_REFUND_DECAY_RATE * elapsed_time_yrs))
+        earn_refund_lc = max(0.0, self.entrance_fee_lc * (ENTRANCE_FEE_LC_REFUND_INITIAL_FRACTION - ENTRANCE_FEE_LC_REFUND_DECAY_RATE * elapsed_time_yrs))
+        self.earn_refund_cc_norm = earn_refund_cc / float(inflation_cum[-1])
+        self.earn_refund_lc_norm = earn_refund_lc / float(inflation_cum[-1])
+        mo_earn_refund_cc_norm = np.zeros(n)
+        mo_earn_refund_cc_norm[-1] = self.earn_refund_cc_norm
+        mo_earn_refund_lc_norm = np.zeros(n)
+        mo_earn_refund_lc_norm[-1] = self.earn_refund_lc_norm
+        self.mo_earn_refund_cc_norm = mo_earn_refund_cc_norm.tolist()
+        self.cum_mo_earn_refund_cc_norm = np.cumsum(mo_earn_refund_cc_norm).tolist()
+        self.mo_earn_refund_lc_norm = mo_earn_refund_lc_norm.tolist()
+        self.cum_mo_earn_refund_lc_norm = np.cumsum(mo_earn_refund_lc_norm).tolist()
         # Actual earnings norm base (used for worth reconstruction in cum_mo_earn_norm)
         mo_earn_lc_norm_base, _ = self._monthly_norm(earn_lc_history, inflation_cum)
         mo_earn_cc_norm_base, _ = self._monthly_norm(earn_cc_history, inflation_cum)
         ss_pen_mo = ss_man_mo + ss_woman_mo + pen_man_mo + pen_woman_mo
-        mo_earn_lc_norm_full = np.asarray(mo_earn_lc_norm_base) + ss_pen_mo
-        mo_earn_cc_norm_full = np.asarray(mo_earn_cc_norm_base) + ss_pen_mo
+        mo_earn_lc_norm_full = np.asarray(mo_earn_lc_norm_base) + ss_pen_mo + mo_earn_refund_lc_norm
+        mo_earn_cc_norm_full = np.asarray(mo_earn_cc_norm_base) + ss_pen_mo + mo_earn_refund_cc_norm
         self.mo_earn_lc_norm = mo_earn_lc_norm_full.tolist()
         self.cum_mo_earn_lc_norm = np.cumsum(mo_earn_lc_norm_full).tolist()
         self.mo_earn_cc_norm = mo_earn_cc_norm_full.tolist()
@@ -622,6 +654,21 @@ class TaylorLife:
         self.mo_exp_non_taylor_norm, self.cum_mo_exp_non_taylor_norm = self._monthly_norm(np.asarray(self.exp_non_taylor_history, dtype=float), inflation_cum)
         self.mo_exp_total_lc_norm, self.cum_mo_exp_total_lc_norm = self._monthly_norm(np.asarray(self.exp_total_lc_history, dtype=float), inflation_cum)
         self.mo_exp_total_cc_norm, self.cum_mo_exp_total_cc_norm = self._monthly_norm(np.asarray(self.exp_total_cc_history, dtype=float), inflation_cum)
+        # Monthly surcharges: fixed nominal, active the full horizon, normalized by inflation
+        surcharge_cc_mo_norm = np.full(n, self.surcharges_cc) / inflation_cum
+        surcharge_lc_mo_norm = np.full(n, self.surcharges_lc) / inflation_cum
+        mo_exp_cc = np.asarray(self.mo_exp_cc_norm) + surcharge_cc_mo_norm
+        mo_exp_lc = np.asarray(self.mo_exp_lc_norm) + surcharge_lc_mo_norm
+        self.mo_exp_cc_norm = mo_exp_cc.tolist()
+        self.cum_mo_exp_cc_norm = np.cumsum(mo_exp_cc).tolist()
+        self.mo_exp_lc_norm = mo_exp_lc.tolist()
+        self.cum_mo_exp_lc_norm = np.cumsum(mo_exp_lc).tolist()
+        mo_exp_total_cc = np.asarray(self.mo_exp_total_cc_norm) + surcharge_cc_mo_norm
+        mo_exp_total_lc = np.asarray(self.mo_exp_total_lc_norm) + surcharge_lc_mo_norm
+        self.mo_exp_total_cc_norm = mo_exp_total_cc.tolist()
+        self.cum_mo_exp_total_cc_norm = np.cumsum(mo_exp_total_cc).tolist()
+        self.mo_exp_total_lc_norm = mo_exp_total_lc.tolist()
+        self.cum_mo_exp_total_lc_norm = np.cumsum(mo_exp_total_lc).tolist()
         self.worth_lc_history = worth_lc_history.tolist()
         self.worth_cc_history = worth_cc_history.tolist()
         self.worth_norm_lc_history = (worth_lc_history / inflation_cum).tolist()

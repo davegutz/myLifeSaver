@@ -5,21 +5,11 @@ Latin Hypercube Sampling (LHS) Monte Carlo analysis centered around the Gutz cas
 from Run_one_Taylor.py local_run_overrides. Includes edge cases, replay cases, and all
 plotting features.
 
-Output: lhs_gutz_taylor_results.csv
+Output: lhs_gutz+5_taylor_results.csv
 
 The centerpoint scenario and ranges are defined below; modify them to explore different
 regions of the scenario space.
 """
-
-# User inputs
-#  To force the probability both man and woman go to AL instead of dying right away
-force_al = False
-plotting = True
-LIFE_PARAM_VARIATION = 0.5 # For life parameters, use ±50% range around centerpoint (0.5)
-DEFAULT_LHS_POINTS = 1000
-ROI_MEAN_SHIFT_RANGE = (-0.003, 0.003)
-ROI_VOL_MULTIPLIER_RANGE = (0.8, 1.2)
-ROI_MEAN_REVERSION_RANGE = (0.1, 0.3)
 
 
 import argparse
@@ -48,24 +38,20 @@ from Center_LHS_Gutz_Taylor import (
     CENTERPOINT_MAN_ASSISTED_YRS,
     CENTERPOINT_MAN_GOES_TO_AL,
     CENTERPOINT_MAN_GOES_TO_AL_SEED,
-    CENTERPOINT_MAN_INDEPENDENT_YRS,
     CENTERPOINT_ROI_SEED,
     CENTERPOINT_USE_CONSTANT_RATES,
     CENTERPOINT_WOMAN_ASSISTED_YRS,
     CENTERPOINT_WOMAN_GOES_TO_AL,
     CENTERPOINT_WOMAN_GOES_TO_AL_SEED,
-    CENTERPOINT_WOMAN_INDEPENDENT_YRS,
 )
 from default_case import (
     AL_ESC_RUNNING_AVG_YRS,
     DEFAULT_SEED,
     DEFAULT_CURRENT_DATE,
     HISTORY_YEARS,
-    MAN_DOB,
     P_MAN_AL,
     P_WOMAN_AL,
     START_CLOCK,
-    WOMAN_DOB,
     apy_percent_to_monthly_fraction,
 )
 from edges import build_replay_case_scenarios_gutz, format_apy_suffix
@@ -74,6 +60,22 @@ from Taylor import LhsScenario, ScenarioRunContext
 from utils import evaluate_lhs_scenario
 from Roi import TICKER
 
+# User inputs
+#  To force the probability both man and woman go to AL instead of dying right away
+force_al = False
+plotting = True
+LIFE_PARAM_VARIATION = 0.5 # For life parameters, use ±50% range around centerpoint (0.5)
+DEFAULT_LHS_POINTS = 1000
+ROI_MEAN_SHIFT_RANGE = (-0.003, 0.003)
+ROI_VOL_MULTIPLIER_RANGE = (0.8, 1.2)
+ROI_MEAN_REVERSION_RANGE = (0.1, 0.3)
+MAN_DOB = "1952-07-26"
+WOMAN_DOB = "1951-04-11"
+# MAN_INDEPENDENT_YRS_RANGE = (74.0 - age(START_CLOCK, MAN_DOB), 90.0 - age(START_CLOCK, MAN_DOB))
+# WOMAN_INDEPENDENT_YRS_RANGE = (75.0 - age(START_CLOCK, WOMAN_DOB), 90.0 - age(START_CLOCK, WOMAN_DOB))
+
+CENTERPOINT_MAN_INDEPENDENT_YRS = 5.
+CENTERPOINT_WOMAN_INDEPENDENT_YRS = 4.4
 
 # ============================================================================
 # IMPORTANT: ROI AND INFLATION RATES
@@ -324,7 +326,7 @@ def parse_args(
     default_seed: int = DEFAULT_SEED,
     default_current_date: str = DEFAULT_CURRENT_DATE,
     default_lhs_points: int = DEFAULT_LHS_POINTS,
-    default_lhs_output: str = "lhs_gutz_taylor_results.csv",
+    default_lhs_output: str = "lhs_gutz+5_taylor_results.csv",
 ) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--ticker", default=default_ticker, help=f"Ticker symbol to download, default: {default_ticker}")

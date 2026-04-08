@@ -171,6 +171,7 @@ def main() -> None:
         ("cum_mo_earn_ss_norm",  _last(this_life.cum_mo_earn_ss_norm),  _last(this_life.cum_mo_earn_ss_norm)),
         ("cum_mo_earn_pen_norm", _last(this_life.cum_mo_earn_pen_norm), _last(this_life.cum_mo_earn_pen_norm)),
         ("cum_mo_earn_inv_norm", _last(this_life.cum_mo_earn_inv_cc_norm), _last(this_life.cum_mo_earn_inv_lc_norm)),
+        ("earn_refund_norm",     this_life.earn_refund_cc_norm,           this_life.earn_refund_lc_norm),
         ("---",                    None, None),
         ("cum_mo_earn_norm",       _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
         ("",                       None, None),

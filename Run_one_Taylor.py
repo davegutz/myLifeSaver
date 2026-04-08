@@ -46,7 +46,7 @@ from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 plot = False
 FORCE_AL_CERTAINTY = True
 # ROI_FIXED = None
-ROI_FIXED = 0.
+ROI_FIXED = 4.
 # CPI_FIXED = None
 CPI_FIXED = 4.
 RUN_ONE_CASE_NAME: str | None = None  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
@@ -198,6 +198,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("SS_WOMAN mo", this_life.ss_woman, this_life.ss_woman),
         ("PEN_MAN mo", this_life.pen_man, this_life.pen_man),
         ("PEN_WOMAN mo", this_life.pen_woman, this_life.pen_woman),
+        ("surcharges mo", this_life.surcharges_cc, this_life.surcharges_lc),
         ("yrs sum al", this_life.man_assisted_yrs + this_life.woman_assisted_yrs,
                        this_life.man_assisted_yrs + this_life.woman_assisted_yrs),
         ("total_living_yrs",
@@ -219,6 +220,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("cum_mo_earn_ss_norm", _last(this_life.cum_mo_earn_ss_norm), _last(this_life.cum_mo_earn_ss_norm)),
         ("cum_mo_earn_pen_norm", _last(this_life.cum_mo_earn_pen_norm), _last(this_life.cum_mo_earn_pen_norm)),
         ("cum_mo_earn_inv_norm", _last(this_life.cum_mo_earn_inv_cc_norm), _last(this_life.cum_mo_earn_inv_lc_norm)),
+        ("earn_refund_norm", this_life.earn_refund_cc_norm, this_life.earn_refund_lc_norm),
         ("---", None, None),
         ("cum_mo_earn_norm", _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
         ("", None, None),
@@ -283,6 +285,10 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cum_mo_earn_inv_lc_norm': this_life.cum_mo_earn_inv_lc_norm,
         'mo_earn_inv_cc_norm': this_life.mo_earn_inv_cc_norm,
         'cum_mo_earn_inv_cc_norm': this_life.cum_mo_earn_inv_cc_norm,
+        'mo_earn_refund_cc_norm': this_life.mo_earn_refund_cc_norm,
+        'cum_mo_earn_refund_cc_norm': this_life.cum_mo_earn_refund_cc_norm,
+        'mo_earn_refund_lc_norm': this_life.mo_earn_refund_lc_norm,
+        'cum_mo_earn_refund_lc_norm': this_life.cum_mo_earn_refund_lc_norm,
         'mo_earn_ss_man_norm': this_life.mo_earn_ss_man_norm,
         'cum_mo_earn_ss_man_norm': this_life.cum_mo_earn_ss_man_norm,
         'mo_earn_ss_woman_norm': this_life.mo_earn_ss_woman_norm,
@@ -332,6 +338,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         "cum_mo_earn_ss_norm": _last(this_life.cum_mo_earn_ss_norm)/1e6,
         "cum_mo_earn_pen_norm": _last(this_life.cum_mo_earn_pen_norm)/1e6,
         "cum_mo_earn_inv_cc_norm": _last(this_life.cum_mo_earn_inv_cc_norm)/1e6,
+        "earn_refund_cc_norm": this_life.earn_refund_cc_norm/1e6,
         "cum_mo_earn_cc_norm": _last(this_life.cum_mo_earn_cc_norm)/1e6,
         "cum_mo_earn_total_cc_norm": _last(this_life.cum_mo_earn_cc_norm)/1e6,
         "cum_mo_exp_non_taylor_norm": _last(this_life.cum_mo_exp_non_taylor_norm)/1e6,
@@ -341,6 +348,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         "worth_norm_cc": worth_norm_cc/1e6,
         "entrance_fee_lc": this_life.entrance_fee_lc/1e6,
         "cum_mo_earn_inv_lc_norm": _last(this_life.cum_mo_earn_inv_lc_norm)/1e6,
+        "earn_refund_lc_norm": this_life.earn_refund_lc_norm/1e6,
         "cum_mo_earn_lc_norm": _last(this_life.cum_mo_earn_lc_norm)/1e6,
         "cum_mo_earn_total_lc_norm": _last(this_life.cum_mo_earn_lc_norm)/1e6,
         "cum_mo_exp_lc_norm": _last(this_life.cum_mo_exp_lc_norm)/1e6,

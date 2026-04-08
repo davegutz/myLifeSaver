@@ -42,10 +42,9 @@ from utils import age, evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 
 
 # User inputs
-#  To force the probability both man and woman go to AL instead of dying right away
-force_al = False
-plotting = False
-DEFAULT_LHS_POINTS = 1  # will change seed values if not the same between runs
+force_al = False  #  To force the probability both man and woman go to AL instead of dying right away (False, True very special debug)
+plotting = True
+DEFAULT_LHS_POINTS = 1000  # will change seed values if not the same between runs
 
 
 # ============================================================================
@@ -64,10 +63,12 @@ DEFAULT_LHS_POINTS = 1  # will change seed values if not the same between runs
 # ============================================================================
 
 # Fixed and default varied parameters are imported from default_case.py.
-MAN_INDEPENDENT_YRS_RANGE = (69.0 - age(START_CLOCK, MAN_DOB), 90.0 - age(START_CLOCK, MAN_DOB))
-WOMAN_INDEPENDENT_YRS_RANGE = (70.0 - age(START_CLOCK, WOMAN_DOB), 90.0 - age(START_CLOCK, WOMAN_DOB))
-MAN_ASSISTED_YRS_RANGE = (0., 10.0)
-WOMAN_ASSISTED_YRS_RANGE = (0., 10.0)
+MAN_DOB = "1952-07-26"
+WOMAN_DOB = "1951-04-11"
+MAN_INDEPENDENT_YRS_RANGE = (74.0 - age(START_CLOCK, MAN_DOB), 90.0 - age(START_CLOCK, MAN_DOB))
+WOMAN_INDEPENDENT_YRS_RANGE = (75.0 - age(START_CLOCK, WOMAN_DOB), 90.0 - age(START_CLOCK, WOMAN_DOB))
+MAN_ASSISTED_YRS_RANGE = (0., 5.0)
+WOMAN_ASSISTED_YRS_RANGE = (0., 5.0)
 SEED_RANGE = (0, 1000000)
 ROI_MEAN_SHIFT_RANGE = (-0.01, 0.01)
 ROI_VOL_MULTIPLIER_RANGE = (0.5, 1.5)
@@ -367,6 +368,8 @@ def summarize_lhs_run(
         cum_mo_earn_cc_norm=last_value(model.cum_mo_earn_cc_norm),
         cum_mo_earn_inv_lc_norm=last_value(model.cum_mo_earn_inv_lc_norm),
         cum_mo_earn_inv_cc_norm=last_value(model.cum_mo_earn_inv_cc_norm),
+        earn_refund_cc_norm=model.earn_refund_cc_norm,
+        earn_refund_lc_norm=model.earn_refund_lc_norm,
         cum_mo_earn_ss_man_norm=last_value(model.cum_mo_earn_ss_man_norm),
         cum_mo_earn_ss_woman_norm=last_value(model.cum_mo_earn_ss_woman_norm),
         cum_mo_earn_ss_norm=last_value(model.cum_mo_earn_ss_norm),
