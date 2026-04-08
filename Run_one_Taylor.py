@@ -400,8 +400,7 @@ def configurate_local_run(roi_fixed: float | None = CENTERPOINT_CONSTANT_MONTHLY
             "woman_assisted_yrs": yrs_al_woman,  # google women in al; assume no mc (conservative for yes on lc decision). scale by P because setting p=1 woman_goes_to_al = T
             "roi_seed": 740264,
             "inflation_seed": 898910,
-            "man_goes_to_al": force_al_certainty,
-            "woman_goes_to_al": force_al_certainty,
+            **({"man_goes_to_al": force_al_certainty, "woman_goes_to_al": force_al_certainty} if force_al_certainty is not None else {}),
             "roi_mean_shift": 0.0080464851559136,
             "inflation_mean_shift": -0.00459579542225717,
         },
