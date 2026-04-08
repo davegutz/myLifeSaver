@@ -47,8 +47,8 @@ plot = False
 FORCE_AL_CERTAINTY = True
 ROI_FIXED = None
 # ROI_FIXED = 0.
-# CPI_FIXED = None
-CPI_FIXED = 0.
+CPI_FIXED = None
+# CPI_FIXED = 0.
 RUN_ONE_CASE_NAME: str | None = None  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 # RUN_ONE_CASE_NAME: str | None = 'RUN_ONE_PRESENT'  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 
@@ -85,7 +85,7 @@ def normalize_run_one_inputs(run_config: dict[str, dict[str, object]], printing=
         raw = context_kwargs.get(key)
         if raw is None:
             return
-        value = float(raw)
+        value = float(raw)  # type: ignore[arg-type]
         monthly = apy_percent_to_monthly_fraction(value)
         if printing:
             print(f"Interpreting {key}={value} as APY percent; using monthly fraction {monthly:.8f}")
@@ -93,10 +93,13 @@ def normalize_run_one_inputs(run_config: dict[str, dict[str, object]], printing=
 
     normalize_constant_rate("constant_monthly_roi", printing=printing)
     normalize_constant_rate("constant_monthly_cpi", printing=printing)
-    if "current_date" in context_kwargs and context_kwargs["current_date"] is not None:
-        context_kwargs["current_date"] = pd.Timestamp(context_kwargs["current_date"]).normalize()
-    man_goes_to_al_seed = int(scenario_kwargs.pop("man_goes_to_al_seed", DEFAULT_SEED))
-    woman_goes_to_al_seed = int(scenario_kwargs.pop("woman_goes_to_al_seed", DEFAULT_SEED))
+    if "current_date" in context_kwargs:
+        if context_kwargs["current_date"] is None:
+            del context_kwargs["current_date"]
+        else:
+            context_kwargs["current_date"] = pd.Timestamp(context_kwargs["current_date"]).normalize()  # type: ignore[arg-type]
+    man_goes_to_al_seed = int(scenario_kwargs.pop("man_goes_to_al_seed", DEFAULT_SEED))  # type: ignore[arg-type]
+    woman_goes_to_al_seed = int(scenario_kwargs.pop("woman_goes_to_al_seed", DEFAULT_SEED))  # type: ignore[arg-type]
     if "man_goes_to_al" not in scenario_kwargs:
         scenario_kwargs["man_goes_to_al"] = bool(
             np.random.default_rng(man_goes_to_al_seed).binomial(1, P_MAN_AL)
@@ -124,7 +127,7 @@ def realized_monthly_rate(path, fallback: float) -> float:
 
 def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | None = None, plot=True, printing=True) -> dict:
     scenario, context = normalize_run_one_inputs(run_config, printing=printing)
-    current_date = pd.Timestamp(context.current_date).normalize()
+    current_date = pd.Timestamp(context.current_date).normalize()  # type: ignore[union-attr]
     if printing:
         if active_case_name is not None:
             print(f"Using default case '{active_case_name}' from default_case.py")
@@ -134,7 +137,6 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
     this_life, result = evaluate_lhs_scenario(scenario=scenario, context=context)
     roi = this_life.roi
     cpi = this_life.cpi
-    annualized_inflation = cpi.annualized_inflation
     if cpi.inflation_frame is None:
         raise ValueError("Inflation history was not loaded during projection.")
     inflation_frame = cpi.inflation_frame
@@ -378,7 +380,7 @@ def configurate_base_run(args):
     return base_run_config
 
 
-def configurate_local_run(roi_fixed=CENTERPOINT_CONSTANT_MONTHLY_ROI, cpi_fixed=CENTERPOINT_CONSTANT_MONTHLY_CPI,
+def configurate_local_run(roi_fixed: float | None = CENTERPOINT_CONSTANT_MONTHLY_ROI, cpi_fixed: float | None = CENTERPOINT_CONSTANT_MONTHLY_CPI,
                           yrs_il_man=CENTERPOINT_MAN_INDEPENDENT_YRS, yrs_il_woman=CENTERPOINT_WOMAN_INDEPENDENT_YRS,
                           yrs_al_man=CENTERPOINT_MAN_ASSISTED_YRS,  yrs_al_woman=CENTERPOINT_WOMAN_ASSISTED_YRS,
                           force_al_certainty=None):
