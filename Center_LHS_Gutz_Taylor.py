@@ -15,8 +15,8 @@ CENTERPOINT_WOMAN_GOES_TO_AL = True  # set False to let seed determine result
 # If float and abs(value) <= 1.0, it is treated as a fixed monthly fraction.
 # If float and abs(value) > 1.0, it is treated as APY percent and converted to monthly.
 
-CENTERPOINT_CONSTANT_MONTHLY_ROI = 8.
-# CENTERPOINT_CONSTANT_MONTHLY_ROI = 4.
+# CENTERPOINT_CONSTANT_MONTHLY_ROI = 8.
+CENTERPOINT_CONSTANT_MONTHLY_ROI = 4.
 CENTERPOINT_CONSTANT_MONTHLY_CPI = 4.
 
 # Toggle for CENTERPOINT row only in Run_LHS_Gutz_Ti aylor:

@@ -45,7 +45,10 @@ from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 # User inputs
 plot = False
 FORCE_AL_CERTAINTY = True
-
+ROI_FIXED = None
+# ROI_FIXED = 0.
+# CPI_FIXED = None
+CPI_FIXED = 0.
 RUN_ONE_CASE_NAME: str | None = None  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 # RUN_ONE_CASE_NAME: str | None = 'RUN_ONE_PRESENT'  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 
@@ -170,24 +173,23 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("woman age at death", this_life.woman_age_at_death, this_life.woman_age_at_death),
         ("yrs il double", min(this_life.man_independent_yrs, this_life.woman_independent_yrs),
                           min(this_life.man_independent_yrs, this_life.woman_independent_yrs)),
-        ("CC_2", this_life.initial_cc_2 * 12.0, 0.0),
-        ("LC_2", 0.0, this_life.initial_lc_2 * 12.0),
         ("yrs il single", abs(this_life.man_independent_yrs - this_life.woman_independent_yrs),
                           abs(this_life.man_independent_yrs - this_life.woman_independent_yrs)),
-        ("CC_1_1", this_life.initial_cc_1_1 * 12.0, 0.0),
-        ("CC_1_2", this_life.initial_cc_1_2 * 12.0, 0.0),
-        ("LC_1_1", 0.0, this_life.initial_lc_1_1 * 12.0),
+        ("yrs al double", np.array(this_life.num_al_2).sum()/2./12., np.array(this_life.num_al_2).sum()/2./12.),
+        ("yrs al single", (np.array(this_life.num_al_1_2).sum() + np.array(this_life.num_al_1_1).sum())/12.,
+                          (np.array(this_life.num_al_1_2).sum() + np.array(this_life.num_al_1_1).sum())/12.),
+        ("LC_2", 0.0, this_life.initial_lc_2 * 12.0),
         ("LC_1_2", 0.0, this_life.initial_lc_1_2 * 12.0),
-        ("yrs al double", min(this_life.man_assisted_yrs, this_life.woman_assisted_yrs),
-                          min(this_life.man_assisted_yrs, this_life.woman_assisted_yrs)),
-        ("AL_CC_2", this_life.initial_al_cc_2 * 12.0, 0.0),
-        ("AL_LC_2", 0.0, this_life.initial_al_lc_2 * 12.0),
-        ("yrs al single", abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs),
-                          abs(this_life.man_assisted_yrs - this_life.woman_assisted_yrs)),
-        ("AL_CC_1_1", this_life.initial_al_cc_1_1 * 12.0, 0.0),
-        ("AL_CC_1_2", this_life.initial_al_cc_1_2 * 12.0, 0.0),
-        ("AL_LC_1_1", 0.0, this_life.initial_al_lc_1_1 * 12.0),
+        ("LC_1_1", 0.0, this_life.initial_lc_1_1 * 12.0),
         ("AL_LC_1_2", 0.0, this_life.initial_al_lc_1_2 * 12.0),
+        ("AL_LC_2", 0.0, this_life.initial_al_lc_2 * 12.0),
+        ("AL_LC_1_1", 0.0, this_life.initial_al_lc_1_1 * 12.0),
+        ("CC_2", this_life.initial_cc_2 * 12.0, 0.0),
+        ("CC_1_2", this_life.initial_cc_1_2 * 12.0, 0.0),
+        ("CC_1_1", this_life.initial_cc_1_1 * 12.0, 0.0),
+        ("AL_CC_1_2", this_life.initial_al_cc_1_2 * 12.0, 0.0),
+        ("AL_CC_2", this_life.initial_al_cc_2 * 12.0, 0.0),
+        ("AL_CC_1_1", this_life.initial_al_cc_1_1 * 12.0, 0.0),
         ("exp_entrance_fee_cc", this_life.entrance_fee_cc, 0.0),
         ("exp_entrance_fee_lc", 0.0, this_life.entrance_fee_lc),
         ("SS_MAN mo", this_life.ss_man, this_life.ss_man),
@@ -219,8 +221,8 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         ("cum_mo_earn_norm", _last(this_life.cum_mo_earn_cc_norm), _last(this_life.cum_mo_earn_lc_norm)),
         ("", None, None),
         ("exp_entrance_fee", this_life.entrance_fee_cc, this_life.entrance_fee_lc),
-        ("cum_mo_exp_norm", _last(this_life.cum_mo_exp_cc_norm), _last(this_life.cum_mo_exp_lc_norm)),
-        ("cum_mo_exp_al_norm", _last(this_life.cum_mo_exp_al_cc_norm), 0.0),
+        ("cum_mo_exp_il_norm", _last(this_life.cum_mo_exp_cc_norm), _last(this_life.cum_mo_exp_lc_norm)),
+        ("cum_mo_exp_al_norm", _last(this_life.cum_mo_exp_al_cc_norm), _last(this_life.cum_mo_exp_al_lc_norm)),
         ("cum_mo_exp_non_taylor_norm", _last(this_life.cum_mo_exp_non_taylor_norm), _last(this_life.cum_mo_exp_non_taylor_norm)),
         ("---", None, None),
         ("cum_mo_exp_total_norm", _last(this_life.cum_mo_exp_total_cc_norm), _last(this_life.cum_mo_exp_total_lc_norm)),
@@ -233,7 +235,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         print(f"{'item':<28}{'cc':>15}{'lc':>15}")
         print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
         for item, cc_value, lc_value in header_rows:
-            print(f"{item:<28}{cc_value:>15.1f}{lc_value:>15.1f}")
+            print(f"{item:<28}{cc_value:>15.2f}{lc_value:>15.2f}")
         print(f"{'-' * 28}{'-' * 15}{'-' * 15}")
         for item, cc_value, lc_value in table_rows:
             if cc_value is None:
@@ -258,16 +260,16 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cpi_one_dollar': this_life.cpi.life_horizon_inflation_cum.tolist(),
         'roi_one_dollar': this_life.roi.life_horizon_roi_cum.tolist(),
         'num_il_2': this_life.num_il_2,
-        'num_il_1_1': this_life.num_il_1_1,
         'num_il_1_2': this_life.num_il_1_2,
+        'num_il_1_1': this_life.num_il_1_1,
+        'num_al_1_2': this_life.num_al_1_2,
         'num_al_2': this_life.num_al_2,
         'num_al_1_1': this_life.num_al_1_1,
-        'num_al_1_2': this_life.num_al_1_2,
         'num_il': np.asarray(this_life.num_il).tolist(),
         'num_al': np.asarray(this_life.num_al).tolist(),
         'num_non_taylor_2': this_life.num_non_taylor_2,
-        'num_non_taylor_1_1': this_life.num_non_taylor_1_1,
         'num_non_taylor_1_2': this_life.num_non_taylor_1_2,
+        'num_non_taylor_1_1': this_life.num_non_taylor_1_1,
         'num_non_taylor': (np.asarray(this_life.num_non_taylor_1_1) + np.asarray(this_life.num_non_taylor_2)).tolist(),
         'earn_norm_lc': this_life.earn_norm_lc_history,
         'earn_norm_cc': this_life.earn_norm_cc_history,
@@ -293,9 +295,7 @@ def run_one(run_config: dict[str, dict[str, object]], active_case_name: str | No
         'cum_mo_earn_pen_norm': this_life.cum_mo_earn_pen_norm,
         'exp_norm_total_lc': this_life.exp_norm_total_lc,
         'exp_norm_total_cc': this_life.exp_norm_total_cc,
-        'worth_norm_lc': this_life.worth_norm_lc_history,
-         'worth_norm_cc': this_life.worth_norm_cc_history,
-         'added_lc_worth_norm': [added_lc_worth_norm] * len(this_life.dates),
+        'added_lc_worth_norm': [added_lc_worth_norm] * len(this_life.dates),
         'mo_exp_lc_norm': this_life.mo_exp_lc_norm,
         'cum_mo_exp_lc_norm': this_life.cum_mo_exp_lc_norm,
         'mo_exp_cc_norm': this_life.mo_exp_cc_norm,
@@ -382,6 +382,10 @@ def configurate_local_run(roi_fixed=CENTERPOINT_CONSTANT_MONTHLY_ROI, cpi_fixed=
                           yrs_il_man=CENTERPOINT_MAN_INDEPENDENT_YRS, yrs_il_woman=CENTERPOINT_WOMAN_INDEPENDENT_YRS,
                           yrs_al_man=CENTERPOINT_MAN_ASSISTED_YRS,  yrs_al_woman=CENTERPOINT_WOMAN_ASSISTED_YRS,
                           force_al_certainty=None):
+    if roi_fixed is None:
+        roi_fixed = CENTERPOINT_CONSTANT_MONTHLY_ROI
+    if cpi_fixed is None:
+        cpi_fixed = CENTERPOINT_CONSTANT_MONTHLY_ROI
     if force_al_certainty:  # forcing P=1 and compensating here
         yrs_al_man *= P_MAN_AL
         yrs_al_woman *= P_WOMAN_AL
@@ -424,7 +428,8 @@ def main() -> None:
 
     # Hand-edit these local overrides as your normal workflow.
     # Precedence is: base defaults -> named default case -> local overrides.
-    local_run_overrides = configurate_local_run(force_al_certainty=FORCE_AL_CERTAINTY)
+    local_run_overrides = configurate_local_run(roi_fixed=ROI_FIXED, cpi_fixed=CPI_FIXED,
+                                                force_al_certainty=FORCE_AL_CERTAINTY)
 
     run_config = merge_run_config(base_run_config, case_run_config, local_run_overrides)
     run_one(run_config=run_config, active_case_name=active_case_name, plot=plot)

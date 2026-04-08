@@ -27,21 +27,21 @@ SS_WOMAN = 2667.     # monthly Social Security income (grows with CPI)
 PEN_MAN = 5705.      # monthly pension income (fixed nominal)
 PEN_WOMAN = 1552.    # monthly pension income (fixed nominal)
 
-CC_1_1 = 3550.
-CC_1_2 = 0.
-CC_2 = 3750. / 2.
-
-AL_CC_1_1 = 10000.
-AL_CC_1_2 = 0.
-AL_CC_2 = 13500. / 2.
-
-LC_1_1 = 8100.
-LC_1_2 = 0.
 LC_2 = 9600. / 2.
+LC_1_2 = 9600. / 2.
+LC_1_1 = 8100.
 
-AL_LC_1_1 = 8100.
-AL_LC_1_2 = 0.
+AL_LC_1_2 = 9600. / 2.
 AL_LC_2 = 9600. / 2.
+AL_LC_1_1 = 8100.
+
+CC_2 = 3750. / 2.
+CC_1_2 = 3750. / 2.
+CC_1_1 = 3550.
+
+AL_CC_1_2 = 9200.
+AL_CC_2 = 13500. / 2.
+AL_CC_1_1 = 10000.
 
 # CONSTANT_ROI_APY_PERCENT = 10.0
 # CONSTANT_CPI_APY_PERCENT = 5.0
