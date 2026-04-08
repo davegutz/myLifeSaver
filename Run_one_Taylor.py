@@ -45,10 +45,10 @@ from utils import evaluate_lhs_scenario, plot_taylor_life_exp_non_taylor
 # User inputs
 plot = False
 FORCE_AL_CERTAINTY = True
-ROI_FIXED = None
-# ROI_FIXED = 0.
-CPI_FIXED = None
-# CPI_FIXED = 0.
+# ROI_FIXED = None
+ROI_FIXED = 0.
+# CPI_FIXED = None
+CPI_FIXED = 4.
 RUN_ONE_CASE_NAME: str | None = None  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 # RUN_ONE_CASE_NAME: str | None = 'RUN_ONE_PRESENT'  # e.g. "RUN_ONE_PRESENT" or "DEFAULT"
 

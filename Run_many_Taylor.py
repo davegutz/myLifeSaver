@@ -40,13 +40,6 @@ def plot_run_many(results: list[dict], titl='') -> None:
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     fig.suptitle("LC benefit and Worth" + titl)
-    plt.text(0.2, 1.2, titl,
-             horizontalalignment='left',
-             verticalalignment='top',
-             fontsize=14,
-             bbox=dict(facecolor='lightblue', alpha=0.5, pad=5))
-            # bbox = dict(facecolor='yellow', alpha=0.5, pad=5))
-
 
     for label, rows in groups.items():
         rows_al = sorted(rows, key=lambda r: r["yrs_al_total"])
@@ -66,14 +59,13 @@ def plot_run_many(results: list[dict], titl='') -> None:
         ax.set_ylabel("worth norm ($M)")
         ax.legend()
         ax.grid(True)
-        plt.text(0.2, 0.9, "Key:  ROI_CPI ",
-                 horizontalalignment='left',
-                 verticalalignment='top',
-                 transform=plt.gca().transAxes,
-                 fontsize=12,
-                 color='lightblue',
-                 bbox=dict(alpha=0.5, pad=5))
-                # bbox = dict(facecolor='yellow', alpha=0.5, pad=5))
+        ax.text(0.2, 0.9, "Key:  ROI_CPI ",
+                horizontalalignment='left',
+                verticalalignment='top',
+                transform=ax.transAxes,
+                fontsize=12,
+                color='lightblue',
+                bbox=dict(alpha=0.5, pad=5))
     plt.tight_layout()
     plt.show()
 
@@ -92,8 +84,9 @@ def main() -> None:
         }
 
     # yrs_il_man, yrs_il_woman = [15, 13.]
-    yrs_il_man, yrs_il_woman = [10, 8.8]
+    # yrs_il_man, yrs_il_woman = [10, 8.8]
     # yrs_il_man, yrs_il_woman = [5, 4.4]
+    yrs_il_man, yrs_il_woman = [1, 0.4]
     ins = [
         [0, 0, 8, 4],
         [0.5, 0.5, 8, 4],
@@ -143,7 +136,7 @@ def main() -> None:
         [2, 2, 2, 4],
         [4, 4, 4, 2],
         [8, 8, 4, 2],
-        # [CENTERPOINT_MAN_ASSISTED_YRS, CENTERPOINT_WOMAN_ASSISTED_YRS, 4, 4],
+        # [CENTERPOINT_MAN_ASSISTED_YRS, CENTERPOINT_WOMAN_ASSISTED_YRS, 0, 4],
     ]
 
     cc_worth_norm = []
